@@ -1,3 +1,5 @@
+import { globalShortcut } from 'electron';
+
 import type { PasteAttempt, PasteSupport, ShortcutBackend } from '@toph/desktop-contracts';
 
 import { createLinuxPlatformAdapter } from './linux';
@@ -13,17 +15,14 @@ export interface ShortcutSupport {
 export interface PlatformAdapter {
   describePasteSupport: () => Promise<PasteSupport>;
   pasteFromClipboard: () => Promise<PasteAttempt>;
-  describeShortcutSupport: (options: {
-    electronRegistered: boolean;
+  registerShortcut: (options: {
+    accelerator: string;
     command: string | null;
     binding: string;
     label: string;
+    onTrigger: () => void;
   }) => Promise<ShortcutSupport>;
-  installShortcut: (options: {
-    command: string | null;
-    binding: string;
-    label: string;
-  }) => Promise<ShortcutSupport>;
+  unregisterShortcut: () => void;
 }
 
 export function createPlatformAdapter(): PlatformAdapter {
@@ -46,19 +45,23 @@ export function createPlatformAdapter(): PlatformAdapter {
           'Transcript copied to clipboard. Auto-paste is not implemented for this platform yet.',
       };
     },
-    async describeShortcutSupport({ electronRegistered }) {
+    async registerShortcut({ accelerator, onTrigger }) {
+      globalShortcut.unregisterAll();
+      const registered = globalShortcut.register(accelerator, onTrigger);
+
       return {
         backend: 'electron-global-shortcut',
-        registered: electronRegistered,
-        installable: false,
-        installed: false,
-        detail: electronRegistered
+        registered,
+        installable: true,
+        installed: registered,
+        detail: registered
           ? 'Electron global shortcut registration is active.'
           : 'Electron global shortcut registration is unavailable right now.',
       };
     },
-    async installShortcut() {
-      throw new Error('Shortcut installation is not implemented for this platform.');
+
+    unregisterShortcut() {
+      globalShortcut.unregisterAll();
     },
   };
 }

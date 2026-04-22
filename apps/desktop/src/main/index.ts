@@ -8,7 +8,6 @@ import {
   Tray,
   app,
   clipboard,
-  globalShortcut,
   ipcMain,
   nativeImage,
   screen,
@@ -124,31 +123,6 @@ function getShortcutLauncherCommand() {
   }
 
   return `sh ${shellQuote(launcherScriptPath)} ${toggleCaptureFlag}`;
-}
-
-async function refreshShortcutState(electronRegistered: boolean) {
-  const preset = resolveShortcutPreset(state.shortcut.presetId);
-
-  patchState({
-    shortcut: {
-      ...state.shortcut,
-      accelerator: preset.accelerator,
-      label: preset.label,
-      ...(await platformAdapter.describeShortcutSupport({
-        electronRegistered,
-        command: getShortcutLauncherCommand(),
-        binding: preset.gnomeBinding,
-        label: preset.label,
-      })),
-    },
-  });
-}
-
-function registerElectronShortcut(accelerator: string) {
-  globalShortcut.unregisterAll();
-  return globalShortcut.register(accelerator, () => {
-    void toggleCapture();
-  });
 }
 
 function getRendererUrl(page: 'index.html' | 'overlay.html') {
@@ -400,9 +374,27 @@ function createTray() {
   ipcMain.on('toph:refresh-tray', refreshMenu);
 }
 
-function registerShortcut() {
-  const registered = registerElectronShortcut(state.shortcut.accelerator);
-  void refreshShortcutState(registered);
+async function applyShortcutPreset(presetId: ShortcutPresetId) {
+  const preset = resolveShortcutPreset(presetId);
+  const shortcut = await platformAdapter.registerShortcut({
+    accelerator: preset.accelerator,
+    command: getShortcutLauncherCommand(),
+    binding: preset.gnomeBinding,
+    label: preset.label,
+    onTrigger: () => {
+      void toggleCapture();
+    },
+  });
+
+  patchState({
+    shortcut: {
+      ...state.shortcut,
+      presetId: preset.id,
+      accelerator: preset.accelerator,
+      label: preset.label,
+      ...shortcut,
+    },
+  });
 }
 
 function registerIpc() {
@@ -417,23 +409,7 @@ function registerIpc() {
     hideSettingsWindow();
   });
   ipcMain.handle('toph:install-shortcut', async (_event, presetId: ShortcutPresetId) => {
-    const preset = resolveShortcutPreset(presetId);
-    registerElectronShortcut(preset.accelerator);
-    const shortcut = await platformAdapter.installShortcut({
-      command: getShortcutLauncherCommand(),
-      binding: preset.gnomeBinding,
-      label: preset.label,
-    });
-
-    patchState({
-      shortcut: {
-        ...state.shortcut,
-        presetId: preset.id,
-        accelerator: preset.accelerator,
-        label: preset.label,
-        ...shortcut,
-      },
-    });
+    await applyShortcutPreset(presetId);
   });
   ipcMain.handle('toph:quit', async () => {
     isQuitting = true;
@@ -468,7 +444,7 @@ async function bootstrap() {
   createSettingsWindow();
   createOverlayWindow();
   createTray();
-  registerShortcut();
+  await applyShortcutPreset(state.shortcut.presetId);
 
   screen.on('display-metrics-changed', positionOverlay);
   screen.on('display-added', positionOverlay);
@@ -477,7 +453,6 @@ async function bootstrap() {
   patchState({
     pasteSupport: await platformAdapter.describePasteSupport(),
   });
-  await refreshShortcutState(globalShortcut.isRegistered(state.shortcut.accelerator));
 
   if (shouldToggleOnLaunch) {
     void toggleCapture();
@@ -488,7 +463,7 @@ async function bootstrap() {
   });
 
   app.on('will-quit', () => {
-    globalShortcut.unregisterAll();
+    platformAdapter.unregisterShortcut();
   });
 }
 

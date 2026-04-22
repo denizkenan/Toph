@@ -1,6 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { globalShortcut } from 'electron';
+
 import type { PasteAttempt, PasteSupport } from '@toph/desktop-contracts';
 
 import type { ShortcutSupport } from './index';
@@ -78,28 +80,6 @@ async function supportsGlobalShortcutsPortal() {
   return globalShortcutsPortalPromise;
 }
 
-async function isGnomeShortcutInstalled(command: string | null, expectedBinding: string) {
-  try {
-    const keybindings = parseQuotedStrings(
-      await gsettingsGet(GNOME_MEDIA_KEYS_SCHEMA, 'custom-keybindings'),
-    );
-    if (!keybindings.includes(GNOME_TOPH_PATH)) {
-      return false;
-    }
-
-    const installedBinding = parseQuotedStrings(
-      await gsettingsGet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'binding', GNOME_TOPH_PATH),
-    )[0];
-    const installedCommand = parseQuotedStrings(
-      await gsettingsGet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'command', GNOME_TOPH_PATH),
-    )[0];
-
-    return installedBinding === expectedBinding && (!command || installedCommand === command);
-  } catch {
-    return false;
-  }
-}
-
 async function installGnomeShortcut(command: string, binding: string) {
   const keybindings = parseQuotedStrings(
     await gsettingsGet(GNOME_MEDIA_KEYS_SCHEMA, 'custom-keybindings'),
@@ -133,38 +113,59 @@ async function installGnomeShortcut(command: string, binding: string) {
   );
 }
 
-async function describeShortcutSupport(options: {
-  electronRegistered: boolean;
-  command: string | null;
-  binding: string;
-  label: string;
-}): Promise<ShortcutSupport> {
+function registerElectronShortcut(accelerator: string, onTrigger: () => void) {
+  globalShortcut.unregisterAll();
+  return globalShortcut.register(accelerator, onTrigger);
+}
+
+async function shouldUseGnomeShortcutFallback() {
   const portalSupported = await supportsGlobalShortcutsPortal();
   const isWayland = sessionType === 'wayland';
   const isGnome = currentDesktop.includes('gnome');
+  return isWayland && isGnome && !portalSupported;
+}
 
-  if (!isWayland || portalSupported || !isGnome) {
+async function registerShortcut(options: {
+  accelerator: string;
+  command: string | null;
+  binding: string;
+  label: string;
+  onTrigger: () => void;
+}): Promise<ShortcutSupport> {
+  if (!(await shouldUseGnomeShortcutFallback())) {
+    const registered = registerElectronShortcut(options.accelerator, options.onTrigger);
+
     return {
       backend: 'electron-global-shortcut',
-      registered: options.electronRegistered,
-      installable: false,
-      installed: false,
-      detail: options.electronRegistered
+      registered,
+      installable: true,
+      installed: registered,
+      detail: registered
         ? 'Electron global shortcut registration is active.'
         : 'Electron global shortcut registration is unavailable right now.',
     };
   }
 
-  const installed = await isGnomeShortcutInstalled(options.command, options.binding);
+  globalShortcut.unregisterAll();
+
+  if (!options.command) {
+    return {
+      backend: 'gnome-custom-shortcut',
+      registered: false,
+      installable: false,
+      installed: false,
+      detail: `GNOME 46 on Wayland does not expose the global shortcuts portal. A launcher command is required to make ${options.label} global.`,
+    };
+  }
+
+  await installGnomeShortcut(options.command, options.binding);
 
   return {
     backend: 'gnome-custom-shortcut',
-    registered: installed,
+    registered: true,
     installable: Boolean(options.command),
-    installed,
-    detail: installed
-      ? `GNOME custom shortcut fallback is installed. ${options.label} should trigger Toph even when another app is focused.`
-      : `GNOME 46 on Wayland does not expose the global shortcuts portal. Install the GNOME shortcut fallback to make ${options.label} global.`,
+    installed: true,
+    detail: `GNOME custom shortcut fallback is installed. ${options.label} should trigger Toph even when another app is focused.`,
   };
 }
 
@@ -312,30 +313,18 @@ export function createLinuxPlatformAdapter() {
       };
     },
 
-    async describeShortcutSupport(options: {
-      electronRegistered: boolean;
+    async registerShortcut(options: {
+      accelerator: string;
       command: string | null;
       binding: string;
       label: string;
+      onTrigger: () => void;
     }) {
-      return describeShortcutSupport(options);
+      return registerShortcut(options);
     },
 
-    async installShortcut({
-      command,
-      binding,
-      label,
-    }: {
-      command: string | null;
-      binding: string;
-      label: string;
-    }) {
-      if (!command) {
-        throw new Error('A launcher command is required to install the GNOME shortcut fallback.');
-      }
-
-      await installGnomeShortcut(command, binding);
-      return describeShortcutSupport({ electronRegistered: false, command, binding, label });
+    unregisterShortcut() {
+      globalShortcut.unregisterAll();
     },
   };
 }
