@@ -6,6 +6,7 @@
     "start": "sh ./scripts/toph-desktop.sh",
     "dev": "pnpm --filter @toph/desktop dev",
     "build": "pnpm --filter @toph/desktop build",
-    "typecheck": "pnpm --filter @toph/desktop typecheck"
+    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck",
+    "test:ui": "pnpm --filter @toph/desktop-ui test"
   }
 }

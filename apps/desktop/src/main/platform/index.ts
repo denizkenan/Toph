@@ -1,4 +1,4 @@
-import type { PasteAttempt, PasteSupport, ShortcutBackend } from '../../shared/contracts'
+import type { PasteAttempt, PasteSupport, ShortcutBackend } from '@toph/desktop-contracts'
 import { createLinuxPlatformAdapter } from './linux'
 
 export interface ShortcutSupport {

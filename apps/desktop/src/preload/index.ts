@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppState, DesktopApi, ShortcutPresetId, SoundEventKind } from '../shared/contracts'
+import type { AppState, DesktopApi, ShortcutPresetId, SoundEventKind } from '@toph/desktop-contracts'
 
 const api: DesktopApi = {
   getState: () => ipcRenderer.invoke('toph:get-state') as Promise<AppState>,

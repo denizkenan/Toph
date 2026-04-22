@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DEFAULT_SHORTCUT_PRESET } from '@shared/contracts'
-import type { AppState, SoundEventKind } from '@shared/contracts'
+import { DEFAULT_SHORTCUT_PRESET, type AppState, type DesktopApi, type SoundEventKind } from '@toph/desktop-contracts'
 
 const fallbackState: AppState = {
   phase: 'idle',
@@ -33,19 +32,19 @@ const fallbackState: AppState = {
   updatedAt: Date.now(),
 }
 
-export function useDesktopState() {
+export function useDesktopState(client: DesktopApi) {
   const [state, setState] = useState<AppState>(fallbackState)
 
   useEffect(() => {
     let isMounted = true
 
-    void window.toph.getState().then((snapshot) => {
+    void client.getState().then((snapshot) => {
       if (isMounted) {
         setState(snapshot)
       }
     })
 
-    const unsubscribe = window.toph.onStateChange((snapshot) => {
+    const unsubscribe = client.onStateChange((snapshot) => {
       setState(snapshot)
     })
 
@@ -53,7 +52,7 @@ export function useDesktopState() {
       isMounted = false
       unsubscribe()
     }
-  }, [])
+  }, [client])
 
   return state
 }
@@ -102,16 +101,16 @@ function playTone(kind: SoundEventKind) {
   }
 }
 
-export function useOverlaySounds(enabled: boolean) {
+export function useOverlaySounds(client: DesktopApi, enabled: boolean) {
   useEffect(() => {
     if (!enabled) {
       return
     }
 
-    return window.toph.onSoundEvent((kind) => {
+    return client.onSoundEvent((kind) => {
       playTone(kind)
     })
-  }, [enabled])
+  }, [client, enabled])
 }
 
 export function useDerivedStatus(state: AppState) {

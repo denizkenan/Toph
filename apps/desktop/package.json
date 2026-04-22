@@ -11,14 +11,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@fontsource/source-sans-3": "^5.2.6",
-    "@fontsource/sora": "^5.2.8",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "@toph/desktop-contracts": "workspace:*",
+    "@toph/desktop-ui": "workspace:*"
   },
   "devDependencies": {
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
     "@types/node": "^24.6.1",
     "@vitejs/plugin-react": "^5.0.4",
     "electron": "^37.3.1",

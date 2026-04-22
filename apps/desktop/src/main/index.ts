@@ -21,7 +21,7 @@ import {
   type ShortcutPresetId,
   type SoundEventKind,
   SHORTCUT_PRESETS,
-} from '../shared/contracts'
+} from '@toph/desktop-contracts'
 import { createPlatformAdapter } from './platform'
 
 const platformAdapter = createPlatformAdapter()

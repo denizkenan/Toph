@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { PasteAttempt, PasteSupport } from '../../shared/contracts'
+import type { PasteAttempt, PasteSupport } from '@toph/desktop-contracts'
 import type { ShortcutSupport } from './index'
 
 const execFileAsync = promisify(execFile)
