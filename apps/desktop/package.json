@@ -1,12 +1,12 @@
 {
   "name": "@toph/desktop",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
     "build": "electron-vite build",
+    "dev": "ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
     "preview": "ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

@@ -1,0 +1,55 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "plugins": ["eslint", "typescript", "oxc"],
+  "ignorePatterns": ["node_modules", "dist", "out", ".turbo", ".opencode"],
+  "rules": {
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "varsIgnorePattern": "^_",
+        "argsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "apps/desktop/src/main/**/*",
+        "apps/desktop/src/preload/**/*",
+        "apps/desktop/electron.vite.config.ts"
+      ],
+      "env": {
+        "node": true,
+        "es2022": true
+      }
+    },
+    {
+      "files": ["apps/desktop/src/renderer/**/*", "packages/desktop-ui/src/**/*"],
+      "plugins": ["eslint", "typescript", "oxc", "react"],
+      "env": {
+        "browser": true,
+        "es2022": true
+      },
+      "rules": {
+        "react/react-in-jsx-scope": "off"
+      }
+    },
+    {
+      "files": ["packages/desktop-ui/src/**/*.test.tsx", "packages/desktop-ui/vitest.config.ts"],
+      "plugins": ["eslint", "typescript", "oxc", "react", "vitest"],
+      "env": {
+        "browser": true,
+        "node": true,
+        "vitest": true,
+        "es2022": true
+      },
+      "rules": {
+        "react/react-in-jsx-scope": "off"
+      }
+    }
+  ]
+}

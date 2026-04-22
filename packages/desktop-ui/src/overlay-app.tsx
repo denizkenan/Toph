@@ -1,15 +1,22 @@
-import type { DesktopApi } from '@toph/desktop-contracts'
-import { useDesktopState, useOverlaySounds } from './hooks'
+import type { DesktopApi } from '@toph/desktop-contracts';
 
-export function OverlayApp({ client, soundsEnabled = true }: { client: DesktopApi; soundsEnabled?: boolean }) {
-  const state = useDesktopState(client)
-  useOverlaySounds(client, soundsEnabled)
+import { useDesktopState, useOverlaySounds } from './hooks';
+
+export function OverlayApp({
+  client,
+  soundsEnabled = true,
+}: {
+  client: DesktopApi;
+  soundsEnabled?: boolean;
+}) {
+  const state = useDesktopState(client);
+  useOverlaySounds(client, soundsEnabled);
 
   if (state.phase === 'idle') {
-    return <div className="overlay-root overlay-hidden" />
+    return <div className="overlay-root overlay-hidden" />;
   }
 
-  const listening = state.phase === 'listening'
+  const listening = state.phase === 'listening';
 
   return (
     <main className="overlay-root">
@@ -46,5 +53,5 @@ export function OverlayApp({ client, soundsEnabled = true }: { client: DesktopAp
         </div>
       </section>
     </main>
-  )
+  );
 }

@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { DEFAULT_SHORTCUT_PRESET, type AppState, type DesktopApi, type SoundEventKind } from '@toph/desktop-contracts'
+import { useEffect, useMemo, useState } from 'react';
+
+import {
+  DEFAULT_SHORTCUT_PRESET,
+  type AppState,
+  type DesktopApi,
+  type SoundEventKind,
+} from '@toph/desktop-contracts';
 
 const fallbackState: AppState = {
   phase: 'idle',
@@ -30,87 +36,89 @@ const fallbackState: AppState = {
   lastTranscript: null,
   recentConversions: [],
   updatedAt: Date.now(),
-}
+};
 
 export function useDesktopState(client: DesktopApi) {
-  const [state, setState] = useState<AppState>(fallbackState)
+  const [state, setState] = useState<AppState>(fallbackState);
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
 
     void client.getState().then((snapshot) => {
       if (isMounted) {
-        setState(snapshot)
+        setState(snapshot);
       }
-    })
+    });
 
     const unsubscribe = client.onStateChange((snapshot) => {
-      setState(snapshot)
-    })
+      setState(snapshot);
+    });
 
     return () => {
-      isMounted = false
-      unsubscribe()
-    }
-  }, [client])
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [client]);
 
-  return state
+  return state;
 }
 
 function playTone(kind: SoundEventKind) {
   if (typeof window === 'undefined') {
-    return
+    return;
   }
 
-  const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  const AudioContextCtor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextCtor) {
-    return
+    return;
   }
 
-  const audioContext = new AudioContextCtor()
-  const oscillator = audioContext.createOscillator()
-  const gainNode = audioContext.createGain()
+  const audioContext = new AudioContextCtor();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
 
   const frequencies: Record<SoundEventKind, number[]> = {
     start: [494],
     stop: [392],
     done: [587, 784],
-  }
+  };
 
-  oscillator.type = kind === 'done' ? 'triangle' : 'sine'
-  oscillator.frequency.value = frequencies[kind][0]
-  gainNode.gain.value = 0.0001
+  oscillator.type = kind === 'done' ? 'triangle' : 'sine';
+  oscillator.frequency.value = frequencies[kind][0];
+  gainNode.gain.value = 0.0001;
 
-  oscillator.connect(gainNode)
-  gainNode.connect(audioContext.destination)
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
 
-  const now = audioContext.currentTime
-  gainNode.gain.exponentialRampToValueAtTime(0.045, now + 0.02)
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.18)
+  const now = audioContext.currentTime;
+  gainNode.gain.exponentialRampToValueAtTime(0.045, now + 0.02);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
-  oscillator.start(now)
+  oscillator.start(now);
 
   if (kind === 'done') {
-    oscillator.frequency.setValueAtTime(frequencies.done[0], now)
-    oscillator.frequency.linearRampToValueAtTime(frequencies.done[1], now + 0.12)
+    oscillator.frequency.setValueAtTime(frequencies.done[0], now);
+    oscillator.frequency.linearRampToValueAtTime(frequencies.done[1], now + 0.12);
   }
 
-  oscillator.stop(now + 0.22)
+  oscillator.stop(now + 0.22);
   oscillator.onended = () => {
-    void audioContext.close()
-  }
+    void audioContext.close();
+  };
 }
 
 export function useOverlaySounds(client: DesktopApi, enabled: boolean) {
   useEffect(() => {
     if (!enabled) {
-      return
+      return;
     }
 
     return client.onSoundEvent((kind) => {
-      playTone(kind)
-    })
-  }, [client, enabled])
+      playTone(kind);
+    });
+  }, [client, enabled]);
 }
 
 export function useDerivedStatus(state: AppState) {
@@ -119,7 +127,7 @@ export function useDerivedStatus(state: AppState) {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-    })
+    });
 
     return {
       lastUpdated,
@@ -133,6 +141,6 @@ export function useDerivedStatus(state: AppState) {
             : state.lastPasteAttempt.status === 'clipboard-only'
               ? 'muted'
               : 'idle',
-    }
-  }, [state])
+    };
+  }, [state]);
 }

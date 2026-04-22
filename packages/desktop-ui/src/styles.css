@@ -571,8 +571,7 @@ kbd {
   border-radius: 28px;
   padding: 18px 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    linear-gradient(180deg, rgba(54, 58, 79, 0.94), rgba(36, 39, 58, 0.94));
+  background: linear-gradient(180deg, rgba(54, 58, 79, 0.94), rgba(36, 39, 58, 0.94));
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
   animation: overlay-rise 220ms ease-out;
 }

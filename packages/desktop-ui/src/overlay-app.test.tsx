@@ -1,6 +1,8 @@
-import { render, screen } from '@testing-library/react'
-import type { AppState, DesktopApi } from '@toph/desktop-contracts'
-import { OverlayApp } from './overlay-app'
+import { render, screen } from '@testing-library/react';
+
+import type { AppState, DesktopApi } from '@toph/desktop-contracts';
+
+import { OverlayApp } from './overlay-app';
 
 const baseState: AppState = {
   phase: 'transcribing',
@@ -31,7 +33,7 @@ const baseState: AppState = {
   lastTranscript: 'hello',
   recentConversions: [],
   updatedAt: 1,
-}
+};
 
 function createClient(state: AppState): DesktopApi {
   return {
@@ -43,14 +45,16 @@ function createClient(state: AppState): DesktopApi {
     onStateChange: () => () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
-  }
+  };
 }
 
 describe('OverlayApp', () => {
   it('renders the transcribing state without Electron globals', async () => {
-    render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />)
+    render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />);
 
-    await screen.findByRole('heading', { name: 'Transcribing the pretend audio' })
-    expect(screen.getByText('Clipboard is being filled, and a best-effort paste attempt is next.')).toBeTruthy()
-  })
-})
+    await screen.findByRole('heading', { name: 'Transcribing the pretend audio' });
+    expect(
+      screen.getByText('Clipboard is being filled, and a best-effort paste attempt is next.'),
+    ).toBeTruthy();
+  });
+});

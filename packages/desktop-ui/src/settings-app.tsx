@@ -1,26 +1,28 @@
-import { useEffect, useState } from 'react'
-import { SHORTCUT_PRESETS, type DesktopApi } from '@toph/desktop-contracts'
-import { useDerivedStatus, useDesktopState } from './hooks'
+import { useEffect, useState } from 'react';
+
+import { SHORTCUT_PRESETS, type DesktopApi } from '@toph/desktop-contracts';
+
+import { useDerivedStatus, useDesktopState } from './hooks';
 
 export function SettingsApp({ client }: { client: DesktopApi }) {
-  const state = useDesktopState(client)
-  const derived = useDerivedStatus(state)
-  const [selectedPresetId, setSelectedPresetId] = useState(state.shortcut.presetId)
+  const state = useDesktopState(client);
+  const derived = useDerivedStatus(state);
+  const [selectedPresetId, setSelectedPresetId] = useState(state.shortcut.presetId);
 
   useEffect(() => {
-    setSelectedPresetId(state.shortcut.presetId)
-  }, [state.shortcut.presetId])
+    setSelectedPresetId(state.shortcut.presetId);
+  }, [state.shortcut.presetId]);
 
   const phaseLabel =
     state.phase === 'listening'
       ? 'Listening'
       : state.phase === 'transcribing'
         ? 'Transcribing'
-        : 'Idle'
+        : 'Idle';
 
   const primaryActionLabel =
-    state.phase === 'listening' ? 'Stop mock capture' : 'Start mock capture'
-  const shortcutDirty = selectedPresetId !== state.shortcut.presetId
+    state.phase === 'listening' ? 'Stop mock capture' : 'Start mock capture';
+  const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
 
   return (
     <main className="settings-shell">
@@ -32,8 +34,8 @@ export function SettingsApp({ client }: { client: DesktopApi }) {
             <span className="eyebrow">Background dictation mock</span>
             <h1>Toph</h1>
             <p>
-              Toph starts in the background. Use the tray icon or press <kbd>{state.shortcut.label}</kbd> to
-              show the overlay and run the mock dictation flow.
+              Toph starts in the background. Use the tray icon or press{' '}
+              <kbd>{state.shortcut.label}</kbd> to show the overlay and run the mock dictation flow.
             </p>
           </div>
 
@@ -70,7 +72,9 @@ export function SettingsApp({ client }: { client: DesktopApi }) {
                 id="shortcut-preset"
                 className="field-input"
                 value={selectedPresetId}
-                onChange={(event) => setSelectedPresetId(event.target.value as (typeof SHORTCUT_PRESETS)[number]['id'])}
+                onChange={(event) =>
+                  setSelectedPresetId(event.target.value as (typeof SHORTCUT_PRESETS)[number]['id'])
+                }
               >
                 {SHORTCUT_PRESETS.map((preset) => (
                   <option key={preset.id} value={preset.id}>
@@ -84,11 +88,17 @@ export function SettingsApp({ client }: { client: DesktopApi }) {
               <button
                 className="primary-button"
                 onClick={() => void client.installShortcut(selectedPresetId)}
-                disabled={(!shortcutDirty && state.shortcut.installed) || !state.shortcut.installable}
+                disabled={
+                  (!shortcutDirty && state.shortcut.installed) || !state.shortcut.installable
+                }
               >
-                {shortcutDirty || !state.shortcut.installed ? 'Apply shortcut' : 'Shortcut installed'}
+                {shortcutDirty || !state.shortcut.installed
+                  ? 'Apply shortcut'
+                  : 'Shortcut installed'}
               </button>
-              <span className={`status-chip ${derived.shortcutBackendTone}`}>{state.shortcut.backend}</span>
+              <span className={`status-chip ${derived.shortcutBackendTone}`}>
+                {state.shortcut.backend}
+              </span>
             </div>
 
             <p className="muted-copy">Current shortcut: {state.shortcut.label}</p>
@@ -101,7 +111,9 @@ export function SettingsApp({ client }: { client: DesktopApi }) {
                 <span className="panel-title">Runtime</span>
                 <h2>Status and environment</h2>
               </div>
-              <span className={`status-chip ${derived.pasteStatusTone}`}>{state.lastPasteAttempt.status}</span>
+              <span className={`status-chip ${derived.pasteStatusTone}`}>
+                {state.lastPasteAttempt.status}
+              </span>
             </header>
 
             <dl className="data-list">
@@ -136,8 +148,15 @@ export function SettingsApp({ client }: { client: DesktopApi }) {
                 {state.recentConversions.map((conversion) => (
                   <article key={conversion.id} className="conversion-item">
                     <div className="conversion-meta">
-                      <span>{new Date(conversion.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className={`status-chip ${conversion.pasteStatus === 'success' ? 'good' : conversion.pasteStatus === 'failed' ? 'warn' : 'muted'}`}>
+                      <span>
+                        {new Date(conversion.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <span
+                        className={`status-chip ${conversion.pasteStatus === 'success' ? 'good' : conversion.pasteStatus === 'failed' ? 'warn' : 'muted'}`}
+                      >
                         {conversion.pasteStatus}
                       </span>
                     </div>
@@ -149,12 +168,14 @@ export function SettingsApp({ client }: { client: DesktopApi }) {
             ) : (
               <div className="empty-state">
                 <p>No conversions yet.</p>
-                <span className="muted-copy">Run the mock flow once and the latest dictated text will show up here.</span>
+                <span className="muted-copy">
+                  Run the mock flow once and the latest dictated text will show up here.
+                </span>
               </div>
             )}
           </article>
         </section>
       </section>
     </main>
-  )
+  );
 }

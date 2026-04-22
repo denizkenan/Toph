@@ -28,7 +28,5 @@
     "../../packages/desktop-contracts/src/**/*",
     "../../packages/desktop-ui/src/**/*"
   ],
-  "exclude": [
-    "../../packages/desktop-ui/src/**/*.test.tsx"
-  ]
+  "exclude": ["../../packages/desktop-ui/src/**/*.test.tsx"]
 }

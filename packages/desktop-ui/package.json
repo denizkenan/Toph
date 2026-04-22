@@ -1,18 +1,18 @@
 {
   "name": "@toph/desktop-ui",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@fontsource/source-sans-3": "^5.2.6",
     "@fontsource/sora": "^5.2.8",
+    "@fontsource/source-sans-3": "^5.2.6",
     "@toph/desktop-contracts": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

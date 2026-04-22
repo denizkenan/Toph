@@ -1,6 +1,7 @@
-import { Buffer } from 'node:buffer'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { Buffer } from 'node:buffer';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
   BrowserWindow,
   Menu,
@@ -11,7 +12,8 @@ import {
   ipcMain,
   nativeImage,
   screen,
-} from 'electron'
+} from 'electron';
+
 import {
   APP_NAME,
   DEFAULT_SHORTCUT_PRESET,
@@ -21,34 +23,35 @@ import {
   type ShortcutPresetId,
   type SoundEventKind,
   SHORTCUT_PRESETS,
-} from '@toph/desktop-contracts'
-import { createPlatformAdapter } from './platform'
+} from '@toph/desktop-contracts';
 
-const platformAdapter = createPlatformAdapter()
-const toggleCaptureFlag = '--toggle-capture'
-const shouldToggleOnLaunch = process.argv.includes(toggleCaptureFlag)
+import { createPlatformAdapter } from './platform';
 
-const isLinux = process.platform === 'linux'
+const platformAdapter = createPlatformAdapter();
+const toggleCaptureFlag = '--toggle-capture';
+const shouldToggleOnLaunch = process.argv.includes(toggleCaptureFlag);
+
+const isLinux = process.platform === 'linux';
 if (isLinux) {
-  app.disableHardwareAcceleration()
-  app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const preloadPath = join(__dirname, '../preload/index.mjs')
-const launcherScriptPath = join(__dirname, '../../../../scripts/toph-desktop.sh')
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const preloadPath = join(__dirname, '../preload/index.mjs');
+const launcherScriptPath = join(__dirname, '../../../../scripts/toph-desktop.sh');
 
-let settingsWindow: BrowserWindow | null = null
-let overlayWindow: BrowserWindow | null = null
-let tray: Tray | null = null
-let isQuitting = false
-let transcribeTimer: NodeJS.Timeout | null = null
-let lastToggleRequestAt = 0
+let settingsWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+let transcribeTimer: NodeJS.Timeout | null = null;
+let lastToggleRequestAt = 0;
 
-const toggleDebounceMs = 800
+const toggleDebounceMs = 800;
 
 function resolveShortcutPreset(presetId: ShortcutPresetId) {
-  return SHORTCUT_PRESETS.find((preset) => preset.id === presetId) ?? DEFAULT_SHORTCUT_PRESET
+  return SHORTCUT_PRESETS.find((preset) => preset.id === presetId) ?? DEFAULT_SHORTCUT_PRESET;
 }
 
 const state: AppState = {
@@ -80,7 +83,7 @@ const state: AppState = {
   lastTranscript: null,
   recentConversions: [],
   updatedAt: Date.now(),
-}
+};
 
 function createTrayIcon() {
   const svg = `
@@ -89,40 +92,42 @@ function createTrayIcon() {
       <path d="M11 10C11 9.44772 11.4477 9 12 9H20C20.5523 9 21 9.44772 21 10V19C21 21.7614 18.7614 24 16 24C13.2386 24 11 21.7614 11 19V10Z" fill="#8AADF4"/>
       <path d="M9 16C9 15.4477 9.44772 15 10 15C10.5523 15 11 15.4477 11 16V18C11 20.7614 13.2386 23 16 23C18.7614 23 21 20.7614 21 18V16C21 15.4477 21.4477 15 22 15C22.5523 15 23 15.4477 23 16V18C23 21.866 20.134 25 16.5 25.429V27H19C19.5523 27 20 27.4477 20 28C20 28.5523 19.5523 29 19 29H13C12.4477 29 12 28.5523 12 28C12 27.4477 12.4477 27 13 27H15.5V25.429C11.866 25 9 21.866 9 18V16Z" fill="#CAD3F5"/>
     </svg>
-  `.trim()
+  `.trim();
 
-  return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
+  return nativeImage.createFromDataURL(
+    `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`,
+  );
 }
 
 function emitState() {
-  state.updatedAt = Date.now()
-  settingsWindow?.webContents.send('toph:state-changed', state)
-  overlayWindow?.webContents.send('toph:state-changed', state)
+  state.updatedAt = Date.now();
+  settingsWindow?.webContents.send('toph:state-changed', state);
+  overlayWindow?.webContents.send('toph:state-changed', state);
 }
 
 function emitSound(kind: SoundEventKind) {
-  overlayWindow?.webContents.send('toph:sound', kind)
+  overlayWindow?.webContents.send('toph:sound', kind);
 }
 
 function patchState(partial: Partial<AppState>) {
-  Object.assign(state, partial)
-  emitState()
+  Object.assign(state, partial);
+  emitState();
 }
 
 function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\"'\"'")}'`
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
 }
 
 function getShortcutLauncherCommand() {
   if (app.isPackaged) {
-    return `${shellQuote(process.execPath)} ${toggleCaptureFlag}`
+    return `${shellQuote(process.execPath)} ${toggleCaptureFlag}`;
   }
 
-  return `sh ${shellQuote(launcherScriptPath)} ${toggleCaptureFlag}`
+  return `sh ${shellQuote(launcherScriptPath)} ${toggleCaptureFlag}`;
 }
 
 async function refreshShortcutState(electronRegistered: boolean) {
-  const preset = resolveShortcutPreset(state.shortcut.presetId)
+  const preset = resolveShortcutPreset(state.shortcut.presetId);
 
   patchState({
     shortcut: {
@@ -136,114 +141,114 @@ async function refreshShortcutState(electronRegistered: boolean) {
         label: preset.label,
       })),
     },
-  })
+  });
 }
 
 function registerElectronShortcut(accelerator: string) {
-  globalShortcut.unregisterAll()
+  globalShortcut.unregisterAll();
   return globalShortcut.register(accelerator, () => {
-    void toggleCapture()
-  })
+    void toggleCapture();
+  });
 }
 
 function getRendererUrl(page: 'index.html' | 'overlay.html') {
   if (process.env.ELECTRON_RENDERER_URL) {
-    return `${process.env.ELECTRON_RENDERER_URL}/${page}`
+    return `${process.env.ELECTRON_RENDERER_URL}/${page}`;
   }
 
-  return join(__dirname, `../renderer/${page}`)
+  return join(__dirname, `../renderer/${page}`);
 }
 
 async function loadRendererPage(window: BrowserWindow, page: 'index.html' | 'overlay.html') {
   if (process.env.ELECTRON_RENDERER_URL) {
-    await window.loadURL(getRendererUrl(page))
-    return
+    await window.loadURL(getRendererUrl(page));
+    return;
   }
 
-  await window.loadFile(getRendererUrl(page))
+  await window.loadFile(getRendererUrl(page));
 }
 
 function positionOverlay() {
   if (!overlayWindow) {
-    return
+    return;
   }
 
-  const { workArea } = screen.getPrimaryDisplay()
-  const bounds = overlayWindow.getBounds()
-  const x = Math.round(workArea.x + (workArea.width - bounds.width) / 2)
-  const y = Math.round(workArea.y + workArea.height - bounds.height - 24)
+  const { workArea } = screen.getPrimaryDisplay();
+  const bounds = overlayWindow.getBounds();
+  const x = Math.round(workArea.x + (workArea.width - bounds.width) / 2);
+  const y = Math.round(workArea.y + workArea.height - bounds.height - 24);
 
-  overlayWindow.setBounds({ x, y, width: bounds.width, height: bounds.height })
+  overlayWindow.setBounds({ x, y, width: bounds.width, height: bounds.height });
 }
 
 function showSettingsWindow() {
   if (!settingsWindow) {
-    return
+    return;
   }
 
-  settingsWindow.show()
-  settingsWindow.focus()
+  settingsWindow.show();
+  settingsWindow.focus();
 }
 
 function hideSettingsWindow() {
-  settingsWindow?.hide()
+  settingsWindow?.hide();
 }
 
 function showOverlay(phase: DictationPhase) {
   if (!overlayWindow) {
-    return
+    return;
   }
 
-  positionOverlay()
-  overlayWindow.showInactive()
-  patchState({ phase })
+  positionOverlay();
+  overlayWindow.showInactive();
+  patchState({ phase });
 }
 
 function hideOverlay() {
-  overlayWindow?.hide()
+  overlayWindow?.hide();
 }
 
 async function beginListening() {
   if (transcribeTimer) {
-    clearTimeout(transcribeTimer)
-    transcribeTimer = null
+    clearTimeout(transcribeTimer);
+    transcribeTimer = null;
   }
 
-  showOverlay('listening')
+  showOverlay('listening');
   patchState({
     lastPasteAttempt: {
       helper: state.lastPasteAttempt.helper,
       status: 'idle',
       detail: 'Listening for mock speech input...',
     },
-  })
-  emitSound('start')
+  });
+  emitSound('start');
 }
 
 async function finalizeTranscription() {
-  clipboard.writeText(MOCK_TRANSCRIPT)
+  clipboard.writeText(MOCK_TRANSCRIPT);
 
-  const lastPasteAttempt = await platformAdapter.pasteFromClipboard()
-  const createdAt = Date.now()
+  const lastPasteAttempt = await platformAdapter.pasteFromClipboard();
+  const createdAt = Date.now();
   const nextConversion = {
     id: `${createdAt}`,
     text: MOCK_TRANSCRIPT,
     createdAt,
     pasteStatus: lastPasteAttempt.status,
     pasteDetail: lastPasteAttempt.detail,
-  }
+  };
 
   patchState({
     phase: 'idle',
     lastTranscript: MOCK_TRANSCRIPT,
     lastPasteAttempt,
     recentConversions: [nextConversion, ...state.recentConversions].slice(0, 8),
-  })
+  });
 
-  emitSound('done')
+  emitSound('done');
   setTimeout(() => {
-    hideOverlay()
-  }, 420)
+    hideOverlay();
+  }, 420);
 }
 
 async function finishListening() {
@@ -254,29 +259,29 @@ async function finishListening() {
       status: 'idle',
       detail: 'Mock transcription is underway...',
     },
-  })
-  emitSound('stop')
+  });
+  emitSound('stop');
 
   transcribeTimer = setTimeout(() => {
-    void finalizeTranscription()
-  }, 1300)
+    void finalizeTranscription();
+  }, 1300);
 }
 
 async function toggleCapture() {
-  const now = Date.now()
+  const now = Date.now();
   if (now - lastToggleRequestAt < toggleDebounceMs) {
-    return
+    return;
   }
 
-  lastToggleRequestAt = now
+  lastToggleRequestAt = now;
 
   if (state.phase === 'idle') {
-    await beginListening()
-    return
+    await beginListening();
+    return;
   }
 
   if (state.phase === 'listening') {
-    await finishListening()
+    await finishListening();
   }
 }
 
@@ -296,22 +301,22 @@ function createSettingsWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
-  })
+  });
 
   settingsWindow.on('close', (event) => {
     if (isQuitting) {
-      return
+      return;
     }
 
-    event.preventDefault()
-    settingsWindow?.hide()
-  })
+    event.preventDefault();
+    settingsWindow?.hide();
+  });
 
   settingsWindow.once('ready-to-show', () => {
-    settingsWindow?.hide()
-  })
+    settingsWindow?.hide();
+  });
 
-  void loadRendererPage(settingsWindow, 'index.html')
+  void loadRendererPage(settingsWindow, 'index.html');
 }
 
 function createOverlayWindow() {
@@ -337,27 +342,27 @@ function createOverlayWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
-  })
+  });
 
-  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1)
-  overlayWindow.setIgnoreMouseEvents(true)
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  overlayWindow.setIgnoreMouseEvents(true);
   overlayWindow.on('closed', () => {
-    overlayWindow = null
-  })
+    overlayWindow = null;
+  });
 
   void loadRendererPage(overlayWindow, 'overlay.html').then(() => {
-    positionOverlay()
-  })
+    positionOverlay();
+  });
 }
 
 function createTray() {
-  tray = new Tray(createTrayIcon())
-  tray.setToolTip(`${APP_NAME} dictation mock`)
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip(`${APP_NAME} dictation mock`);
 
   const refreshMenu = () => {
     if (!tray) {
-      return
+      return;
     }
 
     tray.setContextMenu(
@@ -365,7 +370,7 @@ function createTray() {
         {
           label: state.phase === 'listening' ? 'Stop Listening' : 'Start Dictation',
           click: () => {
-            void toggleCapture()
+            void toggleCapture();
           },
         },
         {
@@ -382,43 +387,43 @@ function createTray() {
         {
           label: 'Quit',
           click: () => {
-            isQuitting = true
-            app.quit()
+            isQuitting = true;
+            app.quit();
           },
         },
       ]),
-    )
-  }
+    );
+  };
 
-  refreshMenu()
-  tray.on('click', showSettingsWindow)
-  ipcMain.on('toph:refresh-tray', refreshMenu)
+  refreshMenu();
+  tray.on('click', showSettingsWindow);
+  ipcMain.on('toph:refresh-tray', refreshMenu);
 }
 
 function registerShortcut() {
-  const registered = registerElectronShortcut(state.shortcut.accelerator)
-  void refreshShortcutState(registered)
+  const registered = registerElectronShortcut(state.shortcut.accelerator);
+  void refreshShortcutState(registered);
 }
 
 function registerIpc() {
-  ipcMain.handle('toph:get-state', async () => state)
+  ipcMain.handle('toph:get-state', async () => state);
   ipcMain.handle('toph:toggle-capture', async () => {
-    await toggleCapture()
-  })
+    await toggleCapture();
+  });
   ipcMain.handle('toph:show-settings', async () => {
-    showSettingsWindow()
-  })
+    showSettingsWindow();
+  });
   ipcMain.handle('toph:hide-settings', async () => {
-    hideSettingsWindow()
-  })
+    hideSettingsWindow();
+  });
   ipcMain.handle('toph:install-shortcut', async (_event, presetId: ShortcutPresetId) => {
-    const preset = resolveShortcutPreset(presetId)
-    const electronRegistered = registerElectronShortcut(preset.accelerator)
+    const preset = resolveShortcutPreset(presetId);
+    registerElectronShortcut(preset.accelerator);
     const shortcut = await platformAdapter.installShortcut({
       command: getShortcutLauncherCommand(),
       binding: preset.gnomeBinding,
       label: preset.label,
-    })
+    });
 
     patchState({
       shortcut: {
@@ -428,63 +433,63 @@ function registerIpc() {
         label: preset.label,
         ...shortcut,
       },
-    })
-  })
+    });
+  });
   ipcMain.handle('toph:quit', async () => {
-    isQuitting = true
-    app.quit()
-  })
+    isQuitting = true;
+    app.quit();
+  });
 }
 
 async function bootstrap() {
-  app.setName(APP_NAME)
+  app.setName(APP_NAME);
 
-  const singleInstance = app.requestSingleInstanceLock()
+  const singleInstance = app.requestSingleInstanceLock();
   if (!singleInstance) {
-    app.quit()
-    return
+    app.quit();
+    return;
   }
 
   app.on('second-instance', (_event, argv) => {
     if (argv.includes(toggleCaptureFlag)) {
-      void toggleCapture()
-      return
+      void toggleCapture();
+      return;
     }
 
-    showSettingsWindow()
-  })
+    showSettingsWindow();
+  });
 
   app.on('before-quit', () => {
-    isQuitting = true
-  })
+    isQuitting = true;
+  });
 
-  await app.whenReady()
-  registerIpc()
-  createSettingsWindow()
-  createOverlayWindow()
-  createTray()
-  registerShortcut()
+  await app.whenReady();
+  registerIpc();
+  createSettingsWindow();
+  createOverlayWindow();
+  createTray();
+  registerShortcut();
 
-  screen.on('display-metrics-changed', positionOverlay)
-  screen.on('display-added', positionOverlay)
-  screen.on('display-removed', positionOverlay)
+  screen.on('display-metrics-changed', positionOverlay);
+  screen.on('display-added', positionOverlay);
+  screen.on('display-removed', positionOverlay);
 
   patchState({
     pasteSupport: await platformAdapter.describePasteSupport(),
-  })
-  await refreshShortcutState(globalShortcut.isRegistered(state.shortcut.accelerator))
+  });
+  await refreshShortcutState(globalShortcut.isRegistered(state.shortcut.accelerator));
 
   if (shouldToggleOnLaunch) {
-    void toggleCapture()
+    void toggleCapture();
   }
 
   app.on('activate', () => {
-    showSettingsWindow()
-  })
+    showSettingsWindow();
+  });
 
   app.on('will-quit', () => {
-    globalShortcut.unregisterAll()
-  })
+    globalShortcut.unregisterAll();
+  });
 }
 
-void bootstrap()
+void bootstrap();

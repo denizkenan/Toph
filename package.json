@@ -1,12 +1,20 @@
 {
   "name": "toph",
   "private": true,
-  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "start": "sh ./scripts/toph-desktop.sh",
-    "dev": "pnpm --filter @toph/desktop dev",
     "build": "pnpm --filter @toph/desktop build",
-    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck",
-    "test:ui": "pnpm --filter @toph/desktop-ui test"
-  }
+    "dev": "pnpm --filter @toph/desktop dev",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "start": "sh ./scripts/toph-desktop.sh",
+    "test:ui": "pnpm --filter @toph/desktop-ui test",
+    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.61.0"
+  },
+  "packageManager": "pnpm@10.33.0"
 }

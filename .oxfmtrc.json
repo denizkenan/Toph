@@ -1,0 +1,11 @@
+{
+  "ignorePatterns": ["node_modules", "dist", "out", ".turbo", ".opencode"],
+  "semi": true,
+  "singleQuote": true,
+  "sortImports": {
+    "internalPattern": ["@toph/", "@renderer/"]
+  },
+  "sortPackageJson": {
+    "sortScripts": true
+  }
+}

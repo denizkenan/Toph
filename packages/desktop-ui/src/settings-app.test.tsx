@@ -1,6 +1,8 @@
-import { render, screen } from '@testing-library/react'
-import type { AppState, DesktopApi } from '@toph/desktop-contracts'
-import { SettingsApp } from './settings-app'
+import { render, screen } from '@testing-library/react';
+
+import type { AppState, DesktopApi } from '@toph/desktop-contracts';
+
+import { SettingsApp } from './settings-app';
 
 const baseState: AppState = {
   phase: 'listening',
@@ -31,7 +33,7 @@ const baseState: AppState = {
   lastTranscript: 'hello',
   recentConversions: [],
   updatedAt: 1,
-}
+};
 
 function createClient(state: AppState): DesktopApi {
   return {
@@ -43,18 +45,18 @@ function createClient(state: AppState): DesktopApi {
     onStateChange: () => () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
-  }
+  };
 }
 
 describe('SettingsApp', () => {
   it('renders state from the injected desktop client', async () => {
-    render(<SettingsApp client={createClient(baseState)} />)
+    render(<SettingsApp client={createClient(baseState)} />);
 
-    await screen.findByRole('heading', { name: 'Toph' })
-    await screen.findByText('Listening')
+    await screen.findByRole('heading', { name: 'Toph' });
+    await screen.findByText('Listening');
 
-    expect(screen.getByRole('button', { name: 'Stop mock capture' })).toBeTruthy()
-    expect(screen.getByText('GNOME')).toBeTruthy()
-    expect(screen.getByText('Electron global shortcut registration is active.')).toBeTruthy()
-  })
-})
+    expect(screen.getByRole('button', { name: 'Stop mock capture' })).toBeTruthy();
+    expect(screen.getByText('GNOME')).toBeTruthy();
+    expect(screen.getByText('Electron global shortcut registration is active.')).toBeTruthy();
+  });
+});

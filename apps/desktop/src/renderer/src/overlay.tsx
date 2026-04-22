@@ -1,3 +1,3 @@
-import { mountOverlayApp } from '@toph/desktop-ui'
+import { mountOverlayApp } from '@toph/desktop-ui';
 
-mountOverlayApp(document.getElementById('root') as HTMLElement, window.toph)
+mountOverlayApp(document.getElementById('root') as HTMLElement, window.toph);
