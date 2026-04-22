@@ -1,0 +1,11 @@
+{
+  "name": "toph",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "start": "sh ./scripts/toph-desktop.sh",
+    "dev": "pnpm --filter @toph/desktop dev",
+    "build": "pnpm --filter @toph/desktop build",
+    "typecheck": "pnpm --filter @toph/desktop typecheck"
+  }
+}
