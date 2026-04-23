@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Use this pack when the main question is whether the change improves or degrades the shape of the system.
+Use this lens when the main question is whether a change improves or degrades the shape of the system.
 
-This pack applies across backend, Electron, frontend, shared packages, and supporting library code.
+This lens applies across backend, Electron, frontend, shared packages, and supporting library code.
 
-## What This Pack Optimizes For
+## What This Lens Optimizes For
 
 - evolvability
 - boundary integrity
@@ -31,7 +31,7 @@ Ask:
 
 - Does this module hide meaningful complexity behind a small, understandable surface?
 - Is the public surface smaller and clearer than the implementation behind it?
-- Can a reviewer infer what the module owns, needs, returns, emits, affects, and does not own from its surface?
+- Can a reader infer what the module owns, needs, returns, emits, affects, and does not own from its surface?
 - Is this a deep module or a shallow wrapper?
 - Would removing this abstraction make the code more honest?
 
@@ -64,7 +64,7 @@ Names do not need to be perfect. They need to not mislead readers about what mat
 Ask:
 
 - What contract is this code defining or changing?
-- Is that contract explicit enough for reviewers to reason about?
+- Is that contract explicit enough to reason about?
 - Does the contract cover only types, or also semantics, ordering, ownership, and lifecycle expectations?
 - Will this contract remain stable enough to evolve safely?
 - Does the change widen the public surface more than necessary?
@@ -99,11 +99,11 @@ Ask:
 
 - Is the reason for this abstraction or boundary obvious from the code?
 - If not, is there enough supporting context in docs or module-level explanation?
-- Would a future reviewer understand why this design exists and what tradeoff it is protecting?
+- Would a future reader understand why this design exists and what tradeoff it is protecting?
 
 Prefer short, durable explanations of intent over fragile code examples.
 
-## Evidence That Is Especially Useful For This Pack
+## Evidence That Is Especially Useful For This Lens
 
 Useful evidence includes:
 

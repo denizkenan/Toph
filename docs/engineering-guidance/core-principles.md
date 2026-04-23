@@ -1,12 +1,12 @@
-# Core Review Principles
+# Core Principles
 
 ## Purpose
 
-These principles orient reviewers toward the forms of decay that matter most in this repo. They are not exhaustive.
+These principles describe what good engineering looks like in this repo. They are not exhaustive. They exist to orient design and review toward the forms of decay that matter most here.
 
-## What Reviews Should Optimize For
+## What Engineering Work Should Optimize For
 
-All reviews should primarily protect these qualities:
+All engineering work should primarily protect these qualities:
 
 - evolvability
 - boundary integrity
@@ -19,11 +19,11 @@ All reviews should primarily protect these qualities:
 
 ### Optimize For Future Change
 
-Ask whether this change will make the next change cheaper or more expensive. Good design reduces coordination cost, minimizes ripple effects, and keeps future refactors tractable.
+Ask whether this decision will make the next change cheaper or more expensive. Good design reduces coordination cost, minimizes ripple effects, and keeps future refactors tractable.
 
 ### Preserve Boundaries
 
-Most long-term architectural pain comes from eroded boundaries. Review whether responsibilities, dependencies, and ownership stay clear across packages, modules, layers, and runtime boundaries.
+Most long-term architectural pain comes from eroded boundaries. Keep responsibilities, dependencies, and ownership clear across packages, modules, layers, and runtime boundaries.
 
 ### Prefer Deep Modules Over Shallow Fragmentation
 
@@ -33,15 +33,15 @@ Small units are not automatically better. Extraction is only an improvement when
 
 ### Keep Surfaces Legible
 
-A reviewer should be able to understand the purpose of a module or function largely from its public surface. Exports, function names, parameter shape, return shape, ownership boundaries, and key side effects should make the capability understandable without forcing a full internal read.
+A reader should be able to understand the purpose of a module or function largely from its public surface. Exports, function names, parameter shape, return shape, ownership boundaries, and key side effects should make the capability understandable without forcing a full internal read.
 
 ### Prefer Local Reasoning
 
-Code is easier to evolve when a reader can understand one area without chasing unrelated layers, hidden dependencies, or indirect side effects. Review whether the design reduces the amount of code and context someone must load to make a safe change.
+Code is easier to evolve when a reader can understand one area without chasing unrelated layers, hidden dependencies, or indirect side effects. Prefer designs that reduce the amount of code and context someone must load to make a safe change.
 
 ### Make Contracts Explicit
 
-Treat contracts broadly. Contracts include types, event semantics, IPC boundaries, state shape assumptions, public APIs, and lifecycle expectations. Review whether the change makes these contracts clearer, more stable, and easier to verify.
+Treat contracts broadly. Contracts include types, event semantics, IPC boundaries, state shape assumptions, public APIs, and lifecycle expectations. Make these contracts clear, stable, and easy to verify.
 
 ### Keep Behavior Honest And Visible
 
@@ -57,7 +57,7 @@ The right test and the right review depth depend on the kind of change. The goal
 
 ### Favor Navigability
 
-The codebase should help a new contributor or agent find where logic belongs, how a feature flows, and which abstractions matter. Review not only whether code works, but whether its structure makes discovery and onboarding easier or harder.
+The codebase should help a new contributor or agent find where logic belongs, how a feature flows, and which abstractions matter. Good engineering improves discovery and onboarding, not just correctness.
 
 ## Anti-Patterns These Principles Push Against
 

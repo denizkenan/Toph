@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Use this pack when the main question is whether the change makes runtime behavior safer, clearer, and easier to reason about.
+Use this lens when the main question is whether a change makes runtime behavior safer, clearer, and easier to reason about.
 
-This pack is broader than React. It covers state, effects, lifecycle, async behavior, event semantics, cross-runtime interaction, and resource usage. React guidance is included inline because it is a common source of risk in this repo.
+This lens is broader than React. It covers state, effects, lifecycle, async behavior, event semantics, cross-runtime interaction, and resource usage. React guidance is included inline because it is a common source of risk in this repo.
 
-## What This Pack Optimizes For
+## What This Lens Optimizes For
 
 - behavioral safety
 - local reasoning
@@ -58,13 +58,13 @@ Ask:
 - Is cancellation, replacement, debouncing, or last-write-wins behavior intentional?
 - Are there stale closures, stale reads, or ordering assumptions that could break under timing changes?
 
-Review async behavior as part of the design, not as an implementation detail.
+Treat async behavior as part of the design, not as an implementation detail.
 
 ## Failure Semantics And Degradation
 
 Ask:
 
-- What can fail here, and is that failure mode explicit enough for a reviewer to reason about?
+- What can fail here, and is that failure mode explicit enough to reason about?
 - What happens immediately after failure?
 - Is the failure surfaced, translated, swallowed, or silently ignored?
 - Can partial failure leave stale, contradictory, or unsafe state behind?
@@ -82,14 +82,14 @@ Ask:
 - Are listeners, subscriptions, timers, and long-lived resources always cleaned up?
 - Does cleanup happen in the same conceptual place where ownership is established?
 
-The more a change depends on lifecycle, the more review should focus on cleanup symmetry and ownership clarity.
+The more a change depends on lifecycle, the more this lens should focus on cleanup symmetry and ownership clarity.
 
 ## Diagnosability And Runtime Visibility
 
 Ask:
 
 - If this fails in production, what signal would a developer have?
-- Can a reviewer infer the behavior from the code and the signals the system exposes?
+- Can a reader infer the behavior from the code and the signals the system exposes?
 - Are important runtime decisions, fallbacks, and failure paths visible enough to debug?
 - Would support or debugging require guesswork, or is the behavior reconstructable after the fact?
 - Is user-visible status enough here, or do developers also need stronger runtime breadcrumbs?
@@ -132,7 +132,7 @@ Ask:
 - Are store actions modeling meaningful domain transitions, or just exposing ad hoc mutation?
 - Are subscriptions or selectors scoped well enough to avoid unnecessary churn and hidden coupling?
 
-Do not apply React folklore mechanically. Tie feedback to clarity, ownership, lifecycle safety, and runtime predictability.
+Do not apply React folklore mechanically. Tie decisions back to clarity, ownership, lifecycle safety, and runtime predictability.
 
 ## Performance And Resource Discipline
 
@@ -145,7 +145,7 @@ Ask:
 
 Focus on structural performance problems rather than micro-optimizations.
 
-## Evidence That Is Especially Useful For This Pack
+## Evidence That Is Especially Useful For This Lens
 
 Useful evidence includes:
 

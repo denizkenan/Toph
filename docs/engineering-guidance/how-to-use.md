@@ -1,38 +1,36 @@
-# Default PR Review
+# How To Use This Guidance
 
 ## Purpose
 
-This file defines the default review flow for this repo, usable by both humans and AI agents. The goal is to keep review frequent and practical while protecting long-term codebase health.
+This file explains how to apply the engineering guidance in this repo while coding or reviewing.
 
-These review docs focus on engineering quality. They do not currently cover product, UX, or design review.
+## While Coding
 
-## Before You Start
+Use the guidance to shape decisions before they harden into code.
 
-Read `docs/review/core-review-principles.md` first unless you already know the repo's review values.
+Ask:
 
-If the intended architecture or constraints are unclear, consult the relevant architecture docs before drawing conclusions.
+- Which principle or lens is most relevant to this change?
+- Am I making future change cheaper or more expensive?
+- Is this creating a deeper module or just more fragmentation?
+- Is runtime behavior becoming clearer or more implicit?
+- Will the evidence I leave behind be enough for someone else to trust this later?
 
-## Review Input
+## While Reviewing
 
-Reviews may start from either:
+Use the guidance to identify the highest-value risks in the change set.
 
-- the PR diff or current git diff
-- the conversation or work log that led to the code change
+Start by understanding:
 
-Use the available context to understand intent before drawing conclusions.
+- what changed
+- why it changed
+- which constraints or tradeoffs shaped it
 
-## Default Flow
+Then use the relevant lens or lenses to judge the change against this repo's guidance rather than against generic best practices.
 
-1. Understand what changed and why.
-2. Decide whether quick review or deep review is appropriate.
-3. Read the relevant review pack or packs.
-4. Identify the highest-value risks first.
-5. Assign severity with a short explanation of why it matters in this repo.
-6. Prefer a few strong findings over many generic comments.
+## Choosing A Lens
 
-## Which Review Pack To Read
-
-### `review-packs/architecture-modules-and-boundaries.md` — when the main risk is system shape
+### Use `lenses/architecture-modules-and-boundaries.md` when the main risk is system shape
 
 Use this when the change raises questions like:
 
@@ -41,21 +39,23 @@ Use this when the change raises questions like:
 - Are boundaries, contracts, exports, and dependencies getting healthier or leakier?
 - Will future changes touch fewer places or more places?
 
-### `review-packs/state-effects-and-runtime-behavior.md` — when the main risk is runtime behavior
+### Use `lenses/state-effects-and-runtime-behavior.md` when the main risk is runtime behavior
 
 Use this when the change raises questions like:
 
 - Where does state live and who owns it?
 - Are effects, subscriptions, async work, and cleanup easy to reason about?
 - Are lifecycle transitions explicit enough?
-- Are runtime boundaries, event semantics, or cross-process interactions safe?
+- Are runtime boundaries, failure handling, diagnosability, or cross-process interactions safe?
 - Will this create leaks, stale behavior, rerender churn, or ordering bugs?
 
-If the main risk is unclear, skim both packs.
+If the main risk is unclear, skim both lenses.
 
-## Quick Review
+## Quick And Deep Use
 
-Use quick review by default.
+### Quick
+
+Use quick mode by default.
 
 Ask:
 
@@ -65,13 +65,13 @@ Ask:
 - Is state or runtime behavior still locally understandable?
 - If this introduces a new package dependency, is it necessary and proportionate to its long-term maintenance, bundle, and security cost?
 - Does the verification evidence match the risk of the change?
-- Does anything important need deeper review?
+- Does anything important need a deeper pass?
 
-Quick review catches drift, surfaces the main risks, and decides whether deeper analysis is needed.
+Quick mode catches drift, surfaces the main risks, and decides whether deeper analysis is needed.
 
-## Deep Review
+### Deep
 
-Use deep review when the change feels foundational, risky, or difficult to reverse.
+Use deep mode when the change feels foundational, risky, or difficult to reverse.
 
 Ask:
 
@@ -82,9 +82,9 @@ Ask:
 - What failure, cleanup, or staleness cases could break this design?
 - Is the chosen abstraction actually reducing coordination cost?
 
-Deep review inspects consequences, not just syntax.
+Deep mode inspects consequences, not just syntax.
 
-## Severity Model
+## Severity During Review
 
 ### Blocker
 
@@ -107,6 +107,7 @@ Examples:
 - increases coupling or spreads responsibility too widely
 - has thin tests or evidence for the type of risk introduced
 - names or boundaries are honest enough to pass but likely to confuse future readers
+- adds avoidable dependency surface for limited benefit
 
 ### Suggestion
 
@@ -118,20 +119,18 @@ Examples:
 - a small restructure would better align code with repo principles
 - additional verification would improve confidence even if current evidence is probably sufficient
 
-## What To Include In Review Feedback
+## What Good Review Feedback Looks Like
 
 Each finding should make clear:
 
 - what the issue is
 - why it matters
 - which repo goal it threatens
-- what evidence in the diff or change history supports the finding
+- what evidence in the diff, code, or change history supports the finding
 
 Prefer explaining the direction of improvement over prescribing exact code unless the fix is obvious.
 
-## Recommended Review Output
-
-For AI reviewers, use this shape:
+For AI reviewers, a good default shape is:
 
 1. Findings first, ordered by severity.
 2. For each finding, include severity, a short title, the reasoning, and concrete evidence.
@@ -150,17 +149,17 @@ Ask whether the change provides enough confidence through some combination of:
 - simpler design that reduces risk directly
 - explicit reasoning in code or docs
 - clear contracts and invariants
-- manual verification for runtime or platform-sensitive behavior
+- manual verification for runtime-sensitive or platform-sensitive behavior
 
 Demand stronger evidence when boundaries, contracts, lifecycle behavior, or shared state become harder to reason about.
 
-## Review Discipline
+## Usage Discipline
 
-- Treat review pack questions as prompts, not a mechanical checklist.
-- Do not manufacture findings just because a pack asks a question.
+- Treat guidance prompts as prompts, not a mechanical checklist.
+- Do not manufacture findings just because a lens asks a question.
 - Do not confuse familiarity with safety.
 - Do not reward cleverness over clarity.
 - Do not reward smaller units if they produce shallower modules.
 - Do not over-apply framework folklore without tying it to actual repo risk.
-- Do not flood the review with low-value comments.
-- Tie feedback to repo goals, not generic best-practice language.
+- Do not flood reviews with low-value comments.
+- Tie decisions and feedback back to repo goals rather than generic best-practice language.
