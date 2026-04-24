@@ -207,7 +207,7 @@ async function resolveHelper(): Promise<PasteHelper | null> {
       if (await commandExists('ydotool')) {
         return {
           name: 'ydotool',
-          args: ['key', '29:1', '47:1', '47:0', '29:0'],
+          args: ['key', '29:1', '42:1', '47:1', '47:0', '42:0', '29:0'],
           supported: true,
         };
       }
@@ -218,7 +218,7 @@ async function resolveHelper(): Promise<PasteHelper | null> {
     if (isWayland && (await commandExists('wtype'))) {
       return {
         name: 'wtype',
-        args: ['-M', 'ctrl', 'v', '-m', 'ctrl'],
+        args: ['-M', 'ctrl', '-M', 'shift', 'v', '-m', 'shift', '-m', 'ctrl'],
         supported: true,
       };
     }
@@ -226,7 +226,7 @@ async function resolveHelper(): Promise<PasteHelper | null> {
     if (await commandExists('ydotool')) {
       return {
         name: 'ydotool',
-        args: ['key', '29:1', '47:1', '47:0', '29:0'],
+        args: ['key', '29:1', '42:1', '47:1', '47:0', '42:0', '29:0'],
         supported: true,
       };
     }
@@ -234,7 +234,7 @@ async function resolveHelper(): Promise<PasteHelper | null> {
     if (!isWayland && (await commandExists('xdotool'))) {
       return {
         name: 'xdotool',
-        args: ['key', '--clearmodifiers', 'ctrl+v'],
+        args: ['key', '--clearmodifiers', 'ctrl+shift+v'],
         supported: true,
       };
     }
