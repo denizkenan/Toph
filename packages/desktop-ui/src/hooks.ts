@@ -1,63 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import {
-  DEFAULT_SHORTCUT_PRESET,
-  type AppState,
-  type DesktopApi,
-  type SoundEventKind,
-} from '@toph/desktop-contracts';
-
-const fallbackState: AppState = {
-  phase: 'idle',
-  shortcut: {
-    presetId: DEFAULT_SHORTCUT_PRESET.id,
-    accelerator: DEFAULT_SHORTCUT_PRESET.accelerator,
-    label: DEFAULT_SHORTCUT_PRESET.label,
-    registered: false,
-    backend: 'electron-global-shortcut',
-    detail: 'Inspecting global shortcut support...',
-    installable: false,
-    installed: false,
-  },
-  environment: {
-    platform: 'linux',
-    sessionType: 'unknown',
-    currentDesktop: 'unknown',
-  },
-  pasteSupport: {
-    helper: null,
-    detail: 'Inspecting desktop capabilities...',
-  },
-  lastPasteAttempt: {
-    helper: null,
-    status: 'idle',
-    detail: 'No transcript has been pasted yet.',
-  },
-  lastTranscript: null,
-  recentConversions: [],
-  updatedAt: Date.now(),
-};
+import { type AppState, type DesktopApi, type SoundEventKind } from '@toph/desktop-contracts';
 
 export function useDesktopState(client: DesktopApi) {
-  const [state, setState] = useState<AppState>(fallbackState);
+  const [state, setState] = useState<AppState | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    void client.getState().then((snapshot) => {
-      if (isMounted) {
-        setState(snapshot);
-      }
-    });
-
-    const unsubscribe = client.onStateChange((snapshot) => {
+    return client.subscribeState((snapshot) => {
       setState(snapshot);
     });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
   }, [client]);
 
   return state;
@@ -121,8 +72,17 @@ export function useOverlaySounds(client: DesktopApi, enabled: boolean) {
   }, [client, enabled]);
 }
 
-export function useDerivedStatus(state: AppState) {
+export function useDerivedStatus(state: AppState | null) {
   return useMemo(() => {
+    if (!state) {
+      return {
+        lastUpdated: 'Connecting...',
+        shortcutStatus: 'blocked',
+        shortcutBackendTone: 'muted',
+        pasteStatusTone: 'idle',
+      };
+    }
+
     const lastUpdated = new Date(state.updatedAt).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',

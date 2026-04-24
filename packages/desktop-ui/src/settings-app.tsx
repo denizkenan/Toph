@@ -1,17 +1,44 @@
 import { useEffect, useState } from 'react';
 
-import { SHORTCUT_PRESETS, type DesktopApi } from '@toph/desktop-contracts';
+import {
+  DEFAULT_SHORTCUT_PRESET,
+  SHORTCUT_PRESETS,
+  type DesktopApi,
+  type ShortcutPresetId,
+} from '@toph/desktop-contracts';
 
 import { useDerivedStatus, useDesktopState } from './hooks';
 
 export function SettingsApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const derived = useDerivedStatus(state);
-  const [selectedPresetId, setSelectedPresetId] = useState(state.shortcut.presetId);
+  const [selectedPresetId, setSelectedPresetId] = useState<ShortcutPresetId>(
+    DEFAULT_SHORTCUT_PRESET.id,
+  );
 
   useEffect(() => {
-    setSelectedPresetId(state.shortcut.presetId);
-  }, [state.shortcut.presetId]);
+    if (state) {
+      setSelectedPresetId(state.shortcut.presetId);
+    }
+  }, [state?.shortcut.presetId]);
+
+  if (!state) {
+    return (
+      <main className="settings-shell">
+        <div className="settings-backdrop" aria-hidden="true" />
+
+        <section className="settings-simple">
+          <header className="panel simple-header">
+            <div className="simple-header-copy">
+              <span className="eyebrow">Background dictation mock</span>
+              <h1>Toph</h1>
+              <p>Connecting the settings UI to the desktop runtime...</p>
+            </div>
+          </header>
+        </section>
+      </main>
+    );
+  }
 
   const phaseLabel =
     state.phase === 'listening'

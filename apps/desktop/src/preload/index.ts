@@ -6,33 +6,52 @@ import type {
   ShortcutPresetId,
   SoundEventKind,
 } from '@toph/desktop-contracts';
+import { DESKTOP_IPC_CHANNELS } from '@toph/desktop-contracts';
+
+const stateListeners = new Set<(state: AppState) => void>();
+let lastKnownState: AppState | null = null;
+
+const handleStateSnapshot = (_event: Electron.IpcRendererEvent, state: AppState) => {
+  lastKnownState = state;
+
+  for (const listener of stateListeners) {
+    listener(state);
+  }
+};
 
 const api: DesktopApi = {
-  getState: () => ipcRenderer.invoke('toph:get-state') as Promise<AppState>,
-  toggleCapture: () => ipcRenderer.invoke('toph:toggle-capture') as Promise<void>,
-  showSettings: () => ipcRenderer.invoke('toph:show-settings') as Promise<void>,
-  hideSettings: () => ipcRenderer.invoke('toph:hide-settings') as Promise<void>,
-  installShortcut: (presetId: ShortcutPresetId) =>
-    ipcRenderer.invoke('toph:install-shortcut', presetId) as Promise<void>,
-  quit: () => ipcRenderer.invoke('toph:quit') as Promise<void>,
-  onStateChange(listener) {
-    const subscription = (_event: Electron.IpcRendererEvent, state: AppState) => {
-      listener(state);
-    };
+  subscribeState(listener) {
+    stateListeners.add(listener);
 
-    ipcRenderer.on('toph:state-changed', subscription);
+    if (stateListeners.size === 1) {
+      ipcRenderer.on(DESKTOP_IPC_CHANNELS.state, handleStateSnapshot);
+      void ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.subscribeState);
+    } else if (lastKnownState) {
+      listener(lastKnownState);
+    }
+
     return () => {
-      ipcRenderer.removeListener('toph:state-changed', subscription);
+      stateListeners.delete(listener);
+
+      if (stateListeners.size === 0) {
+        ipcRenderer.removeListener(DESKTOP_IPC_CHANNELS.state, handleStateSnapshot);
+      }
     };
   },
+  toggleCapture: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.toggleCapture) as Promise<void>,
+  showSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.showSettings) as Promise<void>,
+  hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
+  installShortcut: (presetId: ShortcutPresetId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, presetId) as Promise<void>,
+  quit: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.quit) as Promise<void>,
   onSoundEvent(listener) {
     const subscription = (_event: Electron.IpcRendererEvent, kind: SoundEventKind) => {
       listener(kind);
     };
 
-    ipcRenderer.on('toph:sound', subscription);
+    ipcRenderer.on(DESKTOP_IPC_CHANNELS.sound, subscription);
     return () => {
-      ipcRenderer.removeListener('toph:sound', subscription);
+      ipcRenderer.removeListener(DESKTOP_IPC_CHANNELS.sound, subscription);
     };
   },
 };

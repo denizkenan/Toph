@@ -3,8 +3,6 @@ import { fileURLToPath } from 'node:url';
 
 import { app } from 'electron';
 
-import { APP_NAME } from '@toph/desktop-contracts';
-
 import { createDictationController } from './dictation';
 import { registerDesktopIpc } from './ipc';
 import { createPlatformAdapter } from './platform';
@@ -14,6 +12,7 @@ import { createDesktopTrayController } from './tray';
 import { createDesktopWindowManager } from './windows';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const appName = 'Toph';
 
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
@@ -24,7 +23,7 @@ export async function bootstrap(options: {
   shouldToggleOnLaunch: boolean;
   toggleCaptureFlag: string;
 }) {
-  app.setName(APP_NAME);
+  app.setName(appName);
 
   const singleInstance = app.requestSingleInstanceLock();
   if (!singleInstance) {
@@ -37,7 +36,7 @@ export async function bootstrap(options: {
 
   const stateStore = createDesktopStateStore();
   const windows = createDesktopWindowManager({
-    appName: APP_NAME,
+    appName,
     isQuitting: () => isQuitting,
   });
   const platformAdapter = createPlatformAdapter({
@@ -57,7 +56,7 @@ export async function bootstrap(options: {
     },
   });
   const tray = createDesktopTrayController({
-    appName: APP_NAME,
+    appName,
     getState: stateStore.getState,
     showSettings: windows.showSettings,
     toggleCapture: dictation.toggleCapture,

@@ -1,6 +1,13 @@
-export const APP_NAME = 'Toph';
-export const MOCK_TRANSCRIPT =
-  'This is a mocked Toph dictation result. Real transcription plugs in next.';
+export const DESKTOP_IPC_CHANNELS = {
+  subscribeState: 'toph:subscribe-state',
+  state: 'toph:state',
+  toggleCapture: 'toph:toggle-capture',
+  showSettings: 'toph:show-settings',
+  hideSettings: 'toph:hide-settings',
+  installShortcut: 'toph:install-shortcut',
+  sound: 'toph:sound',
+  quit: 'toph:quit',
+} as const;
 
 export type ShortcutPresetId = 'ctrl-alt-space' | 'ctrl-shift-space' | 'ctrl-alt-shift-space';
 
@@ -83,12 +90,15 @@ export interface AppState {
 }
 
 export interface DesktopApi {
-  getState: () => Promise<AppState>;
+  /**
+   * Subscribe to the desktop state stream.
+   * The listener receives the current snapshot first, then later updates in send order.
+   */
+  subscribeState: (listener: (state: AppState) => void) => () => void;
   toggleCapture: () => Promise<void>;
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
   installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
-  onStateChange: (listener: (state: AppState) => void) => () => void;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
 }

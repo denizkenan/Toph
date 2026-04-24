@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { BrowserWindow, screen } from 'electron';
 
-import type { AppState, SoundEventKind } from '@toph/desktop-contracts';
+import { DESKTOP_IPC_CHANNELS, type AppState, type SoundEventKind } from '@toph/desktop-contracts';
 
 export interface DesktopWindowManager {
   create: () => Promise<void>;
@@ -162,12 +162,12 @@ export function createDesktopWindowManager(options: {
     },
 
     sendState(state) {
-      settingsWindow?.webContents.send('toph:state-changed', state);
-      overlayWindow?.webContents.send('toph:state-changed', state);
+      settingsWindow?.webContents.send(DESKTOP_IPC_CHANNELS.state, state);
+      overlayWindow?.webContents.send(DESKTOP_IPC_CHANNELS.state, state);
     },
 
     emitSound(kind) {
-      overlayWindow?.webContents.send('toph:sound', kind);
+      overlayWindow?.webContents.send(DESKTOP_IPC_CHANNELS.sound, kind);
     },
 
     trackDisplayChanges() {

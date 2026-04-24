@@ -1,6 +1,6 @@
 import { clipboard } from 'electron';
 
-import { MOCK_TRANSCRIPT, type PasteAttempt } from '@toph/desktop-contracts';
+import type { PasteAttempt } from '@toph/desktop-contracts';
 
 import type { PlatformAdapter } from './platform';
 import type { DesktopStateStore } from './state';
@@ -14,6 +14,7 @@ export interface DictationController {
 const toggleDebounceMs = 800;
 const overlayHideDelayMs = 420;
 const transcriptionDelayMs = 1300;
+const mockTranscript = 'This is a mocked Toph dictation result. Real transcription plugs in next.';
 
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
@@ -48,7 +49,7 @@ export function createDictationController(options: {
   };
 
   const finalizeTranscription = async () => {
-    const transcript = MOCK_TRANSCRIPT;
+    const transcript = mockTranscript;
     let pasteAttempt: PasteAttempt;
 
     try {

@@ -37,12 +37,14 @@ const baseState: AppState = {
 
 function createClient(state: AppState): DesktopApi {
   return {
-    getState: async () => state,
+    subscribeState: (listener) => {
+      listener(state);
+      return () => {};
+    },
     toggleCapture: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
-    onStateChange: () => () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };

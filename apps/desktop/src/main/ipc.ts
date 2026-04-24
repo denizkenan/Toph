@@ -1,38 +1,44 @@
 import { ipcMain } from 'electron';
 
-import type { ShortcutPresetId } from '@toph/desktop-contracts';
+import {
+  DESKTOP_IPC_CHANNELS,
+  type AppState,
+  type ShortcutPresetId,
+} from '@toph/desktop-contracts';
 
 export function registerDesktopIpc(options: {
-  getState: () => unknown;
+  getState: () => AppState;
   toggleCapture: () => Promise<void>;
   showSettings: () => void;
   hideSettings: () => void;
   installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
   quit: () => void;
 }) {
-  ipcMain.handle('toph:get-state', async () => options.getState());
-  ipcMain.handle('toph:toggle-capture', async () => {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.subscribeState, (event) => {
+    event.sender.send(DESKTOP_IPC_CHANNELS.state, options.getState());
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.toggleCapture, async () => {
     await options.toggleCapture();
   });
-  ipcMain.handle('toph:show-settings', async () => {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.showSettings, async () => {
     options.showSettings();
   });
-  ipcMain.handle('toph:hide-settings', async () => {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.hideSettings, async () => {
     options.hideSettings();
   });
-  ipcMain.handle('toph:install-shortcut', async (_event, presetId: ShortcutPresetId) => {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.installShortcut, async (_event, presetId: ShortcutPresetId) => {
     await options.installShortcut(presetId);
   });
-  ipcMain.handle('toph:quit', async () => {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.quit, async () => {
     options.quit();
   });
 
   return () => {
-    ipcMain.removeHandler('toph:get-state');
-    ipcMain.removeHandler('toph:toggle-capture');
-    ipcMain.removeHandler('toph:show-settings');
-    ipcMain.removeHandler('toph:hide-settings');
-    ipcMain.removeHandler('toph:install-shortcut');
-    ipcMain.removeHandler('toph:quit');
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.subscribeState);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.toggleCapture);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.showSettings);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.hideSettings);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.installShortcut);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.quit);
   };
 }

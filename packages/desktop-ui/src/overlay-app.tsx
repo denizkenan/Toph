@@ -12,7 +12,7 @@ export function OverlayApp({
   const state = useDesktopState(client);
   useOverlaySounds(client, soundsEnabled);
 
-  if (state.phase === 'idle') {
+  if (!state || state.phase === 'idle') {
     return <div className="overlay-root overlay-hidden" />;
   }
 
