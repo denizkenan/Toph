@@ -15,6 +15,7 @@
     "@toph/desktop-ui": "workspace:*"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.4",
     "@types/node": "^24.6.1",
     "@vitejs/plugin-react": "^5.0.4",
     "electron": "^37.3.1",

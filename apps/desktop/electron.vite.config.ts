@@ -1,6 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 
@@ -25,7 +26,8 @@ export default defineConfig({
     },
   },
   renderer: {
-    plugins: [react()],
+    // The renderer owns CSS compilation for @toph/desktop-ui, including its Tailwind entry stylesheet.
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: workspaceAliases,
     },
