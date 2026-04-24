@@ -1,11 +1,11 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { globalShortcut } from 'electron';
+import { app, globalShortcut } from 'electron';
 
-import type { PasteAttempt, PasteSupport } from '@toph/desktop-contracts';
+import type { PasteAttempt, PasteSupport, ShortcutPreset } from '@toph/desktop-contracts';
 
-import type { ShortcutSupport } from './index';
+import type { PlatformAdapterConfig, ShortcutSupport } from './index';
 
 const execFileAsync = promisify(execFile);
 const GNOME_MEDIA_KEYS_SCHEMA = 'org.gnome.settings-daemon.plugins.media-keys';
@@ -29,6 +29,14 @@ const currentDesktop = (
 
 let helperPromise: Promise<PasteHelper | null> | null = null;
 let globalShortcutsPortalPromise: Promise<boolean> | null = null;
+
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function describeError(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
 
 function quoteVariantString(value: string) {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
@@ -113,6 +121,14 @@ async function installGnomeShortcut(command: string, binding: string) {
   );
 }
 
+function getShortcutLauncherCommand(config: PlatformAdapterConfig) {
+  if (app.isPackaged) {
+    return `${shellQuote(process.execPath)} ${config.toggleCaptureFlag}`;
+  }
+
+  return `sh ${shellQuote(config.launcherScriptPath)} ${config.toggleCaptureFlag}`;
+}
+
 function registerElectronShortcut(accelerator: string, onTrigger: () => void) {
   globalShortcut.unregisterAll();
   return globalShortcut.register(accelerator, onTrigger);
@@ -125,15 +141,12 @@ async function shouldUseGnomeShortcutFallback() {
   return isWayland && isGnome && !portalSupported;
 }
 
-async function registerShortcut(options: {
-  accelerator: string;
-  command: string | null;
-  binding: string;
-  label: string;
-  onTrigger: () => void;
-}): Promise<ShortcutSupport> {
+async function registerShortcut(
+  config: PlatformAdapterConfig,
+  options: { preset: ShortcutPreset; onTrigger: () => void },
+): Promise<ShortcutSupport> {
   if (!(await shouldUseGnomeShortcutFallback())) {
-    const registered = registerElectronShortcut(options.accelerator, options.onTrigger);
+    const registered = registerElectronShortcut(options.preset.accelerator, options.onTrigger);
 
     return {
       backend: 'electron-global-shortcut',
@@ -148,25 +161,28 @@ async function registerShortcut(options: {
 
   globalShortcut.unregisterAll();
 
-  if (!options.command) {
+  try {
+    await installGnomeShortcut(
+      getShortcutLauncherCommand(config),
+      options.preset.gnomeBinding,
+    );
+
+    return {
+      backend: 'gnome-custom-shortcut',
+      registered: true,
+      installable: true,
+      installed: true,
+      detail: `GNOME custom shortcut fallback is installed. ${options.preset.label} should trigger Toph even when another app is focused.`,
+    };
+  } catch (error) {
     return {
       backend: 'gnome-custom-shortcut',
       registered: false,
-      installable: false,
+      installable: true,
       installed: false,
-      detail: `GNOME 46 on Wayland does not expose the global shortcuts portal. A launcher command is required to make ${options.label} global.`,
+      detail: `GNOME custom shortcut fallback could not be installed. ${describeError(error)}.`,
     };
   }
-
-  await installGnomeShortcut(options.command, options.binding);
-
-  return {
-    backend: 'gnome-custom-shortcut',
-    registered: true,
-    installable: Boolean(options.command),
-    installed: true,
-    detail: `GNOME custom shortcut fallback is installed. ${options.label} should trigger Toph even when another app is focused.`,
-  };
 }
 
 async function commandExists(command: string): Promise<boolean> {
@@ -249,10 +265,19 @@ function runHelper(helper: PasteHelper): Promise<boolean> {
   });
 }
 
-export function createLinuxPlatformAdapter() {
+export function createLinuxPlatformAdapter(config: PlatformAdapterConfig) {
   return {
     async describePasteSupport(): Promise<PasteSupport> {
-      const helper = await resolveHelper();
+      let helper: PasteHelper | null;
+
+      try {
+        helper = await resolveHelper();
+      } catch (error) {
+        return {
+          helper: null,
+          detail: `Clipboard-first mode is active, but helper inspection failed. ${describeError(error)}.`,
+        };
+      }
 
       if (helper?.supported) {
         return {
@@ -285,7 +310,17 @@ export function createLinuxPlatformAdapter() {
     },
 
     async pasteFromClipboard(): Promise<PasteAttempt> {
-      const helper = await resolveHelper();
+      let helper: PasteHelper | null;
+
+      try {
+        helper = await resolveHelper();
+      } catch (error) {
+        return {
+          helper: null,
+          status: 'failed',
+          detail: `Transcript copied to the clipboard, but helper inspection failed. ${describeError(error)}.`,
+        };
+      }
 
       if (!helper?.supported) {
         return {
@@ -313,14 +348,8 @@ export function createLinuxPlatformAdapter() {
       };
     },
 
-    async registerShortcut(options: {
-      accelerator: string;
-      command: string | null;
-      binding: string;
-      label: string;
-      onTrigger: () => void;
-    }) {
-      return registerShortcut(options);
+    async registerShortcut(options: { preset: ShortcutPreset; onTrigger: () => void }) {
+      return registerShortcut(config, options);
     },
 
     unregisterShortcut() {

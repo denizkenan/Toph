@@ -18,7 +18,6 @@ const api: DesktopApi = {
   onStateChange(listener) {
     const subscription = (_event: Electron.IpcRendererEvent, state: AppState) => {
       listener(state);
-      ipcRenderer.send('toph:refresh-tray');
     };
 
     ipcRenderer.on('toph:state-changed', subscription);

@@ -1,6 +1,11 @@
 import { globalShortcut } from 'electron';
 
-import type { PasteAttempt, PasteSupport, ShortcutBackend } from '@toph/desktop-contracts';
+import type {
+  PasteAttempt,
+  PasteSupport,
+  ShortcutBackend,
+  ShortcutPreset,
+} from '@toph/desktop-contracts';
 
 import { createLinuxPlatformAdapter } from './linux';
 
@@ -15,19 +20,18 @@ export interface ShortcutSupport {
 export interface PlatformAdapter {
   describePasteSupport: () => Promise<PasteSupport>;
   pasteFromClipboard: () => Promise<PasteAttempt>;
-  registerShortcut: (options: {
-    accelerator: string;
-    command: string | null;
-    binding: string;
-    label: string;
-    onTrigger: () => void;
-  }) => Promise<ShortcutSupport>;
+  registerShortcut: (options: { preset: ShortcutPreset; onTrigger: () => void }) => Promise<ShortcutSupport>;
   unregisterShortcut: () => void;
 }
 
-export function createPlatformAdapter(): PlatformAdapter {
+export interface PlatformAdapterConfig {
+  launcherScriptPath: string;
+  toggleCaptureFlag: string;
+}
+
+export function createPlatformAdapter(config: PlatformAdapterConfig): PlatformAdapter {
   if (process.platform === 'linux') {
-    return createLinuxPlatformAdapter();
+    return createLinuxPlatformAdapter(config);
   }
 
   return {
@@ -45,9 +49,9 @@ export function createPlatformAdapter(): PlatformAdapter {
           'Transcript copied to clipboard. Auto-paste is not implemented for this platform yet.',
       };
     },
-    async registerShortcut({ accelerator, onTrigger }) {
+    async registerShortcut({ preset, onTrigger }) {
       globalShortcut.unregisterAll();
-      const registered = globalShortcut.register(accelerator, onTrigger);
+      const registered = globalShortcut.register(preset.accelerator, onTrigger);
 
       return {
         backend: 'electron-global-shortcut',
