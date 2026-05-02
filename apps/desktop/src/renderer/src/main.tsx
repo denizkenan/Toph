@@ -1,3 +1,3 @@
-import { mountSettingsApp } from '@toph/desktop-ui';
+import { mountHomeApp } from '@toph/desktop-ui';
 
-mountSettingsApp(document.getElementById('root') as HTMLElement, window.toph);
+mountHomeApp(document.getElementById('root') as HTMLElement, window.toph);

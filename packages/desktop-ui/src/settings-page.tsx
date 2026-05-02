@@ -1,0 +1,189 @@
+import { useState } from 'react';
+
+import { Select } from '@base-ui/react/select';
+import {
+  SHORTCUT_PRESETS,
+  type AppState,
+  type DesktopApi,
+  type ShortcutPresetId,
+} from '@toph/desktop-contracts';
+
+const statusToneClasses: Record<string, string> = {
+  ready: 'text-accent-green',
+  good: 'text-accent-green',
+  blocked: 'text-accent-red',
+  warn: 'text-accent-red',
+  muted: 'text-text-secondary',
+  idle: 'text-text-secondary',
+};
+
+const buttonClass =
+  'inline-flex cursor-pointer items-center justify-center rounded-full border border-transparent px-5 py-3 text-sm font-semibold transition-[transform,border-color,background-color,opacity] duration-200 ease-out hover:-translate-y-px hover:scale-[1.01] disabled:cursor-default disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:scale-100';
+
+export function SettingsPage({
+  state,
+  client,
+  onBack,
+}: {
+  state: AppState;
+  client: DesktopApi;
+  onBack: () => void;
+}) {
+  const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(null);
+  const selectedPresetId = presetOverride ?? state.shortcut.presetId;
+  const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
+  const shortcutTone = state.shortcut.registered ? 'ready' : 'blocked';
+  const shortcutToneClass = statusToneClasses[shortcutTone] ?? statusToneClasses.idle;
+
+  const presetItems = SHORTCUT_PRESETS.map((preset) => ({
+    value: preset.id,
+    label: preset.label,
+  }));
+
+  return (
+    <main className="relative min-h-screen overflow-hidden p-10 max-[980px]:p-6">
+      <div
+        className="settings-backdrop-wash pointer-events-none absolute -inset-[10%]"
+        aria-hidden="true"
+      />
+
+      <section className="relative mx-auto max-w-[720px]">
+        {/* Header */}
+        <header className="mb-8 flex items-center gap-4">
+          <button
+            type="button"
+            className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-white/4 text-text-secondary transition-all duration-200 ease-out hover:-translate-y-px hover:bg-white/8 hover:text-text-primary"
+            onClick={onBack}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4L6 9L11 14" />
+            </svg>
+          </button>
+          <h1 className="m-0 font-display text-2xl tracking-[-0.03em]">Settings</h1>
+        </header>
+
+        {/* Shortcut section */}
+        <section className="panel-surface mb-5 rounded-3xl p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
+                Shortcut
+              </span>
+              <h2 className="m-0 font-display text-xl tracking-[-0.03em]">Change the trigger</h2>
+            </div>
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${shortcutToneClass}`}
+            >
+              <span className={`size-2 rounded-full ${state.shortcut.registered ? 'bg-accent-green' : 'bg-accent-red'}`} />
+              {state.shortcut.registered ? 'Active' : 'Needs attention'}
+            </span>
+          </div>
+
+          <div className="mb-4">
+            <label className="mb-2 block text-sm text-text-secondary">Shortcut preset</label>
+            <Select.Root
+              items={presetItems}
+              value={selectedPresetId}
+              onValueChange={(value) => {
+                if (value) {
+                  setPresetOverride(value as ShortcutPresetId);
+                }
+              }}
+            >
+              <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6">
+                <Select.Value placeholder="Select preset" />
+                <Select.Icon className="text-text-tertiary">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 4L5 7L8 4" />
+                  </svg>
+                </Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}>
+                  <Select.Popup className="menu-popup-surface origin-[var(--transform-origin)] rounded-xl py-1.5 transition-[transform,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+                    <Select.List>
+                      {presetItems.map((item) => (
+                        <Select.Item
+                          key={item.value}
+                          value={item.value}
+                          className="flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8"
+                        >
+                          <Select.ItemIndicator className="text-accent-green">
+                            <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor">
+                              <path d="M9.16 1.12a.75.75 0 0 1 .22 1.04L5.14 8.66a.75.75 0 0 1-1.13.13L1.25 6.31a.75.75 0 1 1 1.06-1.06l2.1 1.91L8.12 1.34a.75.75 0 0 1 1.04-.22Z" />
+                            </svg>
+                          </Select.ItemIndicator>
+                          <Select.ItemText>{item.label}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.List>
+                  </Select.Popup>
+                </Select.Positioner>
+              </Select.Portal>
+            </Select.Root>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className={`${buttonClass} bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]`}
+              onClick={() => void client.installShortcut(selectedPresetId)}
+              disabled={(!shortcutDirty && state.shortcut.installed) || !state.shortcut.installable}
+            >
+              {shortcutDirty || !state.shortcut.installed ? 'Apply shortcut' : 'Shortcut installed'}
+            </button>
+            <span className="text-sm text-text-secondary">
+              Backend: {state.shortcut.backend}
+            </span>
+          </div>
+
+          <p className="mt-4 mb-0 text-sm text-text-secondary">{state.shortcut.detail}</p>
+        </section>
+
+        {/* Runtime section */}
+        <section className="panel-surface mb-5 rounded-3xl p-6">
+          <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
+            Runtime
+          </span>
+          <h2 className="m-0 mb-4 font-display text-xl tracking-[-0.03em]">
+            Environment
+          </h2>
+
+          <dl className="grid gap-3">
+            <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
+              <dt className="text-text-tertiary">Desktop</dt>
+              <dd className="m-0 text-sm font-semibold">{state.environment.currentDesktop || '—'}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
+              <dt className="text-text-tertiary">Session</dt>
+              <dd className="m-0 text-sm font-semibold">{state.environment.sessionType || '—'}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
+              <dt className="text-text-tertiary">Platform</dt>
+              <dd className="m-0 text-sm font-semibold">{state.environment.platform}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-text-tertiary">Paste support</dt>
+              <dd className="m-0 text-sm font-semibold">{state.pasteSupport.helper ?? 'None'}</dd>
+            </div>
+          </dl>
+
+          {state.pasteSupport.detail && (
+            <p className="mt-4 mb-0 text-sm text-text-secondary">{state.pasteSupport.detail}</p>
+          )}
+        </section>
+
+        {/* Quit */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className={`${buttonClass} border-accent-red/20 bg-accent-red/10 text-accent-red hover:bg-accent-red/18`}
+            onClick={() => void client.quit()}
+          >
+            Quit Toph
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}

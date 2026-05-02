@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { type AppState, type DesktopApi, type SoundEventKind } from '@toph/desktop-contracts';
 
@@ -72,35 +72,56 @@ export function useOverlaySounds(client: DesktopApi, enabled: boolean) {
   }, [client, enabled]);
 }
 
-export function useDerivedStatus(state: AppState | null) {
-  return useMemo(() => {
-    if (!state) {
-      return {
-        lastUpdated: 'Connecting...',
-        shortcutStatus: 'blocked',
-        shortcutBackendTone: 'muted',
-        pasteStatusTone: 'idle',
-      };
-    }
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const deltaMs = now - timestamp;
+  const deltaSec = Math.floor(deltaMs / 1000);
 
-    const lastUpdated = new Date(state.updatedAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  if (deltaSec < 60) {
+    return 'just now';
+  }
 
-    return {
-      lastUpdated,
-      shortcutStatus: state.shortcut.registered ? 'ready' : 'blocked',
-      shortcutBackendTone: state.shortcut.backend === 'gnome-custom-shortcut' ? 'muted' : 'idle',
-      pasteStatusTone:
-        state.lastPasteAttempt.status === 'success'
-          ? 'good'
-          : state.lastPasteAttempt.status === 'failed'
-            ? 'warn'
-            : state.lastPasteAttempt.status === 'clipboard-only'
-              ? 'muted'
-              : 'idle',
-    };
-  }, [state]);
+  const deltaMin = Math.floor(deltaSec / 60);
+  if (deltaMin < 60) {
+    return `${deltaMin} min ago`;
+  }
+
+  const deltaHr = Math.floor(deltaMin / 60);
+  if (deltaHr < 24) {
+    return `${deltaHr} hr${deltaHr > 1 ? 's' : ''} ago`;
+  }
+
+  const deltaDays = Math.floor(deltaHr / 24);
+  if (deltaDays === 1) {
+    return 'yesterday';
+  }
+
+  return new Date(timestamp).toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Returns a human-readable relative time string that updates automatically.
+ *
+ * Refresh interval: every 30s for items under 1 hour old, every 60s for older items.
+ */
+export function useRelativeTime(timestamp: number): string {
+  const [label, setLabel] = useState(() => formatRelativeTime(timestamp));
+
+  useEffect(() => {
+    setLabel(formatRelativeTime(timestamp));
+
+    const ageMs = Date.now() - timestamp;
+    const intervalMs = ageMs < 3_600_000 ? 30_000 : 60_000;
+
+    const id = setInterval(() => {
+      setLabel(formatRelativeTime(timestamp));
+    }, intervalMs);
+
+    return () => clearInterval(id);
+  }, [timestamp]);
+
+  return label;
 }

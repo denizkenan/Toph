@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
-import { useDesktopState } from './hooks';
+import { useDesktopState, useRelativeTime } from './hooks';
 
 const baseState: AppState = {
   phase: 'idle',
@@ -79,5 +79,27 @@ describe('useDesktopState', () => {
     unmount();
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useRelativeTime', () => {
+  it('returns "just now" for timestamps less than 60 seconds ago', () => {
+    const { result } = renderHook(() => useRelativeTime(Date.now() - 10_000));
+    expect(result.current).toBe('just now');
+  });
+
+  it('returns minutes for timestamps between 1 and 59 minutes ago', () => {
+    const { result } = renderHook(() => useRelativeTime(Date.now() - 5 * 60_000));
+    expect(result.current).toBe('5 min ago');
+  });
+
+  it('returns hours for timestamps between 1 and 23 hours ago', () => {
+    const { result } = renderHook(() => useRelativeTime(Date.now() - 3 * 3_600_000));
+    expect(result.current).toBe('3 hrs ago');
+  });
+
+  it('returns "yesterday" for timestamps between 24 and 47 hours ago', () => {
+    const { result } = renderHook(() => useRelativeTime(Date.now() - 30 * 3_600_000));
+    expect(result.current).toBe('yesterday');
   });
 });

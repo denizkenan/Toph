@@ -1,2 +1,2 @@
-export { mountSettingsApp } from './mount-settings';
+export { mountHomeApp } from './mount-home';
 export { mountOverlayApp } from './mount-overlay';

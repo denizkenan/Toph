@@ -8,14 +8,14 @@ import { createRoot } from 'react-dom/client';
 
 import type { DesktopApi } from '@toph/desktop-contracts';
 
-import { SettingsApp } from './settings-app';
+import { HomeApp } from './home-app';
 
 import './styles.css';
 
-export function mountSettingsApp(container: HTMLElement, client: DesktopApi) {
+export function mountHomeApp(container: HTMLElement, client: DesktopApi) {
   createRoot(container).render(
     <StrictMode>
-      <SettingsApp client={client} />
+      <HomeApp client={client} />
     </StrictMode>,
   );
 }
