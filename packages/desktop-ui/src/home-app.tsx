@@ -73,7 +73,10 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
   const systemStatus = deriveSystemStatus(state);
 
   return (
-    <main className="relative min-h-screen overflow-hidden p-10 max-[980px]:p-6">
+    <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
+      {state.environment.platform === 'darwin' && (
+        <div className="window-drag-region fixed top-0 right-0 left-0 h-10" aria-hidden="true" />
+      )}
       <div
         className="home-backdrop-wash pointer-events-none absolute -inset-[10%]"
         aria-hidden="true"
@@ -190,7 +193,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
 
   if (!state) {
     return (
-      <main className="relative min-h-screen overflow-hidden p-10 max-[980px]:p-6">
+      <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
         <div
           className="home-backdrop-wash pointer-events-none absolute -inset-[10%]"
           aria-hidden="true"

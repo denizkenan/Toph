@@ -65,6 +65,12 @@ export function createDesktopWindowManager(options: {
       title: options.appName,
       backgroundColor: '#24273a',
       autoHideMenuBar: true,
+      ...(process.platform === 'darwin'
+        ? {
+            titleBarStyle: 'hiddenInset' as const,
+            trafficLightPosition: { x: 18, y: 18 },
+          }
+        : {}),
       show: false,
       webPreferences: {
         preload: preloadPath,

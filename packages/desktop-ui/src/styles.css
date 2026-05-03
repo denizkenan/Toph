@@ -80,6 +80,10 @@
       linear-gradient(180deg, rgba(166, 218, 149, 0.05), transparent 52%);
   }
 
+  .window-drag-region {
+    -webkit-app-region: drag;
+  }
+
   .panel-surface {
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: linear-gradient(180deg, rgba(54, 58, 79, 0.95), rgba(36, 39, 58, 0.95));
