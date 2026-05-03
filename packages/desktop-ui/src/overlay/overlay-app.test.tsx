@@ -21,6 +21,10 @@ const baseState: AppState = {
     sessionType: 'wayland',
     currentDesktop: 'GNOME',
   },
+  permissions: {
+    ready: true,
+    requirements: [],
+  },
   pasteSupport: {
     helper: 'ydotool',
     detail: 'Clipboard-first mode is active. Auto-paste will be attempted with ydotool.',
@@ -45,6 +49,8 @@ function createClient(state: AppState): DesktopApi {
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
+    performPermissionAction: async () => {},
+    refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };

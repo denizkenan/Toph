@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppState,
   DesktopApi,
+  PermissionRequirementId,
   ShortcutPresetId,
   SoundEventKind,
 } from '@toph/desktop-contracts';
@@ -43,6 +44,10 @@ const api: DesktopApi = {
   hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
   installShortcut: (presetId: ShortcutPresetId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, presetId) as Promise<void>,
+  performPermissionAction: (permissionId: PermissionRequirementId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.performPermissionAction, permissionId) as Promise<void>,
+  refreshPermissions: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshPermissions) as Promise<void>,
   quit: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.quit) as Promise<void>,
   onSoundEvent(listener) {
     const subscription = (_event: Electron.IpcRendererEvent, kind: SoundEventKind) => {

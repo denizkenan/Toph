@@ -84,14 +84,6 @@ function registerElectronShortcut(preset: ShortcutPreset, onTrigger: () => void)
   globalShortcut.unregisterAll();
   const registered = globalShortcut.register(preset.accelerator, onTrigger);
 
-  if (!registered && process.platform === 'darwin') {
-    console.warn('[Toph] macOS global shortcut registration failed.', {
-      accelerator: preset.accelerator,
-      label: preset.label,
-      presetId: preset.id,
-    });
-  }
-
   return {
     backend: 'electron-global-shortcut',
     registered,

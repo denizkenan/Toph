@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
-import { useDesktopState, useRelativeTime } from './hooks';
+import { useDesktopState, useRelativeTime } from './use-desktop-state';
 
 const baseState: AppState = {
   phase: 'idle',
@@ -20,6 +20,10 @@ const baseState: AppState = {
     platform: 'linux',
     sessionType: 'wayland',
     currentDesktop: 'GNOME',
+  },
+  permissions: {
+    ready: true,
+    requirements: [],
   },
   pasteSupport: {
     helper: 'ydotool',
@@ -42,6 +46,8 @@ function createClient(onSubscribe: (listener: (state: AppState) => void) => () =
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
+    performPermissionAction: async () => {},
+    refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };

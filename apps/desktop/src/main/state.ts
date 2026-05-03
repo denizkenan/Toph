@@ -5,6 +5,7 @@ import {
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
+  type PermissionState,
   type ShortcutPreset,
 } from '@toph/desktop-contracts';
 
@@ -20,6 +21,7 @@ export interface DesktopStateStore {
   getState: () => AppState;
   subscribe: (listener: (state: AppState) => void) => () => void;
   setShortcut: (preset: ShortcutPreset, support: ShortcutStateSupport) => void;
+  setPermissions: (permissions: PermissionState) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
   setPhase: (phase: DictationPhase) => void;
   startListening: () => void;
@@ -49,6 +51,10 @@ function createInitialState(): AppState {
       platform: process.platform,
       sessionType: process.env.XDG_SESSION_TYPE ?? 'unknown',
       currentDesktop: process.env.XDG_CURRENT_DESKTOP ?? process.env.DESKTOP_SESSION ?? 'unknown',
+    },
+    permissions: {
+      ready: process.platform !== 'darwin',
+      requirements: [],
     },
     pasteSupport: {
       helper: null,
@@ -101,6 +107,12 @@ export function createDesktopStateStore(): DesktopStateStore {
           label: preset.label,
           ...support,
         };
+      });
+    },
+
+    setPermissions(permissions) {
+      commit((draft) => {
+        draft.permissions = permissions;
       });
     },
 

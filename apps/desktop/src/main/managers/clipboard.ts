@@ -194,6 +194,38 @@ function createLinuxClipboardManager(): ClipboardManager {
   };
 }
 
+function createMacClipboardManager(): ClipboardManager {
+  return {
+    async describePasteSupport() {
+      return {
+        helper: 'macos-accessibility',
+        detail: 'Clipboard-first mode is active. Auto-paste will be attempted with macOS Accessibility.',
+      };
+    },
+
+    async pasteFromClipboard() {
+      try {
+        await execFileAsync('osascript', [
+          '-e',
+          'tell application "System Events" to keystroke "v" using command down',
+        ]);
+
+        return {
+          helper: 'macos-accessibility',
+          status: 'success',
+          detail: 'Transcript copied to the clipboard and paste was attempted with macOS Accessibility.',
+        };
+      } catch (error) {
+        return {
+          helper: 'macos-accessibility',
+          status: 'failed',
+          detail: `Transcript copied to the clipboard, but macOS automatic paste failed. ${describeError(error)}.`,
+        };
+      }
+    },
+  };
+}
+
 function createDefaultClipboardManager(): ClipboardManager {
   return {
     async describePasteSupport() {
@@ -215,6 +247,10 @@ function createDefaultClipboardManager(): ClipboardManager {
 }
 
 export function createClipboardManager(): ClipboardManager {
+  if (process.platform === 'darwin') {
+    return createMacClipboardManager();
+  }
+
   if (process.platform === 'linux') {
     return createLinuxClipboardManager();
   }

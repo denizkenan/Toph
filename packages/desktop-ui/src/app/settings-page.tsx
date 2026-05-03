@@ -46,13 +46,9 @@ export function SettingsPage({
       {state.environment.platform === 'darwin' && (
         <div className="window-drag-region fixed top-0 right-0 left-0 h-10" aria-hidden="true" />
       )}
-      <div
-        className="settings-backdrop-wash pointer-events-none absolute -inset-[10%]"
-        aria-hidden="true"
-      />
+      <div className="settings-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
 
       <section className="relative mx-auto max-w-[720px]">
-        {/* Header */}
         <header className="mb-8 flex items-center gap-4">
           <button
             type="button"
@@ -66,7 +62,6 @@ export function SettingsPage({
           <h1 className="m-0 font-display text-2xl tracking-[-0.03em]">Settings</h1>
         </header>
 
-        {/* Shortcut section */}
         <section className="panel-surface mb-5 rounded-3xl p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
@@ -75,9 +70,7 @@ export function SettingsPage({
               </span>
               <h2 className="m-0 font-display text-xl tracking-[-0.03em]">Change the trigger</h2>
             </div>
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${shortcutToneClass}`}
-            >
+            <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${shortcutToneClass}`}>
               <span className={`size-2 rounded-full ${state.shortcut.registered ? 'bg-accent-green' : 'bg-accent-red'}`} />
               {state.shortcut.registered ? 'Active' : 'Needs attention'}
             </span>
@@ -144,14 +137,11 @@ export function SettingsPage({
           <p className="mt-4 mb-0 text-sm text-text-secondary">{state.shortcut.detail}</p>
         </section>
 
-        {/* Runtime section */}
         <section className="panel-surface mb-5 rounded-3xl p-6">
           <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
             Runtime
           </span>
-          <h2 className="m-0 mb-4 font-display text-xl tracking-[-0.03em]">
-            Environment
-          </h2>
+          <h2 className="m-0 mb-4 font-display text-xl tracking-[-0.03em]">Environment</h2>
 
           <dl className="grid gap-3">
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
@@ -166,6 +156,10 @@ export function SettingsPage({
               <dt className="text-text-tertiary">Platform</dt>
               <dd className="m-0 text-sm font-semibold">{state.environment.platform}</dd>
             </div>
+            <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
+              <dt className="text-text-tertiary">Permissions</dt>
+              <dd className="m-0 text-sm font-semibold">{state.permissions.ready ? 'Ready' : 'Needs setup'}</dd>
+            </div>
             <div className="flex justify-between gap-4">
               <dt className="text-text-tertiary">Paste support</dt>
               <dd className="m-0 text-sm font-semibold">{state.pasteSupport.helper ?? 'None'}</dd>
@@ -177,7 +171,6 @@ export function SettingsPage({
           )}
         </section>
 
-        {/* Quit */}
         <div className="flex justify-end">
           <button
             type="button"

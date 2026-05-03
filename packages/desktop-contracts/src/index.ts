@@ -5,6 +5,8 @@ export const DESKTOP_IPC_CHANNELS = {
   showSettings: 'toph:show-settings',
   hideSettings: 'toph:hide-settings',
   installShortcut: 'toph:install-shortcut',
+  performPermissionAction: 'toph:perform-permission-action',
+  refreshPermissions: 'toph:refresh-permissions',
   sound: 'toph:sound',
   quit: 'toph:quit',
 } as const;
@@ -71,6 +73,19 @@ export type DictationPhase = 'idle' | 'listening' | 'transcribing';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
+export type PermissionRequirementId = 'microphone' | 'accessibility';
+export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
+  'microphone',
+  'accessibility',
+];
+export type PermissionRequirementStatus =
+  | 'granted'
+  | 'missing'
+  | 'promptable'
+  | 'denied'
+  | 'not-required'
+  | 'unknown';
+export type PermissionRequirementAction = 'request' | 'open-settings' | 'recheck' | 'none';
 
 export interface PasteSupport {
   helper: string | null;
@@ -91,6 +106,20 @@ export interface ConversionRecord {
   pasteDetail: string;
 }
 
+export interface PermissionRequirement {
+  id: PermissionRequirementId;
+  label: string;
+  status: PermissionRequirementStatus;
+  required: boolean;
+  detail: string;
+  action: PermissionRequirementAction;
+}
+
+export interface PermissionState {
+  ready: boolean;
+  requirements: PermissionRequirement[];
+}
+
 export interface AppState {
   phase: DictationPhase;
   shortcut: {
@@ -108,6 +137,7 @@ export interface AppState {
     sessionType: string;
     currentDesktop: string;
   };
+  permissions: PermissionState;
   pasteSupport: PasteSupport;
   lastPasteAttempt: PasteAttempt;
   lastTranscript: string | null;
@@ -125,6 +155,8 @@ export interface DesktopApi {
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
   installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
+  performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
+  refreshPermissions: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
 }

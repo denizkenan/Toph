@@ -43,12 +43,33 @@ export function createWindowManager(options: {
   let settingsWindow: BrowserWindow | null = null;
   let overlayWindow: BrowserWindow | null = null;
 
+  const keepOverlayOnCurrentSpace = () => {
+    if (!overlayWindow) {
+      return;
+    }
+
+    if (process.platform !== 'darwin') {
+      overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      return;
+    }
+
+    // macOS fullscreen apps are separate Spaces. Re-applying this before every
+    // show keeps the overlay detached from the Space where it was first shown.
+    overlayWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true,
+    });
+    overlayWindow.setHiddenInMissionControl(true);
+  };
+
   const positionOverlay = () => {
     if (!overlayWindow) {
       return;
     }
 
-    const { workArea } = screen.getPrimaryDisplay();
+    const cursorPoint = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursorPoint);
+    const { workArea } = display;
     const bounds = overlayWindow.getBounds();
     const x = Math.round(workArea.x + (workArea.width - bounds.width) / 2);
     const y = Math.round(workArea.y + workArea.height - bounds.height - 24);
@@ -93,10 +114,6 @@ export function createWindowManager(options: {
       settingsWindow = null;
     });
 
-    settingsWindow.once('ready-to-show', () => {
-      settingsWindow?.hide();
-    });
-
     return loadRendererPage(settingsWindow, 'index.html');
   };
 
@@ -125,7 +142,7 @@ export function createWindowManager(options: {
       },
     });
 
-    overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    keepOverlayOnCurrentSpace();
     overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     overlayWindow.setIgnoreMouseEvents(true);
     overlayWindow.on('closed', () => {
@@ -160,7 +177,10 @@ export function createWindowManager(options: {
       }
 
       positionOverlay();
+      keepOverlayOnCurrentSpace();
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
       overlayWindow.showInactive();
+      overlayWindow.moveTop();
     },
 
     hideOverlay() {

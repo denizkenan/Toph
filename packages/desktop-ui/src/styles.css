@@ -80,6 +80,13 @@
       linear-gradient(180deg, rgba(166, 218, 149, 0.05), transparent 52%);
   }
 
+  .onboarding-backdrop-wash {
+    background:
+      linear-gradient(128deg, rgba(145, 215, 227, 0.1), transparent 34%),
+      linear-gradient(305deg, rgba(198, 160, 246, 0.09), transparent 36%),
+      linear-gradient(210deg, rgba(245, 169, 127, 0.06), transparent 44%);
+  }
+
   .window-drag-region {
     -webkit-app-region: drag;
   }

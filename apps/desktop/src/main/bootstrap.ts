@@ -42,9 +42,18 @@ export async function bootstrap(options: {
   });
   const permissions = createPermissionManager();
   const clipboard = createClipboardManager();
+  const ensurePermissionsReady = async () => {
+    const permissionState = await permissions.inspectRequiredPermissions();
+    stateStore.setPermissions(permissionState);
+    if (!permissionState.ready) {
+      windows.showSettings();
+    }
+    return permissionState.ready;
+  };
   const dictation = createDictationController({
     stateStore,
     clipboard,
+    ensurePermissionsReady,
     windows,
   });
   const shortcuts = createShortcutManager({
@@ -102,6 +111,12 @@ export async function bootstrap(options: {
     showSettings: windows.showSettings,
     hideSettings: windows.hideSettings,
     installShortcut: shortcuts.applyPreset,
+    performPermissionAction: async (permissionId) => {
+      stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
+    },
+    refreshPermissions: async () => {
+      await ensurePermissionsReady();
+    },
     quit: () => {
       isQuitting = true;
       app.quit();
@@ -109,7 +124,7 @@ export async function bootstrap(options: {
   });
 
   await windows.create();
-  await permissions.inspectRequiredPermissions();
+  await ensurePermissionsReady();
   const stopTrackingDisplays = windows.trackDisplayChanges();
   tray.create();
 

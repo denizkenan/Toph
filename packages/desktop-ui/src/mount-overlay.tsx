@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 
 import type { DesktopApi } from '@toph/desktop-contracts';
 
-import { OverlayApp } from './overlay-app';
+import { OverlayApp } from './overlay/overlay-app';
 
 import './styles.css';
 

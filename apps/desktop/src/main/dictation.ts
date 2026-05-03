@@ -24,7 +24,8 @@ function describeUnexpectedError(prefix: string, error: unknown) {
 export function createDictationController(options: {
   stateStore: DesktopStateStore;
   clipboard: Pick<ClipboardManager, 'pasteFromClipboard'>;
-  windows: Pick<WindowManager, 'showOverlay' | 'hideOverlay' | 'emitSound'>;
+  ensurePermissionsReady: () => Promise<boolean>;
+  windows: Pick<WindowManager, 'showSettings' | 'showOverlay' | 'hideOverlay' | 'emitSound'>;
 }): DictationController {
   let transcribeTimer: ReturnType<typeof setTimeout> | null = null;
   let hideOverlayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -78,8 +79,8 @@ export function createDictationController(options: {
   const beginListening = async () => {
     clearTranscribeTimer();
     clearHideOverlayTimer();
-    options.windows.showOverlay();
     options.stateStore.startListening();
+    options.windows.showOverlay();
     options.windows.emitSound('start');
   };
 
@@ -104,6 +105,10 @@ export function createDictationController(options: {
 
       const { phase } = options.stateStore.getState();
       if (phase === 'idle') {
+        if (!(await options.ensurePermissionsReady())) {
+          return;
+        }
+
         await beginListening();
         return;
       }

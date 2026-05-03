@@ -1,6 +1,7 @@
 import type { DesktopApi } from '@toph/desktop-contracts';
 
-import { useDesktopState, useOverlaySounds } from './hooks';
+import { useDesktopState } from '../hooks/use-desktop-state';
+import { useOverlaySounds } from '../hooks/use-overlay-sounds';
 
 export function OverlayApp({
   client,

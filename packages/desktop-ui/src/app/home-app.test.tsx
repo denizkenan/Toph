@@ -21,6 +21,10 @@ const baseState: AppState = {
     sessionType: 'wayland',
     currentDesktop: 'GNOME',
   },
+  permissions: {
+    ready: true,
+    requirements: [],
+  },
   pasteSupport: {
     helper: 'ydotool',
     detail: 'Clipboard-first mode is active. Auto-paste will be attempted with ydotool.',
@@ -45,6 +49,8 @@ function createClient(state: AppState): DesktopApi {
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
+    performPermissionAction: async () => {},
+    refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };
@@ -85,5 +91,44 @@ describe('HomeApp', () => {
     await screen.findByText('This is a test dictation result from the mock flow.');
     expect(screen.getByText('Pasted')).toBeTruthy();
     expect(screen.getByText('Paste failed')).toBeTruthy();
+  });
+
+  it('renders onboarding when required permissions are missing', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          environment: {
+            ...baseState.environment,
+            platform: 'darwin',
+          },
+          permissions: {
+            ready: false,
+            requirements: [
+              {
+                id: 'microphone',
+                label: 'Microphone',
+                status: 'promptable',
+                required: true,
+                detail: 'Toph needs microphone access before it can listen.',
+                action: 'request',
+              },
+              {
+                id: 'accessibility',
+                label: 'Accessibility',
+                status: 'missing',
+                required: true,
+                detail: 'Toph needs Accessibility access to paste for you.',
+                action: 'open-settings',
+              },
+            ],
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Two tiny keys/ });
+    expect(screen.getByText('Microphone')).toBeTruthy();
+    expect(screen.getByText('Accessibility')).toBeTruthy();
   });
 });

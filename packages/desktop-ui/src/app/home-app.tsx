@@ -2,8 +2,9 @@ import { useState } from 'react';
 
 import type { AppState, ConversionRecord, DesktopApi } from '@toph/desktop-contracts';
 
-import { DictationCard } from './dictation-card';
-import { useDesktopState } from './hooks';
+import { DictationCard } from '../components/dictation-card';
+import { useDesktopState } from '../hooks/use-desktop-state';
+import { OnboardingScreen } from './onboarding/onboarding-screen';
 import { SettingsPage } from './settings-page';
 
 type ActiveView = 'home' | 'settings';
@@ -57,6 +58,9 @@ function formatWordCount(count: number): string {
 }
 
 function deriveSystemStatus(state: AppState): { label: string; tone: string } {
+  if (!state.permissions.ready) {
+    return { label: 'Permissions needed', tone: 'text-accent-amber' };
+  }
   if (!state.shortcut.registered) {
     return { label: 'Shortcut not configured', tone: 'text-accent-amber' };
   }
@@ -77,13 +81,9 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
       {state.environment.platform === 'darwin' && (
         <div className="window-drag-region fixed top-0 right-0 left-0 h-10" aria-hidden="true" />
       )}
-      <div
-        className="home-backdrop-wash pointer-events-none absolute -inset-[10%]"
-        aria-hidden="true"
-      />
+      <div className="home-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
 
       <section className="relative mx-auto max-w-[720px]">
-        {/* Header */}
         <header className="mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
@@ -97,17 +97,11 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Status pill */}
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${systemStatus.tone}`}
-            >
-              <span
-                className={`size-2 rounded-full ${systemStatus.tone === 'text-accent-green' ? 'bg-accent-green' : 'bg-accent-amber'}`}
-              />
+            <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${systemStatus.tone}`}>
+              <span className={`size-2 rounded-full ${systemStatus.tone === 'text-accent-green' ? 'bg-accent-green' : 'bg-accent-amber'}`} />
               {systemStatus.label}
             </span>
 
-            {/* Settings cog */}
             <button
               type="button"
               className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-white/4 text-text-tertiary transition-all duration-200 ease-out hover:-translate-y-px hover:bg-white/8 hover:text-text-primary"
@@ -122,7 +116,6 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           </div>
         </header>
 
-        {/* Stats strip */}
         <div className="mb-8 grid grid-cols-4 gap-3 max-[640px]:grid-cols-2">
           <StatCard label="today" value={String(todayCount)} />
           <StatCard label="words" value={formatWordCount(totalWords)} />
@@ -130,7 +123,6 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           <StatCard label="cost" value="—" />
         </div>
 
-        {/* Recent dictations */}
         <section>
           <h2 className="m-0 mb-4 font-display text-lg tracking-[-0.02em] text-text-secondary">
             Recent
@@ -144,9 +136,7 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
             </div>
           ) : (
             <div className="grid gap-1.5 rounded-2xl border border-dashed border-white/10 bg-white/2 p-6 text-center">
-              <p className="m-0 font-display text-base text-text-primary">
-                Nothing here yet.
-              </p>
+              <p className="m-0 font-display text-base text-text-primary">Nothing here yet.</p>
               <span className="text-sm text-text-secondary">
                 Press{' '}
                 <kbd className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5 text-xs text-text-primary">
@@ -158,7 +148,6 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           )}
         </section>
 
-        {/* Footer */}
         <footer className="mt-8 flex items-center justify-between gap-4 text-xs text-text-tertiary">
           <span>Audio retained for last 10 items</span>
           <span>
@@ -194,17 +183,22 @@ export function HomeApp({ client }: { client: DesktopApi }) {
   if (!state) {
     return (
       <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
-        <div
-          className="home-backdrop-wash pointer-events-none absolute -inset-[10%]"
-          aria-hidden="true"
-        />
+        <div className="home-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
         <section className="relative mx-auto max-w-[720px]">
           <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
-          <p className="mt-3 mb-0 text-text-secondary">
-            Connecting to the desktop runtime...
-          </p>
+          <p className="mt-3 mb-0 text-text-secondary">Connecting to the desktop runtime...</p>
         </section>
       </main>
+    );
+  }
+
+  if (!state.permissions.ready) {
+    return (
+      <OnboardingScreen
+        platform={state.environment.platform}
+        requirements={state.permissions.requirements}
+        client={client}
+      />
     );
   }
 
@@ -212,10 +206,5 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     return <SettingsPage state={state} client={client} onBack={() => setView('home')} />;
   }
 
-  return (
-    <HomeScreen
-      state={state}
-      onNavigateSettings={() => setView('settings')}
-    />
-  );
+  return <HomeScreen state={state} onNavigateSettings={() => setView('settings')} />;
 }

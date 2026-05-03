@@ -8,7 +8,7 @@ import { createRoot } from 'react-dom/client';
 
 import type { DesktopApi } from '@toph/desktop-contracts';
 
-import { HomeApp } from './home-app';
+import { HomeApp } from './app/home-app';
 
 import './styles.css';
 
