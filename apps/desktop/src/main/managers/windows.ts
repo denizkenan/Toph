@@ -10,14 +10,14 @@ export interface WindowManager {
   showSettings: () => void;
   hideSettings: () => void;
   showOverlay: () => void;
-  hideOverlay: () => void;
   sendState: (state: AppState) => void;
   emitSound: (kind: SoundEventKind) => void;
-  trackDisplayChanges: () => () => void;
+  trackOverlayPlacement: () => () => void;
 }
 
 const mainBundleDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(mainBundleDir, '../preload/index.mjs');
+const overlayCursorFollowIntervalMs = 250;
 
 function getRendererPath(page: 'index.html' | 'overlay.html') {
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -53,8 +53,8 @@ export function createWindowManager(options: {
       return;
     }
 
-    // macOS fullscreen apps are separate Spaces. Re-applying this before every
-    // show keeps the overlay detached from the Space where it was first shown.
+    // macOS fullscreen apps are separate Spaces. Re-applying this while
+    // preparing the overlay keeps it detached from the Space where it started.
     overlayWindow.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
       skipTransformProcessType: true,
@@ -74,7 +74,27 @@ export function createWindowManager(options: {
     const x = Math.round(workArea.x + (workArea.width - bounds.width) / 2);
     const y = Math.round(workArea.y + workArea.height - bounds.height - 24);
 
+    if (bounds.x === x && bounds.y === y) {
+      return;
+    }
+
     overlayWindow.setBounds({ x, y, width: bounds.width, height: bounds.height });
+  };
+
+  const ensureOverlayVisible = () => {
+    if (!overlayWindow) {
+      return;
+    }
+
+    positionOverlay();
+    keepOverlayOnCurrentSpace();
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+
+    if (!overlayWindow.isVisible()) {
+      overlayWindow.showInactive();
+    }
+
+    overlayWindow.moveTop();
   };
 
   const createSettingsWindow = () => {
@@ -123,6 +143,7 @@ export function createWindowManager(options: {
       height: 132,
       frame: false,
       transparent: true,
+      ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
       show: false,
       resizable: false,
       movable: false,
@@ -150,7 +171,7 @@ export function createWindowManager(options: {
     });
 
     await loadRendererPage(overlayWindow, 'overlay.html');
-    positionOverlay();
+    ensureOverlayVisible();
   };
 
   return {
@@ -172,19 +193,7 @@ export function createWindowManager(options: {
     },
 
     showOverlay() {
-      if (!overlayWindow) {
-        return;
-      }
-
-      positionOverlay();
-      keepOverlayOnCurrentSpace();
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-      overlayWindow.showInactive();
-      overlayWindow.moveTop();
-    },
-
-    hideOverlay() {
-      overlayWindow?.hide();
+      ensureOverlayVisible();
     },
 
     sendState(state) {
@@ -196,12 +205,14 @@ export function createWindowManager(options: {
       overlayWindow?.webContents.send(DESKTOP_IPC_CHANNELS.sound, kind);
     },
 
-    trackDisplayChanges() {
+    trackOverlayPlacement() {
       screen.on('display-metrics-changed', positionOverlay);
       screen.on('display-added', positionOverlay);
       screen.on('display-removed', positionOverlay);
+      const followCursorTimer = setInterval(positionOverlay, overlayCursorFollowIntervalMs);
 
       return () => {
+        clearInterval(followCursorTimer);
         screen.off('display-metrics-changed', positionOverlay);
         screen.off('display-added', positionOverlay);
         screen.off('display-removed', positionOverlay);

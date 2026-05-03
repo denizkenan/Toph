@@ -111,6 +111,31 @@
     box-shadow: var(--shadow-overlay);
   }
 
+  .overlay-idle-line {
+    position: relative;
+    width: 172px;
+    height: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background:
+      linear-gradient(90deg, rgba(125, 196, 228, 0), rgba(125, 196, 228, 0.9), rgba(198, 160, 246, 0.72), rgba(125, 196, 228, 0)),
+      rgba(36, 39, 58, 0.74);
+    box-shadow:
+      0 12px 34px rgba(0, 0, 0, 0.34),
+      0 0 18px rgba(125, 196, 228, 0.34);
+  }
+
+  .overlay-idle-line-glow {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.72) 50%, transparent 100%);
+    opacity: 0.42;
+    transform: translateX(-72%);
+    animation: idle-line-scan 2.4s ease-in-out infinite;
+  }
+
   .overlay-card-listening {
     background:
       linear-gradient(180deg, rgba(125, 196, 228, 0.16), rgba(36, 39, 58, 0.96)),
@@ -150,6 +175,17 @@
   50% {
     transform: scale(1.08);
     box-shadow: 0 0 20px rgba(125, 196, 228, 0.95);
+  }
+}
+
+@keyframes idle-line-scan {
+  0%,
+  100% {
+    transform: translateX(-72%);
+  }
+
+  52% {
+    transform: translateX(72%);
   }
 }
 

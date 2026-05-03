@@ -12,7 +12,6 @@ export interface DictationController {
 }
 
 const toggleDebounceMs = 800;
-const overlayHideDelayMs = 420;
 const transcriptionDelayMs = 1300;
 const mockTranscript = 'This is a mocked Toph dictation result. Real transcription plugs in next.';
 
@@ -25,10 +24,9 @@ export function createDictationController(options: {
   stateStore: DesktopStateStore;
   clipboard: Pick<ClipboardManager, 'pasteFromClipboard'>;
   ensurePermissionsReady: () => Promise<boolean>;
-  windows: Pick<WindowManager, 'showSettings' | 'showOverlay' | 'hideOverlay' | 'emitSound'>;
+  windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
 }): DictationController {
   let transcribeTimer: ReturnType<typeof setTimeout> | null = null;
-  let hideOverlayTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
 
   const clearTranscribeTimer = () => {
@@ -38,15 +36,6 @@ export function createDictationController(options: {
 
     clearTimeout(transcribeTimer);
     transcribeTimer = null;
-  };
-
-  const clearHideOverlayTimer = () => {
-    if (!hideOverlayTimer) {
-      return;
-    }
-
-    clearTimeout(hideOverlayTimer);
-    hideOverlayTimer = null;
   };
 
   const finalizeTranscription = async () => {
@@ -69,16 +58,10 @@ export function createDictationController(options: {
 
     options.stateStore.completeTranscription(transcript, pasteAttempt);
     options.windows.emitSound('done');
-    clearHideOverlayTimer();
-    hideOverlayTimer = setTimeout(() => {
-      options.windows.hideOverlay();
-      hideOverlayTimer = null;
-    }, overlayHideDelayMs);
   };
 
   const beginListening = async () => {
     clearTranscribeTimer();
-    clearHideOverlayTimer();
     options.stateStore.startListening();
     options.windows.showOverlay();
     options.windows.emitSound('start');
@@ -120,7 +103,6 @@ export function createDictationController(options: {
 
     dispose() {
       clearTranscribeTimer();
-      clearHideOverlayTimer();
     },
   };
 }

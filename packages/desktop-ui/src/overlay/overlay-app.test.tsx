@@ -57,6 +57,12 @@ function createClient(state: AppState): DesktopApi {
 }
 
 describe('OverlayApp', () => {
+  it('renders the idle ready indicator', async () => {
+    render(<OverlayApp client={createClient({ ...baseState, phase: 'idle' })} soundsEnabled={false} />);
+
+    await screen.findByLabelText('Toph ready');
+  });
+
   it('renders the transcribing state without Electron globals', async () => {
     render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />);
 

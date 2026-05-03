@@ -14,7 +14,13 @@ export function OverlayApp({
   useOverlaySounds(client, soundsEnabled);
 
   if (!state || state.phase === 'idle') {
-    return <div className="grid h-screen w-screen place-items-center p-3 opacity-0" />;
+    return (
+      <main className="grid h-screen w-screen place-items-center p-3" aria-label="Toph ready">
+        <div className="overlay-idle-line" aria-hidden="true">
+          <span className="overlay-idle-line-glow" />
+        </div>
+      </main>
+    );
   }
 
   const listening = state.phase === 'listening';

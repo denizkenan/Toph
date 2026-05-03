@@ -125,7 +125,7 @@ export async function bootstrap(options: {
 
   await windows.create();
   await ensurePermissionsReady();
-  const stopTrackingDisplays = windows.trackDisplayChanges();
+  const stopTrackingOverlayPlacement = windows.trackOverlayPlacement();
   tray.create();
 
   await shortcuts.applyPreset(stateStore.getState().shortcut.presetId);
@@ -146,7 +146,7 @@ export async function bootstrap(options: {
 
   app.on('activate', windows.showSettings);
   app.on('will-quit', () => {
-    stopTrackingDisplays();
+    stopTrackingOverlayPlacement();
     unregisterIpc();
     unsubscribeState();
     dictation.dispose();
