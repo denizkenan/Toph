@@ -9,6 +9,14 @@ import type {
 
 import { createLinuxPlatformAdapter } from './linux';
 
+function describeShortcutRegistrationFailure(preset: ShortcutPreset) {
+  if (process.platform === 'darwin') {
+    return `${preset.label} could not be registered. macOS may reserve this shortcut for input source switching. Check System Settings > Keyboard > Keyboard Shortcuts > Input Sources, then try again.`;
+  }
+
+  return 'Electron global shortcut registration is unavailable right now.';
+}
+
 export interface ShortcutSupport {
   backend: ShortcutBackend;
   registered: boolean;
@@ -53,6 +61,14 @@ export function createPlatformAdapter(config: PlatformAdapterConfig): PlatformAd
       globalShortcut.unregisterAll();
       const registered = globalShortcut.register(preset.accelerator, onTrigger);
 
+      if (!registered && process.platform === 'darwin') {
+        console.warn('[Toph] macOS global shortcut registration failed.', {
+          accelerator: preset.accelerator,
+          label: preset.label,
+          presetId: preset.id,
+        });
+      }
+
       return {
         backend: 'electron-global-shortcut',
         registered,
@@ -60,7 +76,7 @@ export function createPlatformAdapter(config: PlatformAdapterConfig): PlatformAd
         installed: registered,
         detail: registered
           ? 'Electron global shortcut registration is active.'
-          : 'Electron global shortcut registration is unavailable right now.',
+          : describeShortcutRegistrationFailure(preset),
       };
     },
 

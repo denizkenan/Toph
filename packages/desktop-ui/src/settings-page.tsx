@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { Select } from '@base-ui/react/select';
 import {
+  resolveShortcutPresetForPlatform,
   SHORTCUT_PRESETS,
   type AppState,
   type DesktopApi,
@@ -37,7 +38,7 @@ export function SettingsPage({
 
   const presetItems = SHORTCUT_PRESETS.map((preset) => ({
     value: preset.id,
-    label: preset.label,
+    label: resolveShortcutPresetForPlatform(preset.id, state.environment.platform).label,
   }));
 
   return (

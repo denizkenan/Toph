@@ -7,7 +7,7 @@ import { useDesktopState, useRelativeTime } from './hooks';
 const baseState: AppState = {
   phase: 'idle',
   shortcut: {
-    presetId: 'ctrl-alt-space',
+    presetId: 'toggle-dictation-primary',
     accelerator: 'CommandOrControl+Alt+Space',
     label: 'Ctrl+Alt+Space',
     registered: true,

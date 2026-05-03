@@ -7,7 +7,7 @@ import { OverlayApp } from './overlay-app';
 const baseState: AppState = {
   phase: 'transcribing',
   shortcut: {
-    presetId: 'ctrl-alt-space',
+    presetId: 'toggle-dictation-primary',
     accelerator: 'CommandOrControl+Alt+Space',
     label: 'Ctrl+Alt+Space',
     registered: true,

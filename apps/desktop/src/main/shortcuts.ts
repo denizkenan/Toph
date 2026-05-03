@@ -1,6 +1,5 @@
 import {
-  DEFAULT_SHORTCUT_PRESET,
-  SHORTCUT_PRESETS,
+  resolveShortcutPresetForPlatform,
   type ShortcutPreset,
   type ShortcutPresetId,
 } from '@toph/desktop-contracts';
@@ -14,7 +13,7 @@ export interface ShortcutController {
 }
 
 function resolveShortcutPreset(presetId: ShortcutPresetId) {
-  return SHORTCUT_PRESETS.find((preset) => preset.id === presetId) ?? DEFAULT_SHORTCUT_PRESET;
+  return resolveShortcutPresetForPlatform(presetId, process.platform);
 }
 
 function toUnexpectedFailureSupport(

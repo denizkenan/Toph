@@ -9,37 +9,63 @@ export const DESKTOP_IPC_CHANNELS = {
   quit: 'toph:quit',
 } as const;
 
-export type ShortcutPresetId = 'ctrl-alt-space' | 'ctrl-shift-space' | 'ctrl-alt-shift-space';
+export type ShortcutPresetId =
+  | 'toggle-dictation-primary'
+  | 'toggle-dictation-secondary'
+  | 'toggle-dictation-tertiary';
 
 export interface ShortcutPreset {
   id: ShortcutPresetId;
   accelerator: string;
   label: string;
   gnomeBinding: string;
+  darwinAccelerator?: string;
+  darwinLabel?: string;
 }
 
 export const SHORTCUT_PRESETS: readonly ShortcutPreset[] = [
   {
-    id: 'ctrl-alt-space',
+    id: 'toggle-dictation-primary',
     accelerator: 'CommandOrControl+Alt+Space',
     label: 'Ctrl+Alt+Space',
     gnomeBinding: '<Primary><Alt>space',
+    darwinAccelerator: 'Control+Option+Space',
+    darwinLabel: 'Ctrl+Option+Space',
   },
   {
-    id: 'ctrl-shift-space',
+    id: 'toggle-dictation-secondary',
     accelerator: 'CommandOrControl+Shift+Space',
     label: 'Ctrl+Shift+Space',
     gnomeBinding: '<Primary><Shift>space',
   },
   {
-    id: 'ctrl-alt-shift-space',
+    id: 'toggle-dictation-tertiary',
     accelerator: 'CommandOrControl+Alt+Shift+Space',
     label: 'Ctrl+Alt+Shift+Space',
     gnomeBinding: '<Primary><Alt><Shift>space',
+    darwinAccelerator: 'Control+Option+Shift+Space',
+    darwinLabel: 'Ctrl+Option+Shift+Space',
   },
 ];
 
 export const DEFAULT_SHORTCUT_PRESET = SHORTCUT_PRESETS[0];
+
+export function resolveShortcutPresetForPlatform(
+  presetId: ShortcutPresetId,
+  platform: NodeJS.Platform,
+): ShortcutPreset {
+  const preset = SHORTCUT_PRESETS.find((item) => item.id === presetId) ?? DEFAULT_SHORTCUT_PRESET;
+
+  if (platform !== 'darwin') {
+    return preset;
+  }
+
+  return {
+    ...preset,
+    accelerator: preset.darwinAccelerator ?? preset.accelerator,
+    label: preset.darwinLabel ?? preset.label,
+  };
+}
 
 export type DictationPhase = 'idle' | 'listening' | 'transcribing';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';

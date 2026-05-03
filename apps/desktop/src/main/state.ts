@@ -1,5 +1,6 @@
 import {
   DEFAULT_SHORTCUT_PRESET,
+  resolveShortcutPresetForPlatform,
   type AppState,
   type DictationPhase,
   type PasteAttempt,
@@ -27,12 +28,17 @@ export interface DesktopStateStore {
 }
 
 function createInitialState(): AppState {
+  const defaultShortcutPreset = resolveShortcutPresetForPlatform(
+    DEFAULT_SHORTCUT_PRESET.id,
+    process.platform,
+  );
+
   return {
     phase: 'idle',
     shortcut: {
-      presetId: DEFAULT_SHORTCUT_PRESET.id,
-      accelerator: DEFAULT_SHORTCUT_PRESET.accelerator,
-      label: DEFAULT_SHORTCUT_PRESET.label,
+      presetId: defaultShortcutPreset.id,
+      accelerator: defaultShortcutPreset.accelerator,
+      label: defaultShortcutPreset.label,
       registered: false,
       backend: 'electron-global-shortcut',
       detail: 'Inspecting global shortcut support...',
