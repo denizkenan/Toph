@@ -11,6 +11,13 @@ export const DESKTOP_IPC_CHANNELS = {
   quit: 'toph:quit',
 } as const;
 
+// Shared because the main process owns the transparent Electron window while
+// the renderer must keep the visible overlay within this fixed runtime surface.
+export const OVERLAY_WINDOW_GEOMETRY = {
+  width: 400,
+  height: 80,
+} as const;
+
 export type ShortcutPresetId =
   | 'toggle-dictation-primary'
   | 'toggle-dictation-secondary'

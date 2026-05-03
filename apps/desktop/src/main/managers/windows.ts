@@ -3,7 +3,12 @@ import { fileURLToPath } from 'node:url';
 
 import { BrowserWindow, screen } from 'electron';
 
-import { DESKTOP_IPC_CHANNELS, type AppState, type SoundEventKind } from '@toph/desktop-contracts';
+import {
+  DESKTOP_IPC_CHANNELS,
+  OVERLAY_WINDOW_GEOMETRY,
+  type AppState,
+  type SoundEventKind,
+} from '@toph/desktop-contracts';
 
 export interface WindowManager {
   create: () => Promise<void>;
@@ -72,7 +77,10 @@ export function createWindowManager(options: {
     const { workArea } = display;
     const bounds = overlayWindow.getBounds();
     const x = Math.round(workArea.x + (workArea.width - bounds.width) / 2);
-    const y = Math.round(workArea.y + workArea.height - bounds.height - 24);
+    // The renderer anchors the visible pill to the bottom of this transparent
+    // window, so the active state can expand upward without moving the idle
+    // affordance away from the screen edge.
+    const y = Math.round(workArea.y + workArea.height - bounds.height);
 
     if (bounds.x === x && bounds.y === y) {
       return;
@@ -139,8 +147,8 @@ export function createWindowManager(options: {
 
   const createOverlayWindow = async () => {
     overlayWindow = new BrowserWindow({
-      width: 460,
-      height: 132,
+      width: OVERLAY_WINDOW_GEOMETRY.width,
+      height: OVERLAY_WINDOW_GEOMETRY.height,
       frame: false,
       transparent: true,
       ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),

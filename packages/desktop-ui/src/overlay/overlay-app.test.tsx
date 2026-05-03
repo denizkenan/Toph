@@ -66,9 +66,6 @@ describe('OverlayApp', () => {
   it('renders the transcribing state without Electron globals', async () => {
     render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />);
 
-    await screen.findByRole('heading', { name: 'Transcribing the pretend audio' });
-    expect(
-      screen.getByText('Clipboard is being filled, and a best-effort paste attempt is next.'),
-    ).toBeTruthy();
+    await screen.findByRole('heading', { name: 'Transcribing...' });
   });
 });

@@ -105,51 +105,80 @@
     backdrop-filter: blur(18px);
   }
 
-  .overlay-card-surface {
+  .overlay-viewport {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: var(--overlay-bottom-inset);
+  }
+
+  .overlay-pill-container {
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(54, 58, 79, 0.94), rgba(36, 39, 58, 0.94));
-    box-shadow: var(--shadow-overlay);
-  }
-
-  .overlay-idle-line {
-    position: relative;
-    width: 172px;
-    height: 7px;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
     border-radius: 999px;
-    background:
-      linear-gradient(90deg, rgba(125, 196, 228, 0), rgba(125, 196, 228, 0.9), rgba(198, 160, 246, 0.72), rgba(125, 196, 228, 0)),
-      rgba(36, 39, 58, 0.74);
-    box-shadow:
-      0 12px 34px rgba(0, 0, 0, 0.34),
-      0 0 18px rgba(125, 196, 228, 0.34);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .overlay-idle-line-glow {
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.72) 50%, transparent 100%);
-    opacity: 0.42;
-    transform: translateX(-72%);
-    animation: idle-line-scan 2.4s ease-in-out infinite;
+  /* These visible pill dimensions fit inside the shared transparent Electron
+     overlay window geometry and rely on bottom anchoring to grow upward. */
+  .pill-idle {
+    width: var(--overlay-idle-width);
+    height: var(--overlay-idle-height);
+    background: var(--color-canvas);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
-  .overlay-card-listening {
-    background:
-      linear-gradient(180deg, rgba(125, 196, 228, 0.16), rgba(36, 39, 58, 0.96)),
-      rgba(36, 39, 58, 0.94);
+  .pill-active {
+    width: var(--overlay-active-width);
+    height: var(--overlay-active-height);
+    background: rgba(36, 39, 58, 0.95);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
 
-  .overlay-card-transcribing {
-    background:
-      linear-gradient(180deg, rgba(198, 160, 246, 0.14), rgba(36, 39, 58, 0.96)),
-      rgba(36, 39, 58, 0.94);
+  .pill-content {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    gap: var(--overlay-content-gap);
+    padding-left: var(--overlay-content-padding-left);
+    transition: opacity 0.2s ease, visibility 0.2s ease;
   }
 
-  .wave-bar-fill {
-    background: linear-gradient(180deg, var(--color-accent-cyan), var(--color-accent-blue));
+  .pill-activity-slot {
+    display: flex;
+    width: var(--overlay-activity-slot-size);
+    height: var(--overlay-activity-slot-size);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pill-text {
+    width: var(--overlay-text-slot-width);
+  }
+
+  .pill-idle .pill-content {
+    opacity: 0;
+    visibility: hidden;
+    transition-delay: 0s;
+  }
+
+  .pill-active .pill-content {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0.15s;
+  }
+
+  .wave-bar-minimal {
+    background: var(--color-text-primary);
   }
 }
 
