@@ -5,7 +5,7 @@ import { BrowserWindow, screen } from 'electron';
 
 import { DESKTOP_IPC_CHANNELS, type AppState, type SoundEventKind } from '@toph/desktop-contracts';
 
-export interface DesktopWindowManager {
+export interface WindowManager {
   create: () => Promise<void>;
   showSettings: () => void;
   hideSettings: () => void;
@@ -16,15 +16,15 @@ export interface DesktopWindowManager {
   trackDisplayChanges: () => () => void;
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const preloadPath = join(__dirname, '../preload/index.mjs');
+const mainBundleDir = dirname(fileURLToPath(import.meta.url));
+const preloadPath = join(mainBundleDir, '../preload/index.mjs');
 
 function getRendererPath(page: 'index.html' | 'overlay.html') {
   if (process.env.ELECTRON_RENDERER_URL) {
     return `${process.env.ELECTRON_RENDERER_URL}/${page}`;
   }
 
-  return join(__dirname, `../renderer/${page}`);
+  return join(mainBundleDir, `../renderer/${page}`);
 }
 
 async function loadRendererPage(window: BrowserWindow, page: 'index.html' | 'overlay.html') {
@@ -36,10 +36,10 @@ async function loadRendererPage(window: BrowserWindow, page: 'index.html' | 'ove
   await window.loadFile(getRendererPath(page));
 }
 
-export function createDesktopWindowManager(options: {
+export function createWindowManager(options: {
   appName: string;
   isQuitting: () => boolean;
-}): DesktopWindowManager {
+}): WindowManager {
   let settingsWindow: BrowserWindow | null = null;
   let overlayWindow: BrowserWindow | null = null;
 

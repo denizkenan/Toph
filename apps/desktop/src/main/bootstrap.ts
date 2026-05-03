@@ -5,11 +5,12 @@ import { app } from 'electron';
 
 import { createDictationController } from './dictation';
 import { registerDesktopIpc } from './ipc';
-import { createPlatformAdapter } from './platform';
-import { createShortcutController } from './shortcuts';
+import { createClipboardManager } from './managers/clipboard';
+import { createPermissionManager } from './managers/permissions';
+import { createShortcutManager } from './managers/shortcuts';
+import { createWindowManager } from './managers/windows';
 import { createDesktopStateStore } from './state';
 import { createDesktopTrayController } from './tray';
-import { createDesktopWindowManager } from './windows';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'Toph';
@@ -35,22 +36,23 @@ export async function bootstrap(options: {
   let pendingToggle = options.shouldToggleOnLaunch;
 
   const stateStore = createDesktopStateStore();
-  const windows = createDesktopWindowManager({
+  const windows = createWindowManager({
     appName,
     isQuitting: () => isQuitting,
   });
-  const platformAdapter = createPlatformAdapter({
-    launcherScriptPath: join(__dirname, '../../../../scripts/toph-desktop.sh'),
-    toggleCaptureFlag: options.toggleCaptureFlag,
-  });
+  const permissions = createPermissionManager();
+  const clipboard = createClipboardManager();
   const dictation = createDictationController({
     stateStore,
-    platformAdapter,
+    clipboard,
     windows,
   });
-  const shortcuts = createShortcutController({
+  const shortcuts = createShortcutManager({
     stateStore,
-    platformAdapter,
+    config: {
+      launcherScriptPath: join(__dirname, '../../../../scripts/toph-desktop.sh'),
+      toggleCaptureFlag: options.toggleCaptureFlag,
+    },
     onTrigger: () => {
       void dictation.toggleCapture();
     },
@@ -107,13 +109,14 @@ export async function bootstrap(options: {
   });
 
   await windows.create();
+  await permissions.inspectRequiredPermissions();
   const stopTrackingDisplays = windows.trackDisplayChanges();
   tray.create();
 
   await shortcuts.applyPreset(stateStore.getState().shortcut.presetId);
 
   try {
-    stateStore.setPasteSupport(await platformAdapter.describePasteSupport());
+    stateStore.setPasteSupport(await clipboard.describePasteSupport());
   } catch (error) {
     stateStore.setPasteSupport({
       helper: null,
