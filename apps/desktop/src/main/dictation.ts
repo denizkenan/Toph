@@ -2,9 +2,9 @@ import { clipboard } from 'electron';
 
 import type { PasteAttempt } from '@toph/desktop-contracts';
 
-import type { PlatformAdapter } from './platform';
+import type { ClipboardManager } from './managers/clipboard';
+import type { WindowManager } from './managers/windows';
 import type { DesktopStateStore } from './state';
-import type { DesktopWindowManager } from './windows';
 
 export interface DictationController {
   toggleCapture: () => Promise<void>;
@@ -23,8 +23,8 @@ function describeUnexpectedError(prefix: string, error: unknown) {
 
 export function createDictationController(options: {
   stateStore: DesktopStateStore;
-  platformAdapter: Pick<PlatformAdapter, 'pasteFromClipboard'>;
-  windows: Pick<DesktopWindowManager, 'showOverlay' | 'hideOverlay' | 'emitSound'>;
+  clipboard: Pick<ClipboardManager, 'pasteFromClipboard'>;
+  windows: Pick<WindowManager, 'showOverlay' | 'hideOverlay' | 'emitSound'>;
 }): DictationController {
   let transcribeTimer: ReturnType<typeof setTimeout> | null = null;
   let hideOverlayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +54,7 @@ export function createDictationController(options: {
 
     try {
       clipboard.writeText(transcript);
-      pasteAttempt = await options.platformAdapter.pasteFromClipboard();
+      pasteAttempt = await options.clipboard.pasteFromClipboard();
     } catch (error) {
       pasteAttempt = {
         helper: null,
