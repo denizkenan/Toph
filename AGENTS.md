@@ -33,4 +33,3 @@ Toph is a voice-to-text dictation app.
   - `pnpm run typecheck`
   - `pnpm run build`
 - Don't make git commits unless you have the user's explicit consent.
-- As the last coding step or just before doing a user approved commit, run the `engineering-guidance-reviewer` subagent.
