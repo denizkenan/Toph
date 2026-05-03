@@ -129,7 +129,7 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           </h2>
 
           {state.recentConversions.length > 0 ? (
-            <div className="grid gap-3">
+            <div className="flex flex-col overflow-hidden rounded-3xl border border-white/6 bg-white/3 divide-y divide-white/6">
               {state.recentConversions.map((conversion) => (
                 <DictationCard key={conversion.id} conversion={conversion} />
               ))}
