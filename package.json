@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @toph/desktop dev",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
+    "icons:tray": "node scripts/generate-tray-icons.cjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "start": "sh ./scripts/toph-desktop.sh",
@@ -14,7 +15,8 @@
   },
   "devDependencies": {
     "oxfmt": "^0.46.0",
-    "oxlint": "^1.61.0"
+    "oxlint": "^1.61.0",
+    "sharp": "^0.34.5"
   },
   "packageManager": "pnpm@10.33.0"
 }
