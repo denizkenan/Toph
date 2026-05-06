@@ -5,11 +5,14 @@ import { app } from 'electron';
 
 import { createDictationController } from './dictation';
 import { registerDesktopIpc } from './ipc';
+import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
 import { createClipboardManager } from './managers/clipboard';
 import { createPermissionManager } from './managers/permissions';
 import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
+import { resolveTophDataPaths } from './paths';
 import { createDesktopStateStore } from './state';
+import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +45,16 @@ export async function bootstrap(options: {
   });
   const permissions = createPermissionManager();
   const clipboard = createClipboardManager();
+
+  await app.whenReady();
+
+  const dataPaths = await resolveTophDataPaths(app);
+  const sessionStore = await createRecordingSessionStore({
+    paths: dataPaths,
+    migrationsFolder: join(__dirname, '../../drizzle'),
+  });
+  const audioRecorder = createElectronCaptureAudioRecorder();
+
   const ensurePermissionsReady = async () => {
     const permissionState = await permissions.inspectRequiredPermissions();
     stateStore.setPermissions(permissionState);
@@ -52,7 +65,8 @@ export async function bootstrap(options: {
   };
   const dictation = createDictationController({
     stateStore,
-    clipboard,
+    sessionStore,
+    audioRecorder,
     ensurePermissionsReady,
     windows,
   });
@@ -99,8 +113,6 @@ export async function bootstrap(options: {
     isQuitting = true;
   });
 
-  await app.whenReady();
-
   const unsubscribeState = stateStore.subscribe((state) => {
     windows.sendState(state);
     tray.refresh();
@@ -127,6 +139,7 @@ export async function bootstrap(options: {
   await ensurePermissionsReady();
   const stopTrackingOverlayPlacement = windows.trackOverlayPlacement();
   tray.create();
+  let quitCleanupComplete = false;
 
   await shortcuts.applyPreset(stateStore.getState().shortcut.presetId);
 
@@ -145,11 +158,21 @@ export async function bootstrap(options: {
   }
 
   app.on('activate', windows.showSettings);
-  app.on('will-quit', () => {
+  app.on('will-quit', (event) => {
+    if (quitCleanupComplete) {
+      return;
+    }
+
+    event.preventDefault();
     stopTrackingOverlayPlacement();
     unregisterIpc();
     unsubscribeState();
-    dictation.dispose();
     shortcuts.unregister();
+
+    void dictation.dispose().finally(() => {
+      sessionStore.close();
+      quitCleanupComplete = true;
+      app.quit();
+    });
   });
 }

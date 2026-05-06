@@ -26,6 +26,8 @@ export interface DesktopStateStore {
   setPhase: (phase: DictationPhase) => void;
   startListening: () => void;
   startTranscribing: () => void;
+  completeRecording: () => void;
+  failDictation: (detail: string) => void;
   completeTranscription: (transcript: string, pasteAttempt: PasteAttempt) => void;
 }
 
@@ -134,7 +136,7 @@ export function createDesktopStateStore(): DesktopStateStore {
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: 'Listening for mock speech input...',
+          detail: 'Recording microphone audio...',
         };
       });
     },
@@ -145,7 +147,29 @@ export function createDesktopStateStore(): DesktopStateStore {
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: 'Mock transcription is underway...',
+          detail: 'Finishing recording...',
+        };
+      });
+    },
+
+    completeRecording() {
+      commit((draft) => {
+        draft.phase = 'idle';
+        draft.lastPasteAttempt = {
+          helper: draft.lastPasteAttempt.helper,
+          status: 'idle',
+          detail: 'Recording saved locally. Transcription is not enabled in this phase.',
+        };
+      });
+    },
+
+    failDictation(detail) {
+      commit((draft) => {
+        draft.phase = 'failed';
+        draft.lastPasteAttempt = {
+          helper: draft.lastPasteAttempt.helper,
+          status: 'failed',
+          detail,
         };
       });
     },

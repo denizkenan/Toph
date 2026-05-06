@@ -13,6 +13,8 @@ This document is the developer handoff plan for implementing real dictation in T
 - Keep internal batches hidden from the user-facing mental model.
 - Preserve main-process ownership for recording, persistence, provider calls, and platform effects.
 - Keep the renderer mostly state-driven.
+- Introduce only the database schema needed for the current phase.
+- Treat early local databases and migrations as disposable while the pipeline is still moving.
 - Avoid broad test investment while the architecture is still moving.
 - Add focused tests once planner and provider contracts stabilize.
 
@@ -24,15 +26,46 @@ Replace the mock-only dictation lifecycle with real session persistence and raw 
 
 ### Build Items
 
-- Create `~/.toph` as the initial local data directory.
-- Add SQLite persistence at `~/.toph/data.db`.
+- Resolve local data storage from `TOPH_DATA_DIRECTORY` when set; otherwise use Electron's `userData` path.
+- During repository-local development, set `TOPH_DATA_DIRECTORY` to `<repo>/.toph` for easier debugging.
+- Add SQLite persistence at `<dataDirectory>/data.db`.
 - Add Drizzle schema and migrations.
 - Validate `better-sqlite3` under the Electron build path before depending on it heavily.
 - Create the `recording_sessions` table.
 - Record one raw WAV file per toggle-on to toggle-off session.
-- Store raw WAV files under `~/.toph/recordings/<sessionId>/raw.wav`.
-- Retain the last 10 complete sessions.
+- Store raw WAV files under `<dataDirectory>/recordings/<sessionId>/raw.wav`.
+- Retain raw WAV files for the last 10 complete sessions.
+- Keep pruned session rows in SQLite with `status = removed` so metadata remains inspectable.
 - Do not prune active sessions.
+
+### Phase 1 Sub-Phases
+
+Phase 1 is intentionally split because persistence, native SQLite viability, and microphone capture carry different risks.
+
+1. Add data directory resolution and validate SQLite/Drizzle bootstrapping.
+2. Add the minimal persisted session lifecycle without transcription semantics.
+3. Add a hidden Electron capture renderer that captures microphone PCM and streams chunks to the main process.
+4. Write 16 kHz mono 16-bit PCM WAV files in the main process.
+5. Integrate recording, session persistence, failure handling, and retention cleanup.
+6. Update documentation with any implementation constraints discovered during the phase.
+
+### Phase 1 Recorder Boundary
+
+Use a separate hidden Electron capture renderer for microphone access. The capture renderer owns only browser microphone capture and chunk forwarding. The main process owns session lifecycle, database writes, raw WAV file writing, retention, and failure semantics.
+
+Implement the recorder behind a pluggable main-process abstraction so Linux support or a future native/external recorder backend can be added without rewriting dictation orchestration. Phase 1 code should be written with macOS manual verification in mind, while keeping Linux implementation straightforward through the backend boundary.
+
+### Phase 1 Renderer Contract
+
+The UI may continue using the temporary `idle -> listening -> transcribing -> idle` shape, with a short failure state when recording fails. The database session statuses for Phase 1 should stay honest and minimal:
+
+```text
+recording -> recorded
+recording -> failed
+recorded/failed -> removed
+```
+
+Do not add future transcription, batch, or output tables until the phase that needs them.
 
 ### Expected State Transitions
 
@@ -59,11 +92,12 @@ The UI does not need every database status immediately, but runtime behavior sho
 - Confirm one session row exists in SQLite.
 - Confirm one raw WAV exists for the session.
 - Play the raw WAV and verify it matches the full toggle-on to toggle-off interval.
-- Create more than 10 sessions and verify old complete sessions are pruned safely.
+- Create more than 10 sessions and verify old complete session audio files are pruned safely while DB rows remain with `status = removed`.
+- Force or simulate a recording failure and verify the overlay shows a temporary failed state.
 
 ### Done Criteria
 
-Every dictation session produces one playable raw WAV and one persisted session row. The app retains only the last 10 complete sessions by default.
+Every dictation session produces one playable raw WAV and one persisted session row. The app retains raw WAV files for only the last 10 complete sessions by default, while older session metadata remains in SQLite as `removed`.
 
 ## Phase 2: Offline Segmentation And Batch Planning
 

@@ -9,7 +9,7 @@ The architecture should support both live processing while recording is active a
 ## Goals
 
 - Record one full raw session per toggle-on/toggle-off interval.
-- Store only the last 10 sessions by default.
+- Store raw audio for only the last 10 complete sessions by default, while preserving pruned session metadata.
 - Preserve raw audio unchanged.
 - Derive transcription batches from speech/silence analysis.
 - Prefer transcription batches above provider billing minimums when the user keeps speaking.
@@ -39,7 +39,7 @@ The current mock orchestration lives in `apps/desktop/src/main/dictation.ts`. Re
 
 Owns local persistence for sessions, timeline regions, transcription batches, batch source ranges, batch transcripts, and final session outputs.
 
-The durable local store should use SQLite at `~/.toph/data.db` unless implementation discovers unacceptable Electron packaging friction.
+The durable local store should use SQLite under the resolved Toph data directory unless implementation discovers unacceptable Electron packaging friction. Local development may override the data directory with `TOPH_DATA_DIRECTORY`.
 
 ### Raw Audio Recorder
 

@@ -52,6 +52,7 @@ export function OverlayApp({
   const phase = state?.phase || 'idle';
   const isIdle = phase === 'idle';
   const listening = phase === 'listening';
+  const failed = phase === 'failed';
 
   return (
     <main
@@ -62,12 +63,14 @@ export function OverlayApp({
       {/* The Electron overlay window sits flush to the screen bottom; keep the
       visible pill bottom-anchored so active growth expands upward. */}
       <section
-        className={`overlay-pill-container ${isIdle ? 'pill-idle' : 'pill-active'}`}
+        className={`overlay-pill-container ${isIdle ? 'pill-idle' : 'pill-active'} ${failed ? 'pill-failed' : ''}`}
         aria-hidden={isIdle}
       >
         <div className="pill-content">
           <div className="pill-activity-slot">
-            {listening ? (
+            {failed ? (
+              <span className="size-3.5 rounded-full bg-accent-red" />
+            ) : listening ? (
               <div className="flex h-3.5 items-center gap-[3px]" aria-hidden="true">
                 <span className="wave-bar-minimal h-2 w-1 animate-wave rounded-full" />
                 <span className="wave-bar-minimal h-3 w-1 animate-wave rounded-full [animation-delay:0.12s]" />
@@ -80,7 +83,7 @@ export function OverlayApp({
           </div>
 
           <h2 className="pill-text m-0 text-left whitespace-nowrap text-[0.92rem] font-medium tracking-tight text-text-primary">
-            {listening ? 'Listening...' : 'Transcribing...'}
+            {failed ? 'Failed' : listening ? 'Listening...' : 'Transcribing...'}
           </h2>
         </div>
       </section>

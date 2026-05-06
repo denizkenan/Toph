@@ -142,6 +142,11 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
 
+  .pill-failed {
+    border-color: rgba(237, 135, 150, 0.36);
+    background: rgba(63, 32, 45, 0.96);
+  }
+
   .pill-content {
     display: flex;
     width: 100%;

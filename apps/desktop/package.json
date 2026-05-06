@@ -6,18 +6,24 @@
   "main": "out/main/index.js",
   "scripts": {
     "build": "electron-vite build",
-    "dev": "ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
-    "preview": "ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
+    "dev": "TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
+    "preview": "TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@toph/desktop-contracts": "workspace:*",
-    "@toph/desktop-ui": "workspace:*"
+    "@toph/desktop-ui": "workspace:*",
+    "better-sqlite3": "^12.9.0",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@tailwindcss/vite": "^4.2.4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.6.1",
     "@vitejs/plugin-react": "^5.0.4",
+    "drizzle-kit": "^0.31.10",
     "electron": "^37.3.1",
     "electron-vite": "^4.0.0",
     "typescript": "^5.9.3",

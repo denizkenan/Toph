@@ -11,6 +11,15 @@ export const DESKTOP_IPC_CHANNELS = {
   quit: 'toph:quit',
 } as const;
 
+export const DESKTOP_CAPTURE_IPC_CHANNELS = {
+  start: 'toph:capture:start',
+  stop: 'toph:capture:stop',
+  started: 'toph:capture:started',
+  stopped: 'toph:capture:stopped',
+  chunk: 'toph:capture:chunk',
+  error: 'toph:capture:error',
+} as const;
+
 // Shared because the main process owns the transparent Electron window while
 // the renderer must keep the visible overlay within this fixed runtime surface.
 export const OVERLAY_WINDOW_GEOMETRY = {
@@ -76,7 +85,7 @@ export function resolveShortcutPresetForPlatform(
   };
 }
 
-export type DictationPhase = 'idle' | 'listening' | 'transcribing';
+export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'failed';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
@@ -166,4 +175,32 @@ export interface DesktopApi {
   refreshPermissions: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
+}
+
+export interface CaptureStartRequest {
+  sessionId: string;
+  sampleRate: number;
+}
+
+export interface CaptureChunkMessage {
+  sessionId: string;
+  chunk: ArrayBuffer;
+}
+
+export interface CaptureLifecycleMessage {
+  sessionId: string;
+}
+
+export interface CaptureErrorMessage {
+  sessionId: string | null;
+  message: string;
+}
+
+export interface CaptureRendererApi {
+  onStart: (listener: (request: CaptureStartRequest) => void) => () => void;
+  onStop: (listener: () => void) => () => void;
+  sendStarted: (message: CaptureLifecycleMessage) => void;
+  sendStopped: (message: CaptureLifecycleMessage) => void;
+  sendChunk: (message: CaptureChunkMessage) => void;
+  sendError: (message: CaptureErrorMessage) => void;
 }

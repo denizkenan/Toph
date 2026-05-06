@@ -68,7 +68,7 @@ function inspectMacAccessibility(): PermissionRequirement {
       id: 'accessibility',
       label: 'Accessibility',
       status: 'granted',
-      required: true,
+      required: false,
       detail: 'Accessibility access is ready for automatic paste into the focused app.',
       action: 'none',
     };
@@ -78,8 +78,8 @@ function inspectMacAccessibility(): PermissionRequirement {
     id: 'accessibility',
     label: 'Accessibility',
     status: 'missing',
-    required: true,
-    detail: 'Toph needs Accessibility access to press paste for you after filling the clipboard.',
+    required: false,
+    detail: 'Accessibility access is optional until automatic paste is enabled in a later phase.',
     action: 'open-settings',
   };
 }

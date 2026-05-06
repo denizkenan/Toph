@@ -24,6 +24,14 @@ export default defineConfig({
     resolve: {
       alias: workspaceAliases,
     },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(rootDir, 'src/preload/index.ts'),
+          capture: resolve(rootDir, 'src/preload/capture.ts'),
+        },
+      },
+    },
   },
   renderer: {
     // The renderer owns CSS compilation for @toph/desktop-ui, including its Tailwind entry stylesheet.
@@ -36,6 +44,7 @@ export default defineConfig({
         input: {
           index: resolve(rootDir, 'src/renderer/index.html'),
           overlay: resolve(rootDir, 'src/renderer/overlay.html'),
+          capture: resolve(rootDir, 'src/renderer/capture.html'),
         },
       },
     },

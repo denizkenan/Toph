@@ -6,11 +6,11 @@ This document describes the local SQLite data model for real dictation. The sche
 
 ## Storage Location
 
-Use a known local directory for the initial implementation:
+Use `TOPH_DATA_DIRECTORY` when it is set. Otherwise, use Electron's `userData` path. Repository-local development can set `TOPH_DATA_DIRECTORY` to `<repo>/.toph` so the database and recordings are easy to inspect.
 
 ```text
-~/.toph/data.db
-~/.toph/recordings/<sessionId>/raw.wav
+<dataDirectory>/data.db
+<dataDirectory>/recordings/<sessionId>/raw.wav
 ```
 
 Optional debug files may be generated during implementation or on demand later. They should not be required durable product data.
@@ -27,7 +27,7 @@ Prefer `better-sqlite3` if Electron build and packaging validation works cleanly
 
 Retain the last 10 complete sessions by default.
 
-Retention should remove both database rows and associated raw audio files. It must never prune an active recording session or files still referenced by retained database rows.
+Retention should remove old raw audio files while keeping session rows for inspectability. Pruned rows should move to a status such as `removed` so the database records that the session existed but its local recording file is no longer retained. Retention must never prune an active recording session or files still referenced by retained `recorded` or `failed` rows.
 
 Retention is based on user-visible sessions, not internal transcription batches.
 
@@ -35,7 +35,7 @@ For now, retention means deleting older session metadata and audio rather than k
 
 ## Tables Overview
 
-The initial schema should include these tables:
+The target schema includes these tables, but implementation should introduce only the tables needed by the current phase. Early databases and migrations are disposable while the dictation pipeline is still changing.
 
 - `recording_sessions`
 - `timeline_regions`
@@ -78,8 +78,9 @@ Suggested statuses:
 - `post_processing`
 - `completed`
 - `failed`
+- `removed`
 
-`final_output_id` should point to the selected output for the session when one exists.
+`final_output_id` should point to the selected output for the session when one exists. A `removed` session row means retention cleanup removed the associated local audio file while preserving metadata for debugging/history.
 
 ## `timeline_regions`
 
@@ -266,3 +267,9 @@ Avoid storing duplicate derived facts unless they remove meaningful runtime comp
 `better-sqlite3` is a native dependency. It is widely used, but Electron packaging must be validated before treating it as risk-free.
 
 This risk should be handled in the persistence phase before later phases depend heavily on the database layer.
+
+During local development, rebuild native modules for Electron after install or Electron upgrades:
+
+```text
+pnpm --filter @toph/desktop rebuild:native
+```

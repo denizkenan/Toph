@@ -155,6 +155,8 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
               ? 'Listening...'
               : state.phase === 'transcribing'
                 ? 'Transcribing...'
+                : state.phase === 'failed'
+                  ? 'Recording failed'
                 : 'Ready'}
           </span>
         </footer>

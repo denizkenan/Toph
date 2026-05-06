@@ -45,5 +45,6 @@ else
 fi
 
 export ELECTRON_DISABLE_SANDBOX=1
+export TOPH_DATA_DIRECTORY=${TOPH_DATA_DIRECTORY:-"$ROOT_DIR/.toph"}
 
 exec "$ELECTRON_BIN" --no-sandbox --disable-gpu "$MAIN_ENTRY" "$@"
