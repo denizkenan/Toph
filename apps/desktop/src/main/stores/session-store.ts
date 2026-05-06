@@ -7,23 +7,43 @@ import { desc, eq, inArray } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
-import { recordingSessions, type RecordingSession } from '../db/schema';
+import {
+  batchSourceRanges,
+  recordingSessions,
+  timelineRegions,
+  transcriptionBatches,
+  type RecordingSession,
+} from '../db/schema';
 import type { TophDataPaths } from '../paths';
+import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../segmentation/types';
 
 export interface RecordingSessionStore {
   createRecordingSession: () => Promise<RecordingSession>;
+  getSession: (sessionId: string) => Promise<RecordingSession | null>;
   markRecorded: (options: {
     sessionId: string;
     endedAt: number;
     durationMs: number;
   }) => Promise<void>;
+  markSegmenting: (sessionId: string) => Promise<void>;
+  markSegmented: (sessionId: string) => Promise<void>;
+  markNoSpeech: (sessionId: string) => Promise<void>;
   markFailed: (options: { sessionId: string; errorMessage: string; endedAt?: number }) => Promise<void>;
+  insertTimelineRegions: (options: {
+    sessionId: string;
+    regions: TimelineRegionDraft[];
+  }) => Promise<void>;
+  insertPlannedBatches: (options: {
+    sessionId: string;
+    batches: PlannedTranscriptionBatch[];
+  }) => Promise<void>;
+  updateBatchDebugAudioPaths: (updates: Array<{ batchId: string; debugAudioPath: string }>) => Promise<void>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
 
 const retainedSessionCount = 10;
-const retainableSessionStatuses = ['recorded', 'failed'] as const;
+const retainableSessionStatuses = ['recorded', 'segmented', 'no_speech', 'failed'] as const;
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
@@ -81,12 +101,46 @@ export async function createRecordingSessionStore(options: {
       return session;
     },
 
+    async getSession(sessionId) {
+      return db.select().from(recordingSessions).where(eq(recordingSessions.id, sessionId)).get() ?? null;
+    },
+
     async markRecorded({ sessionId, endedAt, durationMs }) {
       db.update(recordingSessions)
         .set({
           endedAt,
           durationMs,
           status: 'recorded',
+          errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async markSegmenting(sessionId) {
+      db.update(recordingSessions)
+        .set({
+          status: 'segmenting',
+          errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async markSegmented(sessionId) {
+      db.update(recordingSessions)
+        .set({
+          status: 'segmented',
+          errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async markNoSpeech(sessionId) {
+      db.update(recordingSessions)
+        .set({
+          status: 'no_speech',
           errorMessage: null,
         })
         .where(eq(recordingSessions.id, sessionId))
@@ -102,6 +156,86 @@ export async function createRecordingSessionStore(options: {
         })
         .where(eq(recordingSessions.id, sessionId))
         .run();
+    },
+
+    async insertTimelineRegions({ sessionId, regions }) {
+      if (regions.length === 0) {
+        return;
+      }
+
+      db.insert(timelineRegions)
+        .values(
+          regions.map((region) => ({
+            id: region.id,
+            sessionId,
+            sequence: region.sequence,
+            kind: region.kind,
+            startMs: region.startMs,
+            endMs: region.endMs,
+            confidence: region.confidence,
+            createdLive: region.createdLive,
+          })),
+        )
+        .run();
+    },
+
+    async insertPlannedBatches({ sessionId, batches }) {
+      if (batches.length === 0) {
+        return;
+      }
+
+      db.transaction(() => {
+        const now = Date.now();
+        db.insert(transcriptionBatches)
+          .values(
+            batches.map((batch) => ({
+              id: batch.id,
+              sessionId,
+              sequence: batch.sequence,
+              status: 'planned' as const,
+              derivedDurationMs: batch.derivedDurationMs,
+              createdLive: batch.createdLive,
+              debugAudioPath: null,
+              createdAt: now,
+              queuedAt: null,
+              transcribedAt: null,
+              errorMessage: null,
+            })),
+          )
+          .run();
+
+        const ranges = batches.flatMap((batch) => batch.sourceRanges);
+        if (ranges.length === 0) {
+          return;
+        }
+
+        db.insert(batchSourceRanges)
+          .values(
+            ranges.map((range) => ({
+              id: range.id,
+              batchId: range.batchId,
+              timelineRegionId: range.timelineRegionId,
+              sequence: range.sequence,
+              sourceStartMs: range.sourceStartMs,
+              sourceEndMs: range.sourceEndMs,
+              derivedStartMs: range.derivedStartMs,
+              derivedEndMs: range.derivedEndMs,
+              reason: range.reason,
+            })),
+          )
+          .run();
+      });
+    },
+
+    async updateBatchDebugAudioPaths(updates) {
+      db.transaction(() => {
+        for (const update of updates) {
+          db.update(transcriptionBatches)
+            .set({ debugAudioPath: update.debugAudioPath })
+            .where(eq(transcriptionBatches.id, update.batchId))
+            .run();
+        }
+      });
     },
 
     async pruneRetainedSessions() {

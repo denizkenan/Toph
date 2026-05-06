@@ -1,0 +1,98 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
+const wavHeaderBytes = 44;
+const pcmFormat = 1;
+const expectedSampleRate = 16_000;
+const expectedChannelCount = 1;
+const expectedBitsPerSample = 16;
+
+export interface PcmWavFile {
+  sampleRate: number;
+  channelCount: number;
+  bitsPerSample: number;
+  pcm: Buffer;
+  durationMs: number;
+}
+
+function writeWavHeader(dataBytes: number) {
+  const header = Buffer.alloc(wavHeaderBytes);
+  const byteRate = expectedSampleRate * expectedChannelCount * (expectedBitsPerSample / 8);
+  const blockAlign = expectedChannelCount * (expectedBitsPerSample / 8);
+
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + dataBytes, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(pcmFormat, 20);
+  header.writeUInt16LE(expectedChannelCount, 22);
+  header.writeUInt32LE(expectedSampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(expectedBitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(dataBytes, 40);
+
+  return header;
+}
+
+export async function readPcm16MonoWav(filePath: string): Promise<PcmWavFile> {
+  const file = await readFile(filePath);
+  if (file.length < wavHeaderBytes) {
+    throw new Error('WAV file is too small to contain a valid header.');
+  }
+
+  const riff = file.toString('ascii', 0, 4);
+  const wave = file.toString('ascii', 8, 12);
+  const fmt = file.toString('ascii', 12, 16);
+  const data = file.toString('ascii', 36, 40);
+  const audioFormat = file.readUInt16LE(20);
+  const channelCount = file.readUInt16LE(22);
+  const sampleRate = file.readUInt32LE(24);
+  const bitsPerSample = file.readUInt16LE(34);
+  const dataBytes = file.readUInt32LE(40);
+
+  if (riff !== 'RIFF' || wave !== 'WAVE' || fmt !== 'fmt ' || data !== 'data') {
+    throw new Error('WAV file is not the simple PCM layout produced by Toph.');
+  }
+
+  if (
+    audioFormat !== pcmFormat ||
+    channelCount !== expectedChannelCount ||
+    sampleRate !== expectedSampleRate ||
+    bitsPerSample !== expectedBitsPerSample
+  ) {
+    throw new Error('WAV file must be 16 kHz mono 16-bit PCM.');
+  }
+
+  const pcmEnd = wavHeaderBytes + dataBytes;
+  if (pcmEnd > file.length) {
+    throw new Error('WAV file data chunk is incomplete.');
+  }
+
+  const pcm = file.subarray(wavHeaderBytes, pcmEnd);
+  return {
+    sampleRate,
+    channelCount,
+    bitsPerSample,
+    pcm,
+    durationMs: Math.round((pcm.length / 2 / sampleRate) * 1000),
+  };
+}
+
+export async function writePcm16MonoWav(filePath: string, pcm: Buffer): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, Buffer.concat([writeWavHeader(pcm.length), pcm]));
+}
+
+export function msToPcmByteOffset(ms: number, sampleRate: number): number {
+  const sampleIndex = Math.max(0, Math.round((ms / 1000) * sampleRate));
+  return sampleIndex * 2;
+}
+
+export function slicePcmByTime(pcm: Buffer, sampleRate: number, startMs: number, endMs: number): Buffer {
+  const start = Math.min(pcm.length, msToPcmByteOffset(startMs, sampleRate));
+  const end = Math.min(pcm.length, msToPcmByteOffset(endMs, sampleRate));
+  return pcm.subarray(start, Math.max(start, end));
+}

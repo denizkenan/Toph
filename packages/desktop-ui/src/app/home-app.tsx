@@ -154,8 +154,10 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
             {state.phase === 'listening'
               ? 'Listening...'
               : state.phase === 'transcribing'
-                ? 'Transcribing...'
-                : state.phase === 'failed'
+                ? 'Processing...'
+                : state.phase === 'no_speech'
+                  ? 'No speech detected'
+              : state.phase === 'failed'
                   ? 'Recording failed'
                 : 'Ready'}
           </span>

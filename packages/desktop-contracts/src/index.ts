@@ -85,7 +85,7 @@ export function resolveShortcutPresetForPlatform(
   };
 }
 
-export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'failed';
+export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'no_speech' | 'failed';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';

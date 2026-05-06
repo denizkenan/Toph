@@ -52,6 +52,7 @@ export function OverlayApp({
   const phase = state?.phase || 'idle';
   const isIdle = phase === 'idle';
   const listening = phase === 'listening';
+  const noSpeech = phase === 'no_speech';
   const failed = phase === 'failed';
 
   return (
@@ -70,6 +71,8 @@ export function OverlayApp({
           <div className="pill-activity-slot">
             {failed ? (
               <span className="size-3.5 rounded-full bg-accent-red" />
+            ) : noSpeech ? (
+              <span className="size-3.5 rounded-full bg-accent-amber" />
             ) : listening ? (
               <div className="flex h-3.5 items-center gap-[3px]" aria-hidden="true">
                 <span className="wave-bar-minimal h-2 w-1 animate-wave rounded-full" />
@@ -83,7 +86,7 @@ export function OverlayApp({
           </div>
 
           <h2 className="pill-text m-0 text-left whitespace-nowrap text-[0.92rem] font-medium tracking-tight text-text-primary">
-            {failed ? 'Failed' : listening ? 'Listening...' : 'Transcribing...'}
+            {failed ? 'Failed' : noSpeech ? 'No speech detected' : listening ? 'Listening...' : 'Processing...'}
           </h2>
         </div>
       </section>

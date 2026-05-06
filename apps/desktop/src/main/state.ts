@@ -27,6 +27,7 @@ export interface DesktopStateStore {
   startListening: () => void;
   startTranscribing: () => void;
   completeRecording: () => void;
+  noSpeechDetected: () => void;
   failDictation: (detail: string) => void;
   completeTranscription: (transcript: string, pasteAttempt: PasteAttempt) => void;
 }
@@ -147,7 +148,7 @@ export function createDesktopStateStore(): DesktopStateStore {
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: 'Finishing recording...',
+          detail: 'Processing recording...',
         };
       });
     },
@@ -159,6 +160,17 @@ export function createDesktopStateStore(): DesktopStateStore {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
           detail: 'Recording saved locally. Transcription is not enabled in this phase.',
+        };
+      });
+    },
+
+    noSpeechDetected() {
+      commit((draft) => {
+        draft.phase = 'no_speech';
+        draft.lastPasteAttempt = {
+          helper: draft.lastPasteAttempt.helper,
+          status: 'idle',
+          detail: 'No speech detected.',
         };
       });
     },

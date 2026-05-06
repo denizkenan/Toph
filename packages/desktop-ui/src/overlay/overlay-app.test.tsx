@@ -63,9 +63,9 @@ describe('OverlayApp', () => {
     await screen.findByLabelText('Toph ready');
   });
 
-  it('renders the transcribing state without Electron globals', async () => {
+  it('renders the processing state without Electron globals', async () => {
     render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />);
 
-    await screen.findByRole('heading', { name: 'Transcribing...' });
+    await screen.findByRole('heading', { name: 'Processing...' });
   });
 });

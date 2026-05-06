@@ -1,5 +1,6 @@
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { WindowManager } from './managers/windows';
+import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
 
@@ -11,6 +12,7 @@ export interface DictationController {
 const toggleDebounceMs = 800;
 const recordingCompleteDelayMs = 500;
 const failureVisibleMs = 2_000;
+const noSpeechVisibleMs = 2_000;
 type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping';
 
 function describeUnexpectedError(prefix: string, error: unknown) {
@@ -24,11 +26,13 @@ export function createDictationController(options: {
     RecordingSessionStore,
     'createRecordingSession' | 'markRecorded' | 'markFailed' | 'pruneRetainedSessions'
   >;
+  segmentation: SessionSegmentationService;
   audioRecorder: RawAudioRecorder;
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
 }): DictationController {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
+  let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
   let activeSession: { id: string; rawAudioPath: string } | null = null;
   let lifecycle: DictationLifecycle = 'idle';
@@ -42,12 +46,39 @@ export function createDictationController(options: {
     failureTimer = null;
   };
 
+  const clearNoSpeechTimer = () => {
+    if (!noSpeechTimer) {
+      return;
+    }
+
+    clearTimeout(noSpeechTimer);
+    noSpeechTimer = null;
+  };
+
   const returnToIdleAfterFailure = () => {
     clearFailureTimer();
     failureTimer = setTimeout(() => {
       failureTimer = null;
       options.stateStore.setPhase('idle');
     }, failureVisibleMs);
+  };
+
+  const returnToIdleAfterNoSpeech = () => {
+    clearNoSpeechTimer();
+    noSpeechTimer = setTimeout(() => {
+      noSpeechTimer = null;
+      options.stateStore.setPhase('idle');
+    }, noSpeechVisibleMs);
+  };
+
+  const failProcessedSession = async (error: unknown) => {
+    activeSession = null;
+    lifecycle = 'idle';
+    console.error('Toph could not segment the recording session.', error);
+    options.stateStore.failDictation('Unable to transcribe.');
+    options.windows.showOverlay();
+    await pruneSessions();
+    returnToIdleAfterFailure();
   };
 
   const failActiveSession = async (detail: string, error: unknown) => {
@@ -80,6 +111,13 @@ export function createDictationController(options: {
     options.windows.emitSound('done');
   };
 
+  const completeNoSpeechRecording = async () => {
+    options.stateStore.noSpeechDetected();
+    options.windows.showOverlay();
+    options.windows.emitSound('done');
+    returnToIdleAfterNoSpeech();
+  };
+
   const pruneSessions = async () => {
     try {
       await options.sessionStore.pruneRetainedSessions();
@@ -90,6 +128,7 @@ export function createDictationController(options: {
 
   const beginListening = async () => {
     clearFailureTimer();
+    clearNoSpeechTimer();
 
     try {
       const session = await options.sessionStore.createRecordingSession();
@@ -121,6 +160,7 @@ export function createDictationController(options: {
 
     options.stateStore.startTranscribing();
     options.windows.emitSound('stop');
+    let recordingWasSaved = false;
 
     try {
       const recording = await options.audioRecorder.stop();
@@ -129,14 +169,30 @@ export function createDictationController(options: {
       await options.sessionStore.markRecorded({
         sessionId: session.id,
         endedAt,
-        durationMs: recording.durationMs,
+          durationMs: recording.durationMs,
+      });
+      recordingWasSaved = true;
+
+      const outcome = await options.segmentation.segmentRecordedSession({
+        sessionId: session.id,
+        generateDebugAudio: true,
       });
 
       activeSession = null;
       lifecycle = 'idle';
       await pruneSessions();
+      if (outcome === 'no_speech') {
+        await completeNoSpeechRecording();
+        return;
+      }
+
       await completeRecording();
     } catch (error) {
+      if (recordingWasSaved) {
+        await failProcessedSession(error);
+        return;
+      }
+
       await failActiveSession('Recording could not finish unexpectedly.', error);
     }
   };
@@ -169,6 +225,7 @@ export function createDictationController(options: {
 
     async dispose() {
       clearFailureTimer();
+      clearNoSpeechTimer();
       const session = activeSession;
       activeSession = null;
       lifecycle = 'idle';

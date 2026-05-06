@@ -11,6 +11,7 @@ import { createPermissionManager } from './managers/permissions';
 import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
 import { resolveTophDataPaths } from './paths';
+import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';
@@ -54,6 +55,7 @@ export async function bootstrap(options: {
     migrationsFolder: join(__dirname, '../../drizzle'),
   });
   const audioRecorder = createElectronCaptureAudioRecorder();
+  const segmentation = createSessionSegmentationService({ sessionStore });
 
   const ensurePermissionsReady = async () => {
     const permissionState = await permissions.inspectRequiredPermissions();
@@ -66,6 +68,7 @@ export async function bootstrap(options: {
   const dictation = createDictationController({
     stateStore,
     sessionStore,
+    segmentation,
     audioRecorder,
     ensurePermissionsReady,
     windows,
