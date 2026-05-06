@@ -21,11 +21,11 @@ Toph is a voice-to-text dictation app.
 
 ## Coding rules
 
-- Before writing code, read:
+- Always start by reading:
   - `docs/engineering-guidance/README.md`
   - `docs/engineering-guidance/core-principles.md`
   - `docs/engineering-guidance/how-to-use.md`
-  - Any relevant engineering guidance files for the change.
+  - Additionally, make sure to read any relevant engineering guidance files before starting to code.
 - Read relevant `package.json` files before changing code to understand scripts, dependencies, and package boundaries.
 - Never run `pnpm run start`.
 - After writing code, run from the repo root:
