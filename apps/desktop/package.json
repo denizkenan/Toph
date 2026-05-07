@@ -9,6 +9,7 @@
     "dev": "TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
     "preview": "TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "test:segmentation": "node --experimental-strip-types --test test/segmentation/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

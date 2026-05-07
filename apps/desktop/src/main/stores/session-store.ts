@@ -28,7 +28,12 @@ export interface RecordingSessionStore {
   markSegmenting: (sessionId: string) => Promise<void>;
   markSegmented: (sessionId: string) => Promise<void>;
   markNoSpeech: (sessionId: string) => Promise<void>;
-  markFailed: (options: { sessionId: string; errorMessage: string; endedAt?: number }) => Promise<void>;
+  // A recorded session with an error is recoverable because the raw WAV exists.
+  markRecordedWithProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
+  markRecordingFailed: (options: { sessionId: string; errorMessage: string; endedAt?: number }) => Promise<void>;
+  setProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
+  clearProcessingError: (sessionId: string) => Promise<void>;
+  clearSegmentationData: (sessionId: string) => Promise<void>;
   insertTimelineRegions: (options: {
     sessionId: string;
     regions: TimelineRegionDraft[];
@@ -43,7 +48,7 @@ export interface RecordingSessionStore {
 }
 
 const retainedSessionCount = 10;
-const retainableSessionStatuses = ['recorded', 'segmented', 'no_speech', 'failed'] as const;
+const retainableSessionStatuses = ['recorded', 'segmented', 'no_speech', 'recording_failed'] as const;
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
@@ -147,15 +152,63 @@ export async function createRecordingSessionStore(options: {
         .run();
     },
 
-    async markFailed({ sessionId, errorMessage, endedAt }) {
+    async markRecordedWithProcessingError({ sessionId, errorMessage }) {
       db.update(recordingSessions)
         .set({
-          endedAt: endedAt ?? Date.now(),
-          status: 'failed',
+          status: 'recorded',
           errorMessage,
         })
         .where(eq(recordingSessions.id, sessionId))
         .run();
+    },
+
+    async markRecordingFailed({ sessionId, errorMessage, endedAt }) {
+      db.update(recordingSessions)
+        .set({
+          endedAt: endedAt ?? Date.now(),
+          status: 'recording_failed',
+          errorMessage,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async setProcessingError({ sessionId, errorMessage }) {
+      db.update(recordingSessions)
+        .set({ errorMessage })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async clearProcessingError(sessionId) {
+      db.update(recordingSessions)
+        .set({ errorMessage: null })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async clearSegmentationData(sessionId) {
+      db.transaction(() => {
+        const batches = db
+          .select({ id: transcriptionBatches.id })
+          .from(transcriptionBatches)
+          .where(eq(transcriptionBatches.sessionId, sessionId))
+          .all();
+        const batchIds = batches.map((batch) => batch.id);
+
+        if (batchIds.length > 0) {
+          db.delete(batchSourceRanges)
+            .where(inArray(batchSourceRanges.batchId, batchIds))
+            .run();
+        }
+
+        db.delete(transcriptionBatches)
+          .where(eq(transcriptionBatches.sessionId, sessionId))
+          .run();
+        db.delete(timelineRegions)
+          .where(eq(timelineRegions.sessionId, sessionId))
+          .run();
+      });
     },
 
     async insertTimelineRegions({ sessionId, regions }) {

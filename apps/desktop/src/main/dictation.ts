@@ -1,6 +1,7 @@
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { WindowManager } from './managers/windows';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
+import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
 
@@ -13,6 +14,7 @@ const toggleDebounceMs = 800;
 const recordingCompleteDelayMs = 500;
 const failureVisibleMs = 2_000;
 const noSpeechVisibleMs = 2_000;
+const maxLiveProcessingBacklog = 100;
 type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping';
 
 function describeUnexpectedError(prefix: string, error: unknown) {
@@ -24,7 +26,15 @@ export function createDictationController(options: {
   stateStore: DesktopStateStore;
   sessionStore: Pick<
     RecordingSessionStore,
-    'createRecordingSession' | 'markRecorded' | 'markFailed' | 'pruneRetainedSessions'
+    | 'createRecordingSession'
+    | 'markRecorded'
+    | 'markSegmented'
+    | 'markNoSpeech'
+    | 'markRecordingFailed'
+    | 'markRecordedWithProcessingError'
+    | 'setProcessingError'
+    | 'clearSegmentationData'
+    | 'pruneRetainedSessions'
   >;
   segmentation: SessionSegmentationService;
   audioRecorder: RawAudioRecorder;
@@ -35,6 +45,11 @@ export function createDictationController(options: {
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
   let activeSession: { id: string; rawAudioPath: string } | null = null;
+  let activeLivePipeline: SegmentationPipelineSession | null = null;
+  let liveProcessingErrorMessage: string | null = null;
+  let liveProcessingQueue: Promise<void> = Promise.resolve();
+  let liveProcessingBacklog = 0;
+  let liveProcessingGeneration = 0;
   let lifecycle: DictationLifecycle = 'idle';
 
   const clearFailureTimer = () => {
@@ -72,9 +87,29 @@ export function createDictationController(options: {
   };
 
   const failProcessedSession = async (error: unknown) => {
+    const session = activeSession;
+    const pipeline = activeLivePipeline;
+    if (session) {
+      try {
+        await options.sessionStore.markRecordedWithProcessingError({
+          sessionId: session.id,
+          errorMessage: describeUnexpectedError('Live segmentation could not finish unexpectedly.', error),
+        });
+        await options.sessionStore.clearSegmentationData(session.id);
+      } catch (markError) {
+        console.error('Toph could not persist the live segmentation failure.', markError);
+      }
+    }
+
     activeSession = null;
+    activeLivePipeline = null;
+    liveProcessingErrorMessage = null;
+    liveProcessingQueue = Promise.resolve();
+    liveProcessingBacklog = 0;
+    liveProcessingGeneration += 1;
     lifecycle = 'idle';
-    console.error('Toph could not segment the recording session.', error);
+    await pipeline?.dispose();
+    console.error('Toph could not complete live segmentation for the recording session.', error);
     options.stateStore.failDictation('Unable to transcribe.');
     options.windows.showOverlay();
     await pruneSessions();
@@ -84,15 +119,28 @@ export function createDictationController(options: {
   const failActiveSession = async (detail: string, error: unknown) => {
     const message = describeUnexpectedError(detail, error);
     const failedSession = activeSession;
+    const failedPipeline = activeLivePipeline;
+    const pendingLiveProcessing = liveProcessingQueue;
     activeSession = null;
+    activeLivePipeline = null;
+    liveProcessingErrorMessage = null;
+    liveProcessingQueue = Promise.resolve();
+    liveProcessingBacklog = 0;
+    liveProcessingGeneration += 1;
     lifecycle = 'idle';
+
+    await pendingLiveProcessing.catch((queueError: unknown) => {
+      console.error('Toph live segmentation queue failed while recording was failing.', queueError);
+    });
+    await failedPipeline?.dispose();
 
     if (failedSession) {
       try {
-        await options.sessionStore.markFailed({
+        await options.sessionStore.markRecordingFailed({
           sessionId: failedSession.id,
           errorMessage: message,
         });
+        await options.sessionStore.clearSegmentationData(failedSession.id);
       } catch (markError) {
         console.error('Toph could not mark the recording session as failed.', markError);
       }
@@ -132,14 +180,90 @@ export function createDictationController(options: {
 
     try {
       const session = await options.sessionStore.createRecordingSession();
+      liveProcessingGeneration += 1;
+      const sessionGeneration = liveProcessingGeneration;
       activeSession = {
         id: session.id,
         rawAudioPath: session.rawAudioPath,
       };
 
+      try {
+        activeLivePipeline = await options.segmentation.createLiveSession({
+          sessionId: session.id,
+          rawAudioPath: session.rawAudioPath,
+          generateDebugAudio: true,
+        });
+      } catch (error) {
+        liveProcessingErrorMessage = describeUnexpectedError('Live segmentation could not start unexpectedly.', error);
+        console.error(liveProcessingErrorMessage, error);
+        await options.sessionStore.setProcessingError({
+          sessionId: session.id,
+          errorMessage: liveProcessingErrorMessage,
+        });
+      }
+
       await options.audioRecorder.start({
         sessionId: session.id,
         outputPath: session.rawAudioPath,
+        onPcmChunk: async (chunk) => {
+          const generation = sessionGeneration;
+          const pipelineAtEnqueue = activeLivePipeline;
+          if (generation !== liveProcessingGeneration || liveProcessingErrorMessage || !activeLivePipeline) {
+            return;
+          }
+
+          if (liveProcessingBacklog >= maxLiveProcessingBacklog) {
+            const pipeline = activeLivePipeline;
+            liveProcessingErrorMessage = 'Live segmentation fell behind recording and was stopped.';
+            console.error(liveProcessingErrorMessage);
+            activeLivePipeline = null;
+            liveProcessingQueue = liveProcessingQueue.finally(async () => {
+              await pipeline.dispose();
+            });
+            await options.sessionStore.setProcessingError({
+              sessionId: session.id,
+              errorMessage: liveProcessingErrorMessage,
+            });
+            return;
+          }
+
+          liveProcessingBacklog += 1;
+          liveProcessingQueue = liveProcessingQueue.then(async () => {
+            if (
+              generation !== liveProcessingGeneration ||
+              pipelineAtEnqueue !== activeLivePipeline ||
+              !pipelineAtEnqueue ||
+              liveProcessingErrorMessage
+            ) {
+              return;
+            }
+
+            try {
+              await pipelineAtEnqueue.processPcmChunk(chunk);
+            } catch (error) {
+              if (generation !== liveProcessingGeneration || pipelineAtEnqueue !== activeLivePipeline) {
+                return;
+              }
+
+              liveProcessingErrorMessage = describeUnexpectedError(
+                'Live segmentation failed while recording.',
+                error,
+              );
+              console.error(liveProcessingErrorMessage, error);
+              activeLivePipeline = null;
+              await pipelineAtEnqueue.dispose();
+              await options.sessionStore.setProcessingError({
+                sessionId: session.id,
+                errorMessage: liveProcessingErrorMessage,
+              });
+            }
+          }).finally(() => {
+            if (generation === liveProcessingGeneration) {
+              liveProcessingBacklog -= 1;
+            }
+          });
+          await liveProcessingQueue;
+        },
       });
       lifecycle = 'listening';
       options.stateStore.startListening();
@@ -164,28 +288,56 @@ export function createDictationController(options: {
 
     try {
       const recording = await options.audioRecorder.stop();
+      await liveProcessingQueue;
       const endedAt = Date.now();
+      const pipeline = activeLivePipeline;
 
       await options.sessionStore.markRecorded({
         sessionId: session.id,
         endedAt,
-          durationMs: recording.durationMs,
+        durationMs: recording.durationMs,
       });
       recordingWasSaved = true;
 
-      const outcome = await options.segmentation.segmentRecordedSession({
-        sessionId: session.id,
-        generateDebugAudio: true,
-      });
+      if (liveProcessingErrorMessage || !pipeline) {
+        const errorMessage = liveProcessingErrorMessage ?? 'Live segmentation did not start.';
+        await options.sessionStore.setProcessingError({
+          sessionId: session.id,
+          errorMessage,
+        });
+        await options.sessionStore.clearSegmentationData(session.id);
+        await pipeline?.dispose();
+        activeSession = null;
+        activeLivePipeline = null;
+        liveProcessingErrorMessage = null;
+        liveProcessingQueue = Promise.resolve();
+        liveProcessingBacklog = 0;
+        liveProcessingGeneration += 1;
+        lifecycle = 'idle';
+        await pruneSessions();
+        options.stateStore.failDictation(errorMessage);
+        options.windows.showOverlay();
+        returnToIdleAfterFailure();
+        return;
+      }
+
+      const outcome = await pipeline.flush();
+      await pipeline.dispose();
+      activeLivePipeline = null;
+      liveProcessingQueue = Promise.resolve();
+      liveProcessingBacklog = 0;
+      liveProcessingGeneration += 1;
 
       activeSession = null;
       lifecycle = 'idle';
       await pruneSessions();
-      if (outcome === 'no_speech') {
+      if (outcome.result === 'no_speech') {
+        await options.sessionStore.markNoSpeech(session.id);
         await completeNoSpeechRecording();
         return;
       }
 
+      await options.sessionStore.markSegmented(session.id);
       await completeRecording();
     } catch (error) {
       if (recordingWasSaved) {
@@ -227,16 +379,28 @@ export function createDictationController(options: {
       clearFailureTimer();
       clearNoSpeechTimer();
       const session = activeSession;
+      const pipeline = activeLivePipeline;
+      const pendingLiveProcessing = liveProcessingQueue;
       activeSession = null;
+      activeLivePipeline = null;
+      liveProcessingErrorMessage = null;
+      liveProcessingQueue = Promise.resolve();
+      liveProcessingBacklog = 0;
+      liveProcessingGeneration += 1;
       lifecycle = 'idle';
       options.audioRecorder.dispose();
+      await pendingLiveProcessing.catch((queueError: unknown) => {
+        console.error('Toph live segmentation queue failed during shutdown.', queueError);
+      });
+      await pipeline?.dispose();
 
       if (session) {
         try {
-          await options.sessionStore.markFailed({
+          await options.sessionStore.markRecordingFailed({
             sessionId: session.id,
             errorMessage: 'Recording was interrupted because Toph is quitting.',
           });
+          await options.sessionStore.clearSegmentationData(session.id);
           await pruneSessions();
         } catch (error) {
           console.error('Toph could not fail the active recording session during shutdown.', error);

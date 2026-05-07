@@ -19,7 +19,11 @@ export interface RawAudioRecordingResult {
 }
 
 export interface RawAudioRecorder {
-  start: (options: { sessionId: string; outputPath: string }) => Promise<void>;
+  start: (options: {
+    sessionId: string;
+    outputPath: string;
+    onPcmChunk?: (chunk: Buffer) => Promise<void> | void;
+  }) => Promise<void>;
   stop: () => Promise<RawAudioRecordingResult>;
   dispose: () => void;
 }
@@ -81,8 +85,8 @@ class WavFileWriter {
     writeWavHeader(this.fd, 0);
   }
 
-  write(chunk: ArrayBuffer) {
-    const buffer = Buffer.from(chunk);
+  write(chunk: ArrayBuffer | Buffer) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     writeSync(this.fd, buffer, 0, buffer.length, 44 + this.dataBytes);
     this.dataBytes += buffer.length;
   }
@@ -130,6 +134,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
   let activeSessionId: string | null = null;
   let activeOutputPath: string | null = null;
   let wavWriter: WavFileWriter | null = null;
+  let activeChunkHandler: ((chunk: Buffer) => Promise<void> | void) | null = null;
   let startDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let stopDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let captureError: Error | null = null;
@@ -207,7 +212,11 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
     }
 
     try {
-      wavWriter.write(message.chunk);
+      const chunk = Buffer.from(message.chunk);
+      wavWriter.write(chunk);
+      void Promise.resolve(activeChunkHandler?.(Buffer.from(chunk))).catch((error: unknown) => {
+        console.error('Toph live audio chunk observer failed.', error);
+      });
     } catch (error) {
       captureError = error instanceof Error ? error : new Error('Audio chunk could not be written.');
       startDeferred?.reject(captureError);
@@ -240,7 +249,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
   ipcMain.on(DESKTOP_CAPTURE_IPC_CHANNELS.error, handleError);
 
   return {
-    async start({ sessionId, outputPath }) {
+    async start({ sessionId, outputPath, onPcmChunk }) {
       if (activeSessionId) {
         throw new Error('Audio recording is already active.');
       }
@@ -251,6 +260,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         const window = await ensureCaptureWindow();
         activeSessionId = sessionId;
         activeOutputPath = outputPath;
+        activeChunkHandler = onPcmChunk ?? null;
         captureError = null;
         wavWriter = new WavFileWriter(outputPath);
         startDeferred = createDeferred<void>();
@@ -274,6 +284,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         wavWriter = null;
         activeSessionId = null;
         activeOutputPath = null;
+        activeChunkHandler = null;
         startDeferred = null;
         throw error;
       }
@@ -297,6 +308,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         const failedWriter = wavWriter;
         activeSessionId = null;
         activeOutputPath = null;
+        activeChunkHandler = null;
         wavWriter = null;
         stopDeferred = null;
         failedWriter?.finalize();
@@ -309,6 +321,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         wavWriter.finalize();
         activeSessionId = null;
         activeOutputPath = null;
+        activeChunkHandler = null;
         wavWriter = null;
         stopDeferred = null;
         captureError = null;
@@ -319,6 +332,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
 
       activeSessionId = null;
       activeOutputPath = null;
+      activeChunkHandler = null;
       wavWriter = null;
       stopDeferred = null;
       captureError = null;
@@ -340,6 +354,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
       wavWriter = null;
       activeSessionId = null;
       activeOutputPath = null;
+      activeChunkHandler = null;
       destroyCaptureWindow();
     },
   };

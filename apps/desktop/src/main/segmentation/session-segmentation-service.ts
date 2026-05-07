@@ -1,21 +1,22 @@
-import { dirname } from 'node:path';
-
-import { readPcm16MonoWav } from '../audio/wav';
 import type { RecordingSessionStore } from '../stores/session-store';
-import { createEnergySpeechActivityAnalyzer } from './analyzers/energy-speech-activity-analyzer';
-import { createFallbackSpeechActivityAnalyzer } from './analyzers/fallback-speech-activity-analyzer';
-import type { SpeechActivityAnalyzer } from './analyzers/speech-activity-analyzer';
-import { createSileroSpeechActivityAnalyzer } from './analyzers/silero-speech-activity-analyzer';
-import { writeDebugBatchWavs } from './debug/debug-batch-writer';
-import { planTranscriptionBatches } from './planning/batch-planner';
+import { createEnergyStreamingSpeechActivityAnalyzer } from './analyzers/energy-streaming-speech-activity-analyzer';
+import { createFallbackStreamingSpeechActivityAnalyzer } from './analyzers/fallback-streaming-speech-activity-analyzer';
+import { createSileroStreamingSpeechActivityAnalyzer } from './analyzers/silero-streaming-speech-activity-analyzer';
+import type { StreamingSpeechActivityAnalyzer } from './analyzers/streaming-speech-activity-analyzer';
+import { createSegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
+import type { SegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
+import { streamPcm16MonoWav } from './streaming/wav-stream-source';
 
 export type SegmentationOutcome = 'segmented' | 'no_speech';
 
 export interface SessionSegmentationService {
+  createLiveSession: (options: {
+    sessionId: string;
+    rawAudioPath: string;
+    generateDebugAudio: boolean;
+  }) => Promise<SegmentationPipelineSession>;
   segmentRecordedSession: (options: {
     sessionId: string;
-    // During Phase 2 this is a verification artifact, so enabled generation is
-    // intentionally part of the success/failure contract.
     generateDebugAudio: boolean;
   }) => Promise<SegmentationOutcome>;
 }
@@ -26,9 +27,9 @@ function describeSegmentationError(error: unknown) {
 }
 
 function createDefaultSpeechActivityAnalyzer() {
-  return createFallbackSpeechActivityAnalyzer({
-    primary: createSileroSpeechActivityAnalyzer(),
-    fallback: createEnergySpeechActivityAnalyzer(),
+  return createFallbackStreamingSpeechActivityAnalyzer({
+    primary: createSileroStreamingSpeechActivityAnalyzer(),
+    fallback: createEnergyStreamingSpeechActivityAnalyzer({ frameSizeSamples: 1536 }),
   });
 }
 
@@ -39,16 +40,28 @@ export function createSessionSegmentationService(options: {
     | 'markSegmenting'
     | 'markSegmented'
     | 'markNoSpeech'
-    | 'markFailed'
+    | 'markRecordedWithProcessingError'
+    | 'clearSegmentationData'
     | 'insertTimelineRegions'
     | 'insertPlannedBatches'
     | 'updateBatchDebugAudioPaths'
   >;
-  analyzer?: SpeechActivityAnalyzer;
+  analyzer?: StreamingSpeechActivityAnalyzer;
 }): SessionSegmentationService {
   const analyzer = options.analyzer ?? createDefaultSpeechActivityAnalyzer();
 
   return {
+    async createLiveSession({ sessionId, rawAudioPath, generateDebugAudio }) {
+      return createSegmentationPipelineSession({
+        sessionId,
+        rawAudioPath,
+        createdLive: true,
+        generateDebugAudio,
+        analyzer,
+        sessionStore: options.sessionStore,
+      });
+    },
+
     async segmentRecordedSession({ sessionId, generateDebugAudio }) {
       try {
         const session = await options.sessionStore.getSession(sessionId);
@@ -60,43 +73,40 @@ export function createSessionSegmentationService(options: {
         }
 
         await options.sessionStore.markSegmenting(sessionId);
+        await options.sessionStore.clearSegmentationData(sessionId);
 
-        const rawWav = await readPcm16MonoWav(session.rawAudioPath);
-        const regions = await analyzer.analyze({
-          pcm: rawWav.pcm,
-          sampleRate: rawWav.sampleRate,
-          durationMs: rawWav.durationMs,
+        const pipeline = await createSegmentationPipelineSession({
+          sessionId,
+          rawAudioPath: session.rawAudioPath,
+          createdLive: false,
+          generateDebugAudio,
+          analyzer,
+          sessionStore: options.sessionStore,
         });
-        console.info(
-          `Toph segmentation pipeline ${analyzer.name} produced ${regions.length} timeline regions for session ${sessionId}.`,
-        );
 
-        await options.sessionStore.insertTimelineRegions({ sessionId, regions });
-
-        const batches = planTranscriptionBatches({ sessionId, regions });
-        console.info(
-          `Toph segmentation planned ${batches.length} transcription batches for session ${sessionId}.`,
-        );
-        if (batches.length === 0) {
-          await options.sessionStore.markNoSpeech(sessionId);
-          return 'no_speech';
-        }
-
-        await options.sessionStore.insertPlannedBatches({ sessionId, batches });
-
-        if (generateDebugAudio) {
-          const debugAudioPaths = await writeDebugBatchWavs({
-            sessionRecordingDirectory: dirname(session.rawAudioPath),
-            rawWav,
-            batches,
+        try {
+          await streamPcm16MonoWav({
+            filePath: session.rawAudioPath,
+            onChunk: pipeline.processPcmChunk,
           });
-          await options.sessionStore.updateBatchDebugAudioPaths(debugAudioPaths);
-        }
+          const outcome = await pipeline.flush();
+          console.info(
+            `Toph streaming segmentation pipeline ${analyzer.name} produced ${outcome.regions.length} timeline regions and ${outcome.batches.length} batches for session ${sessionId}.`,
+          );
 
-        await options.sessionStore.markSegmented(sessionId);
-        return 'segmented';
+          if (outcome.result === 'no_speech') {
+            await options.sessionStore.markNoSpeech(sessionId);
+            return 'no_speech';
+          }
+
+          await options.sessionStore.markSegmented(sessionId);
+          return 'segmented';
+        } finally {
+          await pipeline.dispose();
+        }
       } catch (error) {
-        await options.sessionStore.markFailed({
+        await options.sessionStore.clearSegmentationData(sessionId);
+        await options.sessionStore.markRecordedWithProcessingError({
           sessionId,
           errorMessage: describeSegmentationError(error),
         });

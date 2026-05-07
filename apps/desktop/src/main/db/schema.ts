@@ -6,7 +6,7 @@ export type RecordingSessionStatus =
   | 'segmenting'
   | 'segmented'
   | 'no_speech'
-  | 'failed'
+  | 'recording_failed'
   | 'removed';
 
 export type TimelineRegionKind = 'speech' | 'silence';
@@ -21,7 +21,7 @@ export const recordingSessions = sqliteTable('recording_sessions', {
   durationMs: integer('duration_ms'),
   rawAudioPath: text('raw_audio_path').notNull(),
   status: text('status', {
-    enum: ['recording', 'recorded', 'segmenting', 'segmented', 'no_speech', 'failed', 'removed'],
+    enum: ['recording', 'recorded', 'segmenting', 'segmented', 'no_speech', 'recording_failed', 'removed'],
   }).notNull(),
   errorMessage: text('error_message'),
 });

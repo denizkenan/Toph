@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { open, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const wavHeaderBytes = 44;
@@ -84,6 +84,49 @@ export async function readPcm16MonoWav(filePath: string): Promise<PcmWavFile> {
 export async function writePcm16MonoWav(filePath: string, pcm: Buffer): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, Buffer.concat([writeWavHeader(pcm.length), pcm]));
+}
+
+export async function readPcm16MonoWavRanges(options: {
+  filePath: string;
+  ranges: Array<{ startMs: number; endMs: number }>;
+  sampleRate?: number;
+}): Promise<Buffer[]> {
+  const sampleRate = options.sampleRate ?? expectedSampleRate;
+  const file = await open(options.filePath, 'r');
+
+  try {
+    const chunks: Buffer[] = [];
+    for (const range of options.ranges) {
+      const start = wavHeaderBytes + msToPcmByteOffset(range.startMs, sampleRate);
+      const end = wavHeaderBytes + msToPcmByteOffset(range.endMs, sampleRate);
+      const length = Math.max(0, end - start);
+      if (length === 0) {
+        continue;
+      }
+
+      const chunk = Buffer.alloc(length);
+      let bytesRead = 0;
+      while (bytesRead < length) {
+        const result = await file.read({
+          buffer: chunk,
+          offset: bytesRead,
+          length: length - bytesRead,
+          position: start + bytesRead,
+        });
+        if (result.bytesRead === 0) {
+          throw new Error(
+            `Raw WAV range ${range.startMs}-${range.endMs}ms is not fully available for debug audio generation.`,
+          );
+        }
+        bytesRead += result.bytesRead;
+      }
+      chunks.push(chunk);
+    }
+
+    return chunks;
+  } finally {
+    await file.close();
+  }
 }
 
 export function msToPcmByteOffset(ms: number, sampleRate: number): number {
