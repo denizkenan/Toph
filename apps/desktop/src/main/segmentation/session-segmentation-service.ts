@@ -2,9 +2,12 @@ import { dirname } from 'node:path';
 
 import { readPcm16MonoWav } from '../audio/wav';
 import type { RecordingSessionStore } from '../stores/session-store';
-import { planTranscriptionBatches } from './batch-planner';
-import { writeDebugBatchWavs } from './debug-batch-writer';
-import { createEnergySpeechActivityAnalyzer, type SpeechActivityAnalyzer } from './energy-speech-analyzer';
+import { createEnergySpeechActivityAnalyzer } from './analyzers/energy-speech-activity-analyzer';
+import { createFallbackSpeechActivityAnalyzer } from './analyzers/fallback-speech-activity-analyzer';
+import type { SpeechActivityAnalyzer } from './analyzers/speech-activity-analyzer';
+import { createSileroSpeechActivityAnalyzer } from './analyzers/silero-speech-activity-analyzer';
+import { writeDebugBatchWavs } from './debug/debug-batch-writer';
+import { planTranscriptionBatches } from './planning/batch-planner';
 
 export type SegmentationOutcome = 'segmented' | 'no_speech';
 
@@ -22,6 +25,13 @@ function describeSegmentationError(error: unknown) {
   return `Segmentation failed: ${detail}`;
 }
 
+function createDefaultSpeechActivityAnalyzer() {
+  return createFallbackSpeechActivityAnalyzer({
+    primary: createSileroSpeechActivityAnalyzer(),
+    fallback: createEnergySpeechActivityAnalyzer(),
+  });
+}
+
 export function createSessionSegmentationService(options: {
   sessionStore: Pick<
     RecordingSessionStore,
@@ -36,7 +46,7 @@ export function createSessionSegmentationService(options: {
   >;
   analyzer?: SpeechActivityAnalyzer;
 }): SessionSegmentationService {
-  const analyzer = options.analyzer ?? createEnergySpeechActivityAnalyzer();
+  const analyzer = options.analyzer ?? createDefaultSpeechActivityAnalyzer();
 
   return {
     async segmentRecordedSession({ sessionId, generateDebugAudio }) {
@@ -57,10 +67,16 @@ export function createSessionSegmentationService(options: {
           sampleRate: rawWav.sampleRate,
           durationMs: rawWav.durationMs,
         });
+        console.info(
+          `Toph segmentation pipeline ${analyzer.name} produced ${regions.length} timeline regions for session ${sessionId}.`,
+        );
 
         await options.sessionStore.insertTimelineRegions({ sessionId, regions });
 
         const batches = planTranscriptionBatches({ sessionId, regions });
+        console.info(
+          `Toph segmentation planned ${batches.length} transcription batches for session ${sessionId}.`,
+        );
         if (batches.length === 0) {
           await options.sessionStore.markNoSpeech(sessionId);
           return 'no_speech';

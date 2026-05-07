@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import type { TimelineRegionDraft } from './types';
-
-export interface SpeechActivityAnalyzer {
-  analyze: (input: { pcm: Buffer; sampleRate: number; durationMs: number }) => Promise<TimelineRegionDraft[]>;
-}
+import type { TimelineRegionDraft } from '../types';
+import type { SpeechActivityAnalyzer } from './speech-activity-analyzer';
 
 export interface EnergySpeechActivityPolicy {
   frameMs: number;
@@ -134,6 +131,8 @@ export function createEnergySpeechActivityAnalyzer(
   const resolvedPolicy = { ...defaultPolicy, ...policy };
 
   return {
+    name: 'energy',
+
     async analyze({ pcm, sampleRate, durationMs }) {
       const totalSamples = Math.floor(pcm.length / 2);
       const samplesPerFrame = Math.max(1, Math.round((resolvedPolicy.frameMs / 1000) * sampleRate));

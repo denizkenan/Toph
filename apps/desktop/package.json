@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.30",
     "@toph/desktop-contracts": "workspace:*",
     "@toph/desktop-ui": "workspace:*",
     "better-sqlite3": "^12.9.0",

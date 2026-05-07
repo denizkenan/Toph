@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
-import { slicePcmByTime, writePcm16MonoWav, type PcmWavFile } from '../audio/wav';
-import type { PlannedTranscriptionBatch } from './types';
+import { slicePcmByTime, writePcm16MonoWav, type PcmWavFile } from '../../audio/wav';
+import type { PlannedTranscriptionBatch } from '../types';
 
 export async function writeDebugBatchWavs(options: {
   sessionRecordingDirectory: string;

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PlannedBatchSourceRange, PlannedTranscriptionBatch, TimelineRegionDraft } from './types';
+import type { PlannedBatchSourceRange, PlannedTranscriptionBatch, TimelineRegionDraft } from '../types';
 
 export interface BatchPlanningPolicy {
   preferredMinDerivedBatchMs: number;
