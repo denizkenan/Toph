@@ -10,6 +10,7 @@
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "start": "sh ./scripts/toph-desktop.sh",
+    "test:segmentation": "pnpm --filter @toph/desktop test:segmentation",
     "test:ui": "pnpm --filter @toph/desktop-ui test",
     "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck"
   },

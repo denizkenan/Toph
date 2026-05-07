@@ -37,6 +37,16 @@ function rangesOverlap(
   return left.sourceStartMs < right.sourceEndMs && right.sourceStartMs < left.sourceEndMs;
 }
 
+function sourceDurationMs(ranges: PlannedBatchSourceRange[]) {
+  if (ranges.length === 0) {
+    return 0;
+  }
+
+  const startMs = Math.min(...ranges.map((range) => range.sourceStartMs));
+  const endMs = Math.max(...ranges.map((range) => range.sourceEndMs));
+  return endMs - startMs;
+}
+
 export class LiveBatchPlanner {
   private readonly policy: LiveBatchPlanningPolicy;
   private readonly sessionId: string;
@@ -223,7 +233,8 @@ export class LiveBatchPlanner {
       id: this.currentBatchId,
       sessionId: this.sessionId,
       sequence: this.nextBatchSequence++,
-      derivedDurationMs: this.currentDerivedMs,
+      sourceDurationMs: sourceDurationMs(this.currentRanges),
+      derivedAudioDurationMs: this.currentDerivedMs,
       createdLive: this.createdLive,
       sourceRanges: this.currentRanges,
     };

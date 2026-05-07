@@ -26,7 +26,8 @@ export interface PlannedTranscriptionBatch {
   id: string;
   sessionId: string;
   sequence: number;
-  derivedDurationMs: number;
+  sourceDurationMs: number;
+  derivedAudioDurationMs: number;
   createdLive: boolean;
   sourceRanges: PlannedBatchSourceRange[];
 }

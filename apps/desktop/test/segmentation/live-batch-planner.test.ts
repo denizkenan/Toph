@@ -59,7 +59,7 @@ describe('LiveBatchPlanner', () => {
 
     const finalBatches = planner.flush();
     assert.equal(finalBatches.length, 1);
-    assert.equal(finalBatches[0].derivedDurationMs, 2_000);
+    assert.equal(finalBatches[0].derivedAudioDurationMs, 2_000);
   });
 
   it('emits a leading pause buffer during a long pause once the preferred duration is reached', () => {
@@ -69,7 +69,7 @@ describe('LiveBatchPlanner', () => {
     const liveBatches = planner.appendRegions([region(1, 'silence', 10_000, 10_500)]);
 
     assert.equal(liveBatches.length, 1);
-    assert.equal(liveBatches[0].derivedDurationMs, 10_500);
+    assert.equal(liveBatches[0].derivedAudioDurationMs, 10_500);
     assert.deepEqual(
       liveBatches[0].sourceRanges.map((range) => range.reason),
       ['speech', 'pause_buffer'],

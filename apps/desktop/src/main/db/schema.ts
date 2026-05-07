@@ -10,7 +10,7 @@ export type RecordingSessionStatus =
   | 'removed';
 
 export type TimelineRegionKind = 'speech' | 'silence';
-export type TranscriptionBatchStatus = 'planned';
+export type TranscriptionBatchStatus = 'planned' | 'transcribing' | 'transcribed' | 'failed';
 export type BatchSourceRangeReason = 'speech' | 'pause_buffer' | 'normal_pause';
 
 export const recordingSessions = sqliteTable('recording_sessions', {
@@ -41,14 +41,29 @@ export const transcriptionBatches = sqliteTable('transcription_batches', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull(),
   sequence: integer('sequence').notNull(),
-  status: text('status', { enum: ['planned'] }).notNull(),
-  derivedDurationMs: integer('derived_duration_ms').notNull(),
+  status: text('status', { enum: ['planned', 'transcribing', 'transcribed', 'failed'] }).notNull(),
+  sourceDurationMs: integer('source_duration_ms').notNull(),
+  derivedAudioDurationMs: integer('derived_audio_duration_ms').notNull(),
   createdLive: integer('created_live', { mode: 'boolean' }).notNull(),
-  debugAudioPath: text('debug_audio_path'),
+  derivedAudioPath: text('derived_audio_path'),
   createdAt: integer('created_at').notNull(),
-  queuedAt: integer('queued_at'),
+  transcriptionAttempts: integer('transcription_attempts').notNull(),
+  transcriptionStartedAt: integer('transcription_started_at'),
   transcribedAt: integer('transcribed_at'),
   errorMessage: text('error_message'),
+});
+
+export const batchTranscripts = sqliteTable('batch_transcripts', {
+  id: text('id').primaryKey(),
+  batchId: text('batch_id').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model'),
+  text: text('text').notNull(),
+  estimatedBillableDurationMs: integer('estimated_billable_duration_ms').notNull(),
+  estimatedCostUsd: integer('estimated_cost_usd'),
+  providerRequestId: text('provider_request_id'),
+  providerResponseJson: text('provider_response_json'),
+  createdAt: integer('created_at').notNull(),
 });
 
 export const batchSourceRanges = sqliteTable('batch_source_ranges', {
@@ -66,4 +81,5 @@ export const batchSourceRanges = sqliteTable('batch_source_ranges', {
 export type RecordingSession = typeof recordingSessions.$inferSelect;
 export type TimelineRegion = typeof timelineRegions.$inferSelect;
 export type TranscriptionBatch = typeof transcriptionBatches.$inferSelect;
+export type BatchTranscript = typeof batchTranscripts.$inferSelect;
 export type BatchSourceRange = typeof batchSourceRanges.$inferSelect;

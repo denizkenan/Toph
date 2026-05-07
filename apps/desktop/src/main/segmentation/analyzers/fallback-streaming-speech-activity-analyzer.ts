@@ -30,7 +30,11 @@ class FallbackStreamingSpeechActivitySession implements StreamingSpeechActivityA
         `Toph streaming VAD analyzer ${this.options.primaryName} failed while processing; falling back to ${this.options.fallbackName}.`,
         error,
       );
-      await this.active.dispose();
+      try {
+        await this.active.dispose();
+      } catch (disposeError) {
+        console.error(`Toph could not dispose failed VAD analyzer ${this.options.primaryName}.`, disposeError);
+      }
       this.fallback = await this.options.createFallback();
       this.active = this.fallback;
       return this.active.scoreFrame(frame);

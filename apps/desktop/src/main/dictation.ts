@@ -4,6 +4,7 @@ import type { SessionSegmentationService } from './segmentation/session-segmenta
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
+import type { SessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 
 export interface DictationController {
   toggleCapture: () => Promise<void>;
@@ -37,6 +38,7 @@ export function createDictationController(options: {
     | 'pruneRetainedSessions'
   >;
   segmentation: SessionSegmentationService;
+  transcription: SessionTranscriptionCoordinator;
   audioRecorder: RawAudioRecorder;
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
@@ -95,6 +97,7 @@ export function createDictationController(options: {
           sessionId: session.id,
           errorMessage: describeUnexpectedError('Live segmentation could not finish unexpectedly.', error),
         });
+        await options.transcription.cancelSession(session.id);
         await options.sessionStore.clearSegmentationData(session.id);
       } catch (markError) {
         console.error('Toph could not persist the live segmentation failure.', markError);
@@ -140,6 +143,7 @@ export function createDictationController(options: {
           sessionId: failedSession.id,
           errorMessage: message,
         });
+        await options.transcription.cancelSession(failedSession.id);
         await options.sessionStore.clearSegmentationData(failedSession.id);
       } catch (markError) {
         console.error('Toph could not mark the recording session as failed.', markError);
@@ -191,7 +195,10 @@ export function createDictationController(options: {
         activeLivePipeline = await options.segmentation.createLiveSession({
           sessionId: session.id,
           rawAudioPath: session.rawAudioPath,
-          generateDebugAudio: true,
+          generateBatchAudio: true,
+          onBatchesReady: async (batches) => {
+            await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
+          },
         });
       } catch (error) {
         liveProcessingErrorMessage = describeUnexpectedError('Live segmentation could not start unexpectedly.', error);
@@ -305,6 +312,7 @@ export function createDictationController(options: {
           sessionId: session.id,
           errorMessage,
         });
+        await options.transcription.cancelSession(session.id);
         await options.sessionStore.clearSegmentationData(session.id);
         await pipeline?.dispose();
         activeSession = null;
@@ -338,6 +346,16 @@ export function createDictationController(options: {
       }
 
       await options.sessionStore.markSegmented(session.id);
+      const transcriptionOutcome = await options.transcription.waitForSession(session.id);
+      if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
+        const errorMessage = `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`;
+        await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
+        options.stateStore.failDictation(errorMessage);
+        options.windows.showOverlay();
+        returnToIdleAfterFailure();
+        return;
+      }
+
       await completeRecording();
     } catch (error) {
       if (recordingWasSaved) {
@@ -400,6 +418,7 @@ export function createDictationController(options: {
             sessionId: session.id,
             errorMessage: 'Recording was interrupted because Toph is quitting.',
           });
+          await options.transcription.cancelSession(session.id);
           await options.sessionStore.clearSegmentationData(session.id);
           await pruneSessions();
         } catch (error) {

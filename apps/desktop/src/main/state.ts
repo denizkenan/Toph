@@ -159,7 +159,7 @@ export function createDesktopStateStore(): DesktopStateStore {
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: 'Recording saved locally. Transcription is not enabled in this phase.',
+          detail: 'Recording transcribed locally. Transcript assembly is not enabled yet.',
         };
       });
     },

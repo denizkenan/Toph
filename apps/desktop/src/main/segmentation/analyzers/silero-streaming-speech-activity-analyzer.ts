@@ -7,84 +7,75 @@ import type {
   StreamingSpeechActivityAnalyzerSession,
 } from './streaming-speech-activity-analyzer';
 
-interface FrameProcessorEvent {
-  msg: unknown;
-  probs?: { isSpeech: number; notSpeech: number };
+interface SileroSpeechProbabilities {
+  isSpeech: number;
+  notSpeech: number;
 }
 
-interface FrameProcessorLike {
-  process: (frame: Float32Array, handleEvent: (event: FrameProcessorEvent) => void) => Promise<void>;
-  endSegment: (handleEvent: (event: FrameProcessorEvent) => void) => unknown;
-  resume: () => void;
+interface SileroModel {
+  process: (frame: Float32Array) => Promise<SileroSpeechProbabilities>;
+  reset_state: () => void;
+  release: () => Promise<void>;
 }
 
-interface StreamingNonRealTimeVadInstance {
-  frameProcessor: FrameProcessorLike;
-}
-
-interface StreamingNonRealTimeVadConstructor {
-  new: (options?: Record<string, unknown>) => Promise<StreamingNonRealTimeVadInstance>;
+interface SileroModelConstructor {
+  new: (ortInstance: unknown, modelFetcher: () => Promise<ArrayBuffer>) => Promise<SileroModel>;
 }
 
 export interface SileroStreamingSpeechActivityPolicy {
-  positiveSpeechThreshold: number;
-  negativeSpeechThreshold: number;
-  redemptionMs: number;
-  preSpeechPadMs: number;
-  minSpeechMs: number;
+  model: 'v5';
 }
 
 const defaultPolicy: SileroStreamingSpeechActivityPolicy = {
-  positiveSpeechThreshold: 0.5,
-  negativeSpeechThreshold: 0.35,
-  redemptionMs: 700,
-  preSpeechPadMs: 500,
-  minSpeechMs: 250,
+  model: 'v5',
 };
 
 const require = createRequire(import.meta.url);
+const v5FrameSizeSamples = 512;
 
 async function fetchModelFromFile(path: string) {
   const model = await readFile(path);
   return model.buffer.slice(model.byteOffset, model.byteOffset + model.byteLength);
 }
 
-function resolveLegacyModelPath() {
-  const packagePath = require.resolve('@ricky0123/vad-web/package.json');
-  return join(dirname(packagePath), 'dist', 'silero_vad_legacy.onnx');
+function resolveV5ModelPath() {
+  const vadPackagePath = require.resolve('@ricky0123/vad-web/package.json');
+  const vadPackageDirectory = dirname(vadPackagePath);
+  return join(vadPackageDirectory, 'dist', 'silero_vad_v5.onnx');
 }
 
-function loadVadWeb() {
-  return require('@ricky0123/vad-web') as { NonRealTimeVAD: StreamingNonRealTimeVadConstructor };
+function createVadRequire() {
+  return createRequire(require.resolve('@ricky0123/vad-web/package.json'));
+}
+
+function loadSileroV5() {
+  const vadRequire = createVadRequire();
+  return vadRequire('@ricky0123/vad-web/dist/models') as { SileroV5: SileroModelConstructor };
+}
+
+function loadOrt() {
+  const vadRequire = createVadRequire();
+  return vadRequire('onnxruntime-web/wasm') as unknown;
 }
 
 class SileroStreamingSpeechActivitySession implements StreamingSpeechActivityAnalyzerSession {
-  constructor(private readonly vad: StreamingNonRealTimeVadInstance) {
-    this.vad.frameProcessor.resume();
+  private readonly model: SileroModel;
+
+  constructor(model: SileroModel) {
+    this.model = model;
   }
 
   async scoreFrame(frame: Float32Array) {
-    let probability: number | null = null;
-
-    await this.vad.frameProcessor.process(frame, (event) => {
-      if (event.probs) {
-        probability = event.probs.isSpeech;
-      }
-    });
-
-    if (probability === null) {
-      throw new Error('Silero VAD did not return a speech probability for the frame.');
-    }
-
-    return probability;
+    const probability = await this.model.process(frame);
+    return probability.isSpeech;
   }
 
   async flush() {
-    this.vad.frameProcessor.endSegment(() => {});
+    this.model.reset_state();
   }
 
   async dispose() {
-    await this.flush();
+    await this.model.release();
   }
 }
 
@@ -93,26 +84,22 @@ export function createSileroStreamingSpeechActivityAnalyzer(
 ): StreamingSpeechActivityAnalyzer {
   const resolvedPolicy = { ...defaultPolicy, ...policy };
 
-  const loadVad = () => {
-    return loadVadWeb()
-      .NonRealTimeVAD.new({
-        modelURL: resolveLegacyModelPath(),
-        modelFetcher: fetchModelFromFile,
-        positiveSpeechThreshold: resolvedPolicy.positiveSpeechThreshold,
-        negativeSpeechThreshold: resolvedPolicy.negativeSpeechThreshold,
-        redemptionMs: resolvedPolicy.redemptionMs,
-        preSpeechPadMs: resolvedPolicy.preSpeechPadMs,
-        minSpeechMs: resolvedPolicy.minSpeechMs,
-      });
+  const loadModel = async () => {
+    if (resolvedPolicy.model !== 'v5') {
+      throw new Error(`Unsupported Silero model ${resolvedPolicy.model}.`);
+    }
+
+    const { SileroV5 } = loadSileroV5();
+    return SileroV5.new(loadOrt(), () => fetchModelFromFile(resolveV5ModelPath()));
   };
 
   return {
-    name: 'silero-streaming-legacy',
+    name: 'silero-streaming-v5',
     sampleRate: 16_000,
-    frameSizeSamples: 1536,
+    frameSizeSamples: v5FrameSizeSamples,
 
     async createSession() {
-      return new SileroStreamingSpeechActivitySession(await loadVad());
+      return new SileroStreamingSpeechActivitySession(await loadModel());
     },
   };
 }

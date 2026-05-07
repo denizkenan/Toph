@@ -32,6 +32,16 @@ function isBetweenSpeech(regions: TimelineRegionDraft[], index: number) {
   return previousSpeech && nextSpeech;
 }
 
+function sourceDurationMs(ranges: PlannedBatchSourceRange[]) {
+  if (ranges.length === 0) {
+    return 0;
+  }
+
+  const startMs = Math.min(...ranges.map((range) => range.sourceStartMs));
+  const endMs = Math.max(...ranges.map((range) => range.sourceEndMs));
+  return endMs - startMs;
+}
+
 export function planTranscriptionBatches(options: {
   sessionId: string;
   regions: TimelineRegionDraft[];
@@ -56,7 +66,8 @@ export function planTranscriptionBatches(options: {
       id: currentBatchId,
       sessionId: options.sessionId,
       sequence: batches.length,
-      derivedDurationMs: currentDerivedMs,
+      sourceDurationMs: sourceDurationMs(currentRanges),
+      derivedAudioDurationMs: currentDerivedMs,
       createdLive: false,
       sourceRanges: currentRanges,
     });

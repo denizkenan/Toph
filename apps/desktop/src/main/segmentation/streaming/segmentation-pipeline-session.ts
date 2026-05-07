@@ -1,5 +1,5 @@
 import type { RecordingSessionStore } from '../../stores/session-store';
-import { writeDebugBatchWavsFromRawFile } from '../debug/debug-batch-writer';
+import { writeBatchWavsFromRawFile } from '../batch-audio-writer';
 import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../types';
 import { PcmFrameBuffer } from './pcm-frame-buffer';
 import { LiveBatchPlanner } from './live-batch-planner';
@@ -16,11 +16,12 @@ export async function createSegmentationPipelineSession(options: {
   sessionId: string;
   rawAudioPath: string;
   createdLive: boolean;
-  generateDebugAudio: boolean;
+  generateBatchAudio: boolean;
+  onBatchesReady?: (batches: PlannedTranscriptionBatch[]) => Promise<void> | void;
   analyzer: StreamingSpeechActivityAnalyzer;
   sessionStore: Pick<
     RecordingSessionStore,
-    'insertTimelineRegions' | 'insertPlannedBatches' | 'updateBatchDebugAudioPaths'
+    'insertTimelineRegions' | 'insertPlannedBatches' | 'updateBatchDerivedAudioPaths'
   >;
 }): Promise<SegmentationPipelineSession> {
   const analyzerSession = await options.analyzer.createSession();
@@ -37,16 +38,16 @@ export async function createSegmentationPipelineSession(options: {
   const persistedRegions: TimelineRegionDraft[] = [];
   const persistedBatches: PlannedTranscriptionBatch[] = [];
 
-  const writeDebugAudioForBatches = async (batches: PlannedTranscriptionBatch[]) => {
-    if (!options.generateDebugAudio || batches.length === 0) {
+  const writeAudioForBatches = async (batches: PlannedTranscriptionBatch[]) => {
+    if (!options.generateBatchAudio || batches.length === 0) {
       return;
     }
 
-    const debugAudioPaths = await writeDebugBatchWavsFromRawFile({
+    const derivedAudioPaths = await writeBatchWavsFromRawFile({
       rawAudioPath: options.rawAudioPath,
       batches,
     });
-    await options.sessionStore.updateBatchDebugAudioPaths(debugAudioPaths);
+    await options.sessionStore.updateBatchDerivedAudioPaths(derivedAudioPaths);
   };
 
   const persistPipelineOutput = async (regions: TimelineRegionDraft[]) => {
@@ -64,7 +65,8 @@ export async function createSegmentationPipelineSession(options: {
 
     await options.sessionStore.insertPlannedBatches({ sessionId: options.sessionId, batches });
     persistedBatches.push(...batches);
-    await writeDebugAudioForBatches(batches);
+    await writeAudioForBatches(batches);
+    await options.onBatchesReady?.(batches);
   };
 
   return {
@@ -85,7 +87,8 @@ export async function createSegmentationPipelineSession(options: {
           batches: finalBatches,
         });
         persistedBatches.push(...finalBatches);
-        await writeDebugAudioForBatches(finalBatches);
+        await writeAudioForBatches(finalBatches);
+        await options.onBatchesReady?.(finalBatches);
       }
 
       return {

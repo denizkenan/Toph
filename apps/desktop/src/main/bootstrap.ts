@@ -15,6 +15,9 @@ import { createSessionSegmentationService } from './segmentation/session-segment
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';
+import { createOpenAiSubAuthResolver } from './transcription/auth/openai-sub-auth';
+import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
+import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'Toph';
@@ -56,6 +59,12 @@ export async function bootstrap(options: {
   });
   const audioRecorder = createElectronCaptureAudioRecorder();
   const segmentation = createSessionSegmentationService({ sessionStore });
+  const openAiSubAuth = createOpenAiSubAuthResolver();
+  const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: openAiSubAuth });
+  const transcription = createSessionTranscriptionCoordinator({
+    sessionStore,
+    provider: transcriptionProvider,
+  });
 
   const ensurePermissionsReady = async () => {
     const permissionState = await permissions.inspectRequiredPermissions();
@@ -69,6 +78,7 @@ export async function bootstrap(options: {
     stateStore,
     sessionStore,
     segmentation,
+    transcription,
     audioRecorder,
     ensurePermissionsReady,
     windows,
@@ -172,7 +182,8 @@ export async function bootstrap(options: {
     unsubscribeState();
     shortcuts.unregister();
 
-    void dictation.dispose().finally(() => {
+    void dictation.dispose().finally(async () => {
+      await transcription.dispose();
       sessionStore.close();
       quitCleanupComplete = true;
       app.quit();

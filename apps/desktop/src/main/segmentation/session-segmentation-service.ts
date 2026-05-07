@@ -6,6 +6,7 @@ import type { StreamingSpeechActivityAnalyzer } from './analyzers/streaming-spee
 import { createSegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
 import type { SegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
 import { streamPcm16MonoWav } from './streaming/wav-stream-source';
+import type { PlannedTranscriptionBatch } from './types';
 
 export type SegmentationOutcome = 'segmented' | 'no_speech';
 
@@ -13,11 +14,12 @@ export interface SessionSegmentationService {
   createLiveSession: (options: {
     sessionId: string;
     rawAudioPath: string;
-    generateDebugAudio: boolean;
+    generateBatchAudio: boolean;
+    onBatchesReady?: (batches: PlannedTranscriptionBatch[]) => Promise<void> | void;
   }) => Promise<SegmentationPipelineSession>;
   segmentRecordedSession: (options: {
     sessionId: string;
-    generateDebugAudio: boolean;
+    generateBatchAudio: boolean;
   }) => Promise<SegmentationOutcome>;
 }
 
@@ -29,7 +31,7 @@ function describeSegmentationError(error: unknown) {
 function createDefaultSpeechActivityAnalyzer() {
   return createFallbackStreamingSpeechActivityAnalyzer({
     primary: createSileroStreamingSpeechActivityAnalyzer(),
-    fallback: createEnergyStreamingSpeechActivityAnalyzer({ frameSizeSamples: 1536 }),
+    fallback: createEnergyStreamingSpeechActivityAnalyzer({ frameSizeSamples: 512 }),
   });
 }
 
@@ -44,25 +46,26 @@ export function createSessionSegmentationService(options: {
     | 'clearSegmentationData'
     | 'insertTimelineRegions'
     | 'insertPlannedBatches'
-    | 'updateBatchDebugAudioPaths'
+    | 'updateBatchDerivedAudioPaths'
   >;
   analyzer?: StreamingSpeechActivityAnalyzer;
 }): SessionSegmentationService {
   const analyzer = options.analyzer ?? createDefaultSpeechActivityAnalyzer();
 
   return {
-    async createLiveSession({ sessionId, rawAudioPath, generateDebugAudio }) {
+    async createLiveSession({ sessionId, rawAudioPath, generateBatchAudio, onBatchesReady }) {
       return createSegmentationPipelineSession({
         sessionId,
         rawAudioPath,
         createdLive: true,
-        generateDebugAudio,
+        generateBatchAudio,
+        onBatchesReady,
         analyzer,
         sessionStore: options.sessionStore,
       });
     },
 
-    async segmentRecordedSession({ sessionId, generateDebugAudio }) {
+    async segmentRecordedSession({ sessionId, generateBatchAudio }) {
       try {
         const session = await options.sessionStore.getSession(sessionId);
         if (!session) {
@@ -79,7 +82,7 @@ export function createSessionSegmentationService(options: {
           sessionId,
           rawAudioPath: session.rawAudioPath,
           createdLive: false,
-          generateDebugAudio,
+          generateBatchAudio,
           analyzer,
           sessionStore: options.sessionStore,
         });

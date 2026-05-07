@@ -8,11 +8,14 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
 import {
+  batchTranscripts,
   batchSourceRanges,
   recordingSessions,
   timelineRegions,
   transcriptionBatches,
+  type BatchTranscript,
   type RecordingSession,
+  type TranscriptionBatch,
 } from '../db/schema';
 import type { TophDataPaths } from '../paths';
 import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../segmentation/types';
@@ -42,7 +45,13 @@ export interface RecordingSessionStore {
     sessionId: string;
     batches: PlannedTranscriptionBatch[];
   }) => Promise<void>;
-  updateBatchDebugAudioPaths: (updates: Array<{ batchId: string; debugAudioPath: string }>) => Promise<void>;
+  updateBatchDerivedAudioPaths: (updates: Array<{ batchId: string; derivedAudioPath: string }>) => Promise<void>;
+  getTranscriptionBatch: (batchId: string) => Promise<TranscriptionBatch | null>;
+  listTranscriptionBatchesForSession: (sessionId: string) => Promise<TranscriptionBatch[]>;
+  markBatchTranscribing: (options: { batchId: string; attempts: number; startedAt: number }) => Promise<void>;
+  markBatchTranscribed: (options: { batchId: string; transcribedAt: number }) => Promise<void>;
+  markBatchFailed: (options: { batchId: string; attempts: number; errorMessage: string }) => Promise<void>;
+  insertBatchTranscript: (transcript: BatchTranscript) => Promise<void>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
@@ -197,6 +206,9 @@ export async function createRecordingSessionStore(options: {
         const batchIds = batches.map((batch) => batch.id);
 
         if (batchIds.length > 0) {
+          db.delete(batchTranscripts)
+            .where(inArray(batchTranscripts.batchId, batchIds))
+            .run();
           db.delete(batchSourceRanges)
             .where(inArray(batchSourceRanges.batchId, batchIds))
             .run();
@@ -246,11 +258,13 @@ export async function createRecordingSessionStore(options: {
               sessionId,
               sequence: batch.sequence,
               status: 'planned' as const,
-              derivedDurationMs: batch.derivedDurationMs,
+              sourceDurationMs: batch.sourceDurationMs,
+              derivedAudioDurationMs: batch.derivedAudioDurationMs,
               createdLive: batch.createdLive,
-              debugAudioPath: null,
+              derivedAudioPath: null,
               createdAt: now,
-              queuedAt: null,
+              transcriptionAttempts: 0,
+              transcriptionStartedAt: null,
               transcribedAt: null,
               errorMessage: null,
             })),
@@ -280,15 +294,61 @@ export async function createRecordingSessionStore(options: {
       });
     },
 
-    async updateBatchDebugAudioPaths(updates) {
+    async updateBatchDerivedAudioPaths(updates) {
       db.transaction(() => {
         for (const update of updates) {
           db.update(transcriptionBatches)
-            .set({ debugAudioPath: update.debugAudioPath })
+            .set({ derivedAudioPath: update.derivedAudioPath })
             .where(eq(transcriptionBatches.id, update.batchId))
             .run();
         }
       });
+    },
+
+    async getTranscriptionBatch(batchId) {
+      return db.select().from(transcriptionBatches).where(eq(transcriptionBatches.id, batchId)).get() ?? null;
+    },
+
+    async listTranscriptionBatchesForSession(sessionId) {
+      return db.select().from(transcriptionBatches).where(eq(transcriptionBatches.sessionId, sessionId)).all();
+    },
+
+    async markBatchTranscribing({ batchId, attempts, startedAt }) {
+      db.update(transcriptionBatches)
+        .set({
+          status: 'transcribing',
+          transcriptionAttempts: attempts,
+          transcriptionStartedAt: startedAt,
+          errorMessage: null,
+        })
+        .where(eq(transcriptionBatches.id, batchId))
+        .run();
+    },
+
+    async markBatchTranscribed({ batchId, transcribedAt }) {
+      db.update(transcriptionBatches)
+        .set({
+          status: 'transcribed',
+          transcribedAt,
+          errorMessage: null,
+        })
+        .where(eq(transcriptionBatches.id, batchId))
+        .run();
+    },
+
+    async markBatchFailed({ batchId, attempts, errorMessage }) {
+      db.update(transcriptionBatches)
+        .set({
+          status: 'failed',
+          transcriptionAttempts: attempts,
+          errorMessage,
+        })
+        .where(eq(transcriptionBatches.id, batchId))
+        .run();
+    },
+
+    async insertBatchTranscript(transcript) {
+      db.insert(batchTranscripts).values(transcript).run();
     },
 
     async pruneRetainedSessions() {
