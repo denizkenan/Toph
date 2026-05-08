@@ -1,4 +1,5 @@
 import type { RawAudioRecorder } from './managers/audio-recorder';
+import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
 import type { SessionOutputService } from './outputs/session-output-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
@@ -41,6 +42,7 @@ export function createDictationController(options: {
   transcription: SessionTranscriptionCoordinator;
   outputs: SessionOutputService;
   audioRecorder: RawAudioRecorder;
+  clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
 }): DictationController {
@@ -367,11 +369,8 @@ export function createDictationController(options: {
         return;
       }
 
-      options.stateStore.completeTranscription(output.text, {
-        helper: null,
-        status: 'idle',
-        detail: 'Raw transcript assembled. Auto-paste is not enabled yet.',
-      }, { id: output.id, createdAt: output.createdAt });
+      const pasteAttempt = await options.clipboard.copyAndPasteText(output.text);
+      options.stateStore.completeTranscription(output.text, pasteAttempt, { id: output.id, createdAt: output.createdAt });
       activeSession = null;
       lifecycle = 'idle';
       options.windows.emitSound('done');

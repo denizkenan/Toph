@@ -1,6 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { clipboard, systemPreferences } from 'electron';
+
 import type { PasteAttempt, PasteSupport } from '@toph/desktop-contracts';
 
 const execFileAsync = promisify(execFile);
@@ -13,7 +15,7 @@ type PasteHelper = {
 
 export interface ClipboardManager {
   describePasteSupport: () => Promise<PasteSupport>;
-  pasteFromClipboard: () => Promise<PasteAttempt>;
+  copyAndPasteText: (text: string) => Promise<PasteAttempt>;
 }
 
 const sessionType = (process.env.XDG_SESSION_TYPE ?? '').toLowerCase();
@@ -27,6 +29,19 @@ let helperPromise: Promise<PasteHelper | null> | null = null;
 
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown error';
+}
+
+function copyText(text: string): PasteAttempt | null {
+  try {
+    clipboard.writeText(text);
+    return null;
+  } catch (error) {
+    return {
+      helper: null,
+      status: 'failed',
+      detail: `Transcript could not be copied to the clipboard. ${describeError(error)}.`,
+    };
+  }
 }
 
 async function commandExists(command: string): Promise<boolean> {
@@ -153,7 +168,12 @@ function createLinuxClipboardManager(): ClipboardManager {
       };
     },
 
-    async pasteFromClipboard(): Promise<PasteAttempt> {
+    async copyAndPasteText(text): Promise<PasteAttempt> {
+      const copyFailure = copyText(text);
+      if (copyFailure) {
+        return copyFailure;
+      }
+
       let helper: PasteHelper | null;
 
       try {
@@ -197,13 +217,33 @@ function createLinuxClipboardManager(): ClipboardManager {
 function createMacClipboardManager(): ClipboardManager {
   return {
     async describePasteSupport() {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        return {
+          helper: null,
+          detail: 'Clipboard write is ready. Auto-paste needs macOS Accessibility access.',
+        };
+      }
+
       return {
         helper: 'macos-accessibility',
         detail: 'Clipboard-first mode is active. Auto-paste will be attempted with macOS Accessibility.',
       };
     },
 
-    async pasteFromClipboard() {
+    async copyAndPasteText(text) {
+      const copyFailure = copyText(text);
+      if (copyFailure) {
+        return copyFailure;
+      }
+
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        return {
+          helper: 'macos-accessibility',
+          status: 'clipboard-only',
+          detail: 'Transcript copied to the clipboard. Auto-paste needs macOS Accessibility access.',
+        };
+      }
+
       try {
         await execFileAsync('osascript', [
           '-e',
@@ -235,7 +275,12 @@ function createDefaultClipboardManager(): ClipboardManager {
       };
     },
 
-    async pasteFromClipboard() {
+    async copyAndPasteText(text) {
+      const copyFailure = copyText(text);
+      if (copyFailure) {
+        return copyFailure;
+      }
+
       return {
         helper: null,
         status: 'clipboard-only',

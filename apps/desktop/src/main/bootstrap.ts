@@ -105,6 +105,7 @@ export async function bootstrap(options: {
     transcription,
     outputs,
     audioRecorder,
+    clipboard,
     ensurePermissionsReady: async () => (await ensureProvidersReady()) && (await ensurePermissionsReady()),
     windows,
   });
