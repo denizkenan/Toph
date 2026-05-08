@@ -27,7 +27,7 @@ Toph is a voice-to-text dictation app.
   - `docs/engineering-guidance/how-to-use.md`
   - Additionally, make sure to read any relevant engineering guidance files before starting to code.
 - Read relevant `package.json` files before changing code to understand scripts, dependencies, and package boundaries.
-- Never run `pnpm run start`.
+- Never run `pnpm run dev` or `pnpm run start`.
 - After writing code, run from the repo root:
   - `pnpm run lint`
   - `pnpm run typecheck`
