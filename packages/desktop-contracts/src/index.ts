@@ -5,6 +5,10 @@ export const DESKTOP_IPC_CHANNELS = {
   showSettings: 'toph:show-settings',
   hideSettings: 'toph:hide-settings',
   installShortcut: 'toph:install-shortcut',
+  connectProvider: 'toph:connect-provider',
+  submitProviderAuthorization: 'toph:submit-provider-authorization',
+  removeProvider: 'toph:remove-provider',
+  refreshProviders: 'toph:refresh-providers',
   performPermissionAction: 'toph:perform-permission-action',
   refreshPermissions: 'toph:refresh-permissions',
   sound: 'toph:sound',
@@ -90,6 +94,9 @@ export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
 export type PermissionRequirementId = 'microphone' | 'accessibility';
+export type ProviderId = 'openai-sub';
+export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub'];
+export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
   'microphone',
   'accessibility',
@@ -136,6 +143,22 @@ export interface PermissionState {
   requirements: PermissionRequirement[];
 }
 
+export interface ProviderConnection {
+  id: ProviderId;
+  label: string;
+  description: string;
+  status: ProviderConnectionStatus;
+  accountId: string | null;
+  expires: number | null;
+  error: string | null;
+}
+
+export interface ProviderState {
+  ready: boolean;
+  selectedProviderId: ProviderId | null;
+  providers: ProviderConnection[];
+}
+
 export interface AppState {
   phase: DictationPhase;
   shortcut: {
@@ -153,6 +176,7 @@ export interface AppState {
     sessionType: string;
     currentDesktop: string;
   };
+  providers: ProviderState;
   permissions: PermissionState;
   pasteSupport: PasteSupport;
   lastPasteAttempt: PasteAttempt;
@@ -171,6 +195,10 @@ export interface DesktopApi {
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
   installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
+  connectProvider: (providerId: ProviderId) => Promise<void>;
+  submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
+  removeProvider: (providerId: ProviderId) => Promise<void>;
+  refreshProviders: () => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;

@@ -58,6 +58,9 @@ function formatWordCount(count: number): string {
 }
 
 function deriveSystemStatus(state: AppState): { label: string; tone: string } {
+  if (!state.providers.ready) {
+    return { label: 'Provider needed', tone: 'text-accent-amber' };
+  }
   if (!state.permissions.ready) {
     return { label: 'Permissions needed', tone: 'text-accent-amber' };
   }
@@ -196,10 +199,11 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     );
   }
 
-  if (!state.permissions.ready) {
+  if (!state.providers.ready || !state.permissions.ready) {
     return (
       <OnboardingScreen
         platform={state.environment.platform}
+        providers={state.providers}
         requirements={state.permissions.requirements}
         client={client}
       />

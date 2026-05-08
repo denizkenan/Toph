@@ -4,6 +4,7 @@ import type {
   AppState,
   DesktopApi,
   PermissionRequirementId,
+  ProviderId,
   ShortcutPresetId,
   SoundEventKind,
 } from '@toph/desktop-contracts';
@@ -44,6 +45,13 @@ const api: DesktopApi = {
   hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
   installShortcut: (presetId: ShortcutPresetId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, presetId) as Promise<void>,
+  connectProvider: (providerId: ProviderId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId) as Promise<void>,
+  submitProviderAuthorization: (providerId: ProviderId, input: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.submitProviderAuthorization, providerId, input) as Promise<void>,
+  removeProvider: (providerId: ProviderId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.removeProvider, providerId) as Promise<void>,
+  refreshProviders: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshProviders) as Promise<void>,
   performPermissionAction: (permissionId: PermissionRequirementId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.performPermissionAction, permissionId) as Promise<void>,
   refreshPermissions: () =>

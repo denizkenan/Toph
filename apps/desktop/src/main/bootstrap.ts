@@ -1,8 +1,9 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { app } from 'electron';
+import { app, shell } from 'electron';
 
+import { createProviderAuthService } from './auth/provider-auth-service';
 import { createDictationController } from './dictation';
 import { registerDesktopIpc } from './ipc';
 import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
@@ -16,7 +17,6 @@ import { createSessionSegmentationService } from './segmentation/session-segment
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';
-import { createOpenAiSubAuthResolver } from './transcription/auth/openai-sub-auth';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 
@@ -70,8 +70,13 @@ export async function bootstrap(options: {
   const audioRecorder = createElectronCaptureAudioRecorder();
   const segmentation = createSessionSegmentationService({ sessionStore });
   const outputs = createSessionOutputService({ sessionStore });
-  const openAiSubAuth = createOpenAiSubAuthResolver();
-  const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: openAiSubAuth });
+  const providerAuth = createProviderAuthService({
+    authPath: dataPaths.authPath,
+    openExternal: shell.openExternal,
+    onStateChanged: stateStore.setProviders,
+  });
+  stateStore.setProviders(await providerAuth.getState());
+  const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: providerAuth });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
     provider: transcriptionProvider,
@@ -85,6 +90,14 @@ export async function bootstrap(options: {
     }
     return permissionState.ready;
   };
+  const ensureProvidersReady = async () => {
+    const providerState = await providerAuth.getState();
+    stateStore.setProviders(providerState);
+    if (!providerState.ready) {
+      windows.showSettings();
+    }
+    return providerState.ready;
+  };
   const dictation = createDictationController({
     stateStore,
     sessionStore,
@@ -92,7 +105,7 @@ export async function bootstrap(options: {
     transcription,
     outputs,
     audioRecorder,
-    ensurePermissionsReady,
+    ensurePermissionsReady: async () => (await ensureProvidersReady()) && (await ensurePermissionsReady()),
     windows,
   });
   const shortcuts = createShortcutManager({
@@ -148,6 +161,27 @@ export async function bootstrap(options: {
     showSettings: windows.showSettings,
     hideSettings: windows.hideSettings,
     installShortcut: shortcuts.applyPreset,
+    connectProvider: async (providerId) => {
+      stateStore.setProviders(await providerAuth.getState());
+      try {
+        stateStore.setProviders(await providerAuth.connectProvider(providerId));
+      } finally {
+        stateStore.setProviders(await providerAuth.getState());
+      }
+    },
+    submitProviderAuthorization: async (providerId, input) => {
+      try {
+        stateStore.setProviders(await providerAuth.submitProviderAuthorization(providerId, input));
+      } finally {
+        stateStore.setProviders(await providerAuth.getState());
+      }
+    },
+    removeProvider: async (providerId) => {
+      stateStore.setProviders(await providerAuth.removeProvider(providerId));
+    },
+    refreshProviders: async () => {
+      stateStore.setProviders(await providerAuth.refreshProviders());
+    },
     performPermissionAction: async (permissionId) => {
       stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
     },
@@ -161,6 +195,7 @@ export async function bootstrap(options: {
   });
 
   await windows.create();
+  await ensureProvidersReady();
   await ensurePermissionsReady();
   const stopTrackingOverlayPlacement = windows.trackOverlayPlacement();
   tray.create();
@@ -196,6 +231,7 @@ export async function bootstrap(options: {
 
     void dictation.dispose().finally(async () => {
       await transcription.dispose();
+      await providerAuth.dispose();
       sessionStore.close();
       quitCleanupComplete = true;
       app.quit();

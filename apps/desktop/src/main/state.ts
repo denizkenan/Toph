@@ -7,6 +7,7 @@ import {
   type PasteAttempt,
   type PasteSupport,
   type PermissionState,
+  type ProviderState,
   type ShortcutPreset,
 } from '@toph/desktop-contracts';
 
@@ -22,6 +23,7 @@ export interface DesktopStateStore {
   getState: () => AppState;
   subscribe: (listener: (state: AppState) => void) => () => void;
   setShortcut: (preset: ShortcutPreset, support: ShortcutStateSupport) => void;
+  setProviders: (providers: ProviderState) => void;
   setPermissions: (permissions: PermissionState) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
   setRecentConversions: (conversions: ConversionRecord[]) => void;
@@ -60,6 +62,21 @@ function createInitialState(): AppState {
       platform: process.platform,
       sessionType: process.env.XDG_SESSION_TYPE ?? 'unknown',
       currentDesktop: process.env.XDG_CURRENT_DESKTOP ?? process.env.DESKTOP_SESSION ?? 'unknown',
+    },
+    providers: {
+      ready: false,
+      selectedProviderId: null,
+      providers: [
+        {
+          id: 'openai-sub',
+          label: 'OpenAI (ChatGPT Plus/Pro subscription)',
+          description: 'Use your ChatGPT subscription to transcribe recordings.',
+          status: 'missing',
+          accountId: null,
+          expires: null,
+          error: null,
+        },
+      ],
     },
     permissions: {
       ready: process.platform !== 'darwin',
@@ -116,6 +133,12 @@ export function createDesktopStateStore(): DesktopStateStore {
           label: preset.label,
           ...support,
         };
+      });
+    },
+
+    setProviders(providers) {
+      commit((draft) => {
+        draft.providers = providers;
       });
     },
 

@@ -31,6 +31,7 @@ export function SettingsPage({
   onBack: () => void;
 }) {
   const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(null);
+  const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const selectedPresetId = presetOverride ?? state.shortcut.presetId;
   const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
   const shortcutTone = state.shortcut.registered ? 'ready' : 'blocked';
@@ -40,6 +41,36 @@ export function SettingsPage({
     value: preset.id,
     label: resolveShortcutPresetForPlatform(preset.id, state.environment.platform).label,
   }));
+  const provider = state.providers.providers[0];
+  const providerConnected = provider?.status === 'connected';
+
+  const connectProvider = async () => {
+    if (!provider) {
+      return;
+    }
+
+    setBusyProvider(provider.id);
+    try {
+      await client.connectProvider(provider.id);
+    } catch {
+      // Main process publishes provider errors into AppState.
+    } finally {
+      setBusyProvider(null);
+    }
+  };
+
+  const removeProvider = async () => {
+    if (!provider) {
+      return;
+    }
+
+    setBusyProvider(provider.id);
+    try {
+      await client.removeProvider(provider.id);
+    } finally {
+      setBusyProvider(null);
+    }
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
@@ -48,7 +79,7 @@ export function SettingsPage({
       )}
       <div className="settings-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
 
-      <section className="relative mx-auto max-w-[720px]">
+        <section className="relative mx-auto max-w-[720px]">
         <header className="mb-8 flex items-center gap-4">
           <button
             type="button"
@@ -61,6 +92,67 @@ export function SettingsPage({
           </button>
           <h1 className="m-0 font-display text-2xl tracking-[-0.03em]">Settings</h1>
         </header>
+
+        <section className="panel-surface mb-5 rounded-3xl p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
+                Providers
+              </span>
+              <h2 className="m-0 font-display text-xl tracking-[-0.03em]">Transcription engine</h2>
+            </div>
+            {provider && (
+              <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${providerConnected ? 'text-accent-green' : 'text-accent-amber'}`}>
+                <span className={`size-2 rounded-full ${providerConnected ? 'bg-accent-green' : 'bg-accent-amber'}`} />
+                {providerConnected ? 'Connected' : 'Needs setup'}
+              </span>
+            )}
+          </div>
+
+          {provider && (
+            <div className="rounded-3xl border border-white/8 bg-white/4 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <h3 className="m-0 font-display text-lg tracking-[-0.025em] text-text-primary">
+                    {provider.label}
+                  </h3>
+                  <p className="mt-1 mb-0 text-sm leading-relaxed text-text-secondary">
+                    {provider.description}
+                  </p>
+                  {provider.accountId && (
+                    <p className="mt-3 mb-0 text-xs text-text-tertiary">
+                      Account: <span className="font-semibold text-text-secondary">{provider.accountId}</span>
+                    </p>
+                  )}
+                  {provider.error && (
+                    <p className="mt-3 mb-0 rounded-2xl border border-accent-red/16 bg-accent-red/10 px-3 py-2 text-sm text-accent-red">
+                      {provider.error}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={`${buttonClass} bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]`}
+                    onClick={() => void connectProvider()}
+                    disabled={busyProvider !== null || provider.status === 'connecting'}
+                  >
+                    {providerConnected ? 'Reconnect' : 'Connect'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`${buttonClass} border-accent-red/20 bg-accent-red/10 text-accent-red hover:bg-accent-red/18`}
+                    onClick={() => void removeProvider()}
+                    disabled={busyProvider !== null || !providerConnected}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="panel-surface mb-5 rounded-3xl p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
@@ -155,6 +247,10 @@ export function SettingsPage({
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
               <dt className="text-text-tertiary">Platform</dt>
               <dd className="m-0 text-sm font-semibold">{state.environment.platform}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
+              <dt className="text-text-tertiary">Provider</dt>
+              <dd className="m-0 text-sm font-semibold">{state.providers.ready ? 'Ready' : 'Needs setup'}</dd>
             </div>
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
               <dt className="text-text-tertiary">Permissions</dt>

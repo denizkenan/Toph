@@ -7,6 +7,7 @@ const dataDirectoryEnvVar = 'TOPH_DATA_DIRECTORY';
 
 export interface TophDataPaths {
   dataDirectory: string;
+  authPath: string;
   databasePath: string;
   recordingsDirectory: string;
 }
@@ -19,10 +20,12 @@ export async function resolveTophDataPaths(electronApp: Pick<typeof app, 'getPat
 
   const paths: TophDataPaths = {
     dataDirectory,
+    authPath: join(dataDirectory, 'auth.json'),
     databasePath: join(dataDirectory, 'data.db'),
     recordingsDirectory: join(dataDirectory, 'recordings'),
   };
 
+  await mkdir(paths.dataDirectory, { recursive: true });
   await mkdir(paths.recordingsDirectory, { recursive: true });
 
   return paths;

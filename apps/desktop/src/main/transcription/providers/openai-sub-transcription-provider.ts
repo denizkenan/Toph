@@ -6,7 +6,7 @@ import {
   type TranscriptionProvider,
   type TranscriptionProviderResult,
 } from '../transcription-provider';
-import type { OpenAiSubAuthResolver } from '../auth/openai-sub-auth';
+import type { ProviderAuthService } from '../../auth/provider-auth-service';
 
 const providerId = 'openai-sub';
 const model = 'chatgpt-backend-transcribe';
@@ -48,13 +48,13 @@ async function readResponseBody(response: Response) {
 }
 
 export function createOpenAiSubTranscriptionProvider(options: {
-  auth: OpenAiSubAuthResolver;
+  auth: Pick<ProviderAuthService, 'resolveCredentials'>;
 }): TranscriptionProvider {
   return {
     id: providerId,
 
     async transcribeBatch(input): Promise<TranscriptionProviderResult> {
-      const credentials = await options.auth.resolveCredentials();
+      const credentials = await options.auth.resolveCredentials(providerId);
       const audio = await readFile(input.audioPath);
       const form = new FormData();
       form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));

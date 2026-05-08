@@ -21,6 +21,21 @@ const baseState: AppState = {
     sessionType: 'wayland',
     currentDesktop: 'GNOME',
   },
+  providers: {
+    ready: true,
+    selectedProviderId: 'openai-sub',
+    providers: [
+      {
+        id: 'openai-sub',
+        label: 'OpenAI (ChatGPT Plus/Pro subscription)',
+        description: 'Use your ChatGPT subscription to transcribe recordings.',
+        status: 'connected',
+        accountId: 'account-id',
+        expires: Date.now() + 3_600_000,
+        error: null,
+      },
+    ],
+  },
   permissions: {
     ready: true,
     requirements: [],
@@ -46,6 +61,10 @@ function createClient(onSubscribe: (listener: (state: AppState) => void) => () =
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
+    connectProvider: async () => {},
+    submitProviderAuthorization: async () => {},
+    removeProvider: async () => {},
+    refreshProviders: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
