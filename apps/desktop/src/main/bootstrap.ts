@@ -10,6 +10,7 @@ import { createClipboardManager } from './managers/clipboard';
 import { createPermissionManager } from './managers/permissions';
 import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
+import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createDesktopStateStore } from './state';
@@ -57,8 +58,18 @@ export async function bootstrap(options: {
     paths: dataPaths,
     migrationsFolder: join(__dirname, '../../drizzle'),
   });
+  stateStore.setRecentConversions(
+    (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
+      id: output.id,
+      text: output.text,
+      createdAt: output.createdAt,
+      pasteStatus: 'idle',
+      pasteDetail: 'Loaded from local history.',
+    })),
+  );
   const audioRecorder = createElectronCaptureAudioRecorder();
   const segmentation = createSessionSegmentationService({ sessionStore });
+  const outputs = createSessionOutputService({ sessionStore });
   const openAiSubAuth = createOpenAiSubAuthResolver();
   const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: openAiSubAuth });
   const transcription = createSessionTranscriptionCoordinator({
@@ -79,6 +90,7 @@ export async function bootstrap(options: {
     sessionStore,
     segmentation,
     transcription,
+    outputs,
     audioRecorder,
     ensurePermissionsReady,
     windows,

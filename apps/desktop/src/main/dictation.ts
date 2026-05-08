@@ -1,5 +1,6 @@
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { WindowManager } from './managers/windows';
+import type { SessionOutputService } from './outputs/session-output-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import type { DesktopStateStore } from './state';
@@ -12,7 +13,6 @@ export interface DictationController {
 }
 
 const toggleDebounceMs = 800;
-const recordingCompleteDelayMs = 500;
 const failureVisibleMs = 2_000;
 const noSpeechVisibleMs = 2_000;
 const maxLiveProcessingBacklog = 100;
@@ -39,6 +39,7 @@ export function createDictationController(options: {
   >;
   segmentation: SessionSegmentationService;
   transcription: SessionTranscriptionCoordinator;
+  outputs: SessionOutputService;
   audioRecorder: RawAudioRecorder;
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
@@ -155,12 +156,6 @@ export function createDictationController(options: {
     options.windows.showOverlay();
     await pruneSessions();
     returnToIdleAfterFailure();
-  };
-
-  const completeRecording = async () => {
-    await new Promise((resolve) => setTimeout(resolve, recordingCompleteDelayMs));
-    options.stateStore.completeRecording();
-    options.windows.emitSound('done');
   };
 
   const completeNoSpeechRecording = async () => {
@@ -336,11 +331,11 @@ export function createDictationController(options: {
       liveProcessingBacklog = 0;
       liveProcessingGeneration += 1;
 
-      activeSession = null;
-      lifecycle = 'idle';
       await pruneSessions();
       if (outcome.result === 'no_speech') {
         await options.sessionStore.markNoSpeech(session.id);
+        activeSession = null;
+        lifecycle = 'idle';
         await completeNoSpeechRecording();
         return;
       }
@@ -350,13 +345,36 @@ export function createDictationController(options: {
       if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
         const errorMessage = `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`;
         await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
+        activeSession = null;
+        lifecycle = 'idle';
         options.stateStore.failDictation(errorMessage);
         options.windows.showOverlay();
         returnToIdleAfterFailure();
         return;
       }
 
-      await completeRecording();
+      let output: Awaited<ReturnType<SessionOutputService['createRawConcatOutput']>>;
+      try {
+        output = await options.outputs.createRawConcatOutput(session.id);
+      } catch (error) {
+        const errorMessage = describeUnexpectedError('Raw transcript assembly failed unexpectedly.', error);
+        await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
+        activeSession = null;
+        lifecycle = 'idle';
+        options.stateStore.failDictation(errorMessage);
+        options.windows.showOverlay();
+        returnToIdleAfterFailure();
+        return;
+      }
+
+      options.stateStore.completeTranscription(output.text, {
+        helper: null,
+        status: 'idle',
+        detail: 'Raw transcript assembled. Auto-paste is not enabled yet.',
+      }, { id: output.id, createdAt: output.createdAt });
+      activeSession = null;
+      lifecycle = 'idle';
+      options.windows.emitSound('done');
     } catch (error) {
       if (recordingWasSaved) {
         await failProcessedSession(error);

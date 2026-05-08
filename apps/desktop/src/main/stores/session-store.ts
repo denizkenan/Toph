@@ -11,10 +11,12 @@ import {
   batchTranscripts,
   batchSourceRanges,
   recordingSessions,
+  sessionOutputs,
   timelineRegions,
   transcriptionBatches,
   type BatchTranscript,
   type RecordingSession,
+  type SessionOutput,
   type TranscriptionBatch,
 } from '../db/schema';
 import type { TophDataPaths } from '../paths';
@@ -52,12 +54,15 @@ export interface RecordingSessionStore {
   markBatchTranscribed: (options: { batchId: string; transcribedAt: number }) => Promise<void>;
   markBatchFailed: (options: { batchId: string; attempts: number; errorMessage: string }) => Promise<void>;
   insertBatchTranscript: (transcript: BatchTranscript) => Promise<void>;
+  listOrderedBatchTranscriptTexts: (sessionId: string) => Promise<string[]>;
+  createSelectedSessionOutput: (output: SessionOutput) => Promise<void>;
+  listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
 
 const retainedSessionCount = 10;
-const retainableSessionStatuses = ['recorded', 'segmented', 'no_speech', 'recording_failed'] as const;
+const retainableSessionStatuses = ['recorded', 'segmented', 'completed', 'no_speech', 'recording_failed'] as const;
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
@@ -107,6 +112,7 @@ export async function createRecordingSessionStore(options: {
         durationMs: null,
         rawAudioPath,
         status: 'recording' as const,
+        selectedOutputId: null,
         errorMessage: null,
       };
 
@@ -219,6 +225,9 @@ export async function createRecordingSessionStore(options: {
           .run();
         db.delete(timelineRegions)
           .where(eq(timelineRegions.sessionId, sessionId))
+          .run();
+        db.delete(sessionOutputs)
+          .where(eq(sessionOutputs.sessionId, sessionId))
           .run();
       });
     },
@@ -349,6 +358,48 @@ export async function createRecordingSessionStore(options: {
 
     async insertBatchTranscript(transcript) {
       db.insert(batchTranscripts).values(transcript).run();
+    },
+
+    async listOrderedBatchTranscriptTexts(sessionId) {
+      return db
+        .select({ text: batchTranscripts.text })
+        .from(transcriptionBatches)
+        .innerJoin(batchTranscripts, eq(batchTranscripts.batchId, transcriptionBatches.id))
+        .where(eq(transcriptionBatches.sessionId, sessionId))
+        .orderBy(transcriptionBatches.sequence)
+        .all()
+        .map((row) => row.text);
+    },
+
+    async createSelectedSessionOutput(output) {
+      db.transaction(() => {
+        db.insert(sessionOutputs).values(output).run();
+        db.update(recordingSessions)
+          .set({
+            status: 'completed',
+            selectedOutputId: output.id,
+            errorMessage: null,
+          })
+          .where(eq(recordingSessions.id, output.sessionId))
+          .run();
+      });
+    },
+
+    async listRecentSelectedSessionOutputs(limit) {
+      return db
+        .select({
+          id: sessionOutputs.id,
+          sessionId: sessionOutputs.sessionId,
+          kind: sessionOutputs.kind,
+          text: sessionOutputs.text,
+          createdAt: sessionOutputs.createdAt,
+        })
+        .from(sessionOutputs)
+        .innerJoin(recordingSessions, eq(recordingSessions.selectedOutputId, sessionOutputs.id))
+        .where(eq(recordingSessions.status, 'completed'))
+        .orderBy(desc(sessionOutputs.createdAt))
+        .limit(limit)
+        .all();
     },
 
     async pruneRetainedSessions() {

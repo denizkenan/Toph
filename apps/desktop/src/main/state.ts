@@ -2,6 +2,7 @@ import {
   DEFAULT_SHORTCUT_PRESET,
   resolveShortcutPresetForPlatform,
   type AppState,
+  type ConversionRecord,
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
@@ -23,13 +24,18 @@ export interface DesktopStateStore {
   setShortcut: (preset: ShortcutPreset, support: ShortcutStateSupport) => void;
   setPermissions: (permissions: PermissionState) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
+  setRecentConversions: (conversions: ConversionRecord[]) => void;
   setPhase: (phase: DictationPhase) => void;
   startListening: () => void;
   startTranscribing: () => void;
   completeRecording: () => void;
   noSpeechDetected: () => void;
   failDictation: (detail: string) => void;
-  completeTranscription: (transcript: string, pasteAttempt: PasteAttempt) => void;
+  completeTranscription: (
+    transcript: string,
+    pasteAttempt: PasteAttempt,
+    options?: { id?: string; createdAt?: number },
+  ) => void;
 }
 
 function createInitialState(): AppState {
@@ -125,6 +131,13 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
+    setRecentConversions(conversions) {
+      commit((draft) => {
+        draft.recentConversions = conversions.slice(0, 8);
+        draft.lastTranscript = conversions[0]?.text ?? null;
+      });
+    },
+
     setPhase(phase) {
       commit((draft) => {
         draft.phase = phase;
@@ -186,11 +199,11 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
-    completeTranscription(transcript, pasteAttempt) {
+    completeTranscription(transcript, pasteAttempt, options) {
       commit((draft) => {
-        const createdAt = Date.now();
+        const createdAt = options?.createdAt ?? Date.now();
         const nextConversion = {
-          id: `${createdAt}`,
+          id: options?.id ?? `${createdAt}`,
           text: transcript,
           createdAt,
           pasteStatus: pasteAttempt.status,
