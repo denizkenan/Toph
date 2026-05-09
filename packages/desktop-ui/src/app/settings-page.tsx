@@ -32,6 +32,7 @@ export function SettingsPage({
 }) {
   const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(null);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
+  const [busyPolish, setBusyPolish] = useState(false);
   const selectedPresetId = presetOverride ?? state.shortcut.presetId;
   const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
   const shortcutTone = state.shortcut.registered ? 'ready' : 'blocked';
@@ -43,6 +44,10 @@ export function SettingsPage({
   }));
   const provider = state.providers.providers[0];
   const providerConnected = provider?.status === 'connected';
+  const polishPromptItems = state.polish.prompts.map((prompt) => ({
+    value: prompt.id,
+    label: prompt.title,
+  }));
 
   const connectProvider = async () => {
     if (!provider) {
@@ -69,6 +74,24 @@ export function SettingsPage({
       await client.removeProvider(provider.id);
     } finally {
       setBusyProvider(null);
+    }
+  };
+
+  const setPolishEnabled = async (enabled: boolean) => {
+    setBusyPolish(true);
+    try {
+      await client.setPolishEnabled(enabled);
+    } finally {
+      setBusyPolish(false);
+    }
+  };
+
+  const setActivePolishPrompt = async (promptId: string) => {
+    setBusyPolish(true);
+    try {
+      await client.setActivePolishPrompt(promptId);
+    } finally {
+      setBusyPolish(false);
     }
   };
 
@@ -152,6 +175,90 @@ export function SettingsPage({
               </div>
             </div>
           )}
+        </section>
+
+        <section className="panel-surface mb-5 rounded-3xl p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
+                Polish
+              </span>
+              <h2 className="m-0 font-display text-xl tracking-[-0.03em]">Clean up before paste</h2>
+              <p className="mt-2 mb-0 text-sm leading-relaxed text-text-secondary">
+                Polish uses inference after transcription to preserve your voice while fixing dictation artifacts.
+              </p>
+            </div>
+            <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${state.polish.enabled ? 'text-accent-green' : 'text-text-secondary'}`}>
+              <span className={`size-2 rounded-full ${state.polish.enabled ? 'bg-accent-green' : 'bg-white/20'}`} />
+              {state.polish.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/8 bg-white/4 p-4">
+            <div>
+              <h3 className="m-0 font-display text-lg tracking-[-0.025em] text-text-primary">
+                Polish dictation
+              </h3>
+              <p className="mt-1 mb-0 text-sm leading-relaxed text-text-secondary">
+                When disabled, Toph pastes the raw assembled transcript.
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`${buttonClass} ${state.polish.enabled ? 'border-white/10 bg-white/6 text-text-primary hover:bg-white/10' : 'bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]'}`}
+              onClick={() => void setPolishEnabled(!state.polish.enabled)}
+              disabled={busyPolish}
+            >
+              {state.polish.enabled ? 'Disable Polish' : 'Enable Polish'}
+            </button>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm text-text-secondary">Prompt</label>
+            <Select.Root
+              items={polishPromptItems}
+              value={state.polish.activePromptId}
+              onValueChange={(value) => {
+                if (value && value !== state.polish.activePromptId) {
+                  void setActivePolishPrompt(value);
+                }
+              }}
+            >
+              <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6">
+                <Select.Value placeholder="Select prompt" />
+                <Select.Icon className="text-text-tertiary">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 4L5 7L8 4" />
+                  </svg>
+                </Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}>
+                  <Select.Popup className="menu-popup-surface origin-[var(--transform-origin)] rounded-xl py-1.5 transition-[transform,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+                    <Select.List>
+                      {polishPromptItems.map((item) => (
+                        <Select.Item
+                          key={item.value}
+                          value={item.value}
+                          className="flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8"
+                        >
+                          <Select.ItemIndicator className="text-accent-green">
+                            <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor">
+                              <path d="M9.16 1.12a.75.75 0 0 1 .22 1.04L5.14 8.66a.75.75 0 0 1-1.13.13L1.25 6.31a.75.75 0 1 1 1.06-1.06l2.1 1.91L8.12 1.34a.75.75 0 0 1 1.04-.22Z" />
+                            </svg>
+                          </Select.ItemIndicator>
+                          <Select.ItemText>{item.label}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.List>
+                  </Select.Popup>
+                </Select.Positioner>
+              </Select.Portal>
+            </Select.Root>
+            <p className="mt-3 mb-0 text-xs text-text-tertiary">
+              Active prompt ID: <span className="font-semibold text-text-secondary">{state.polish.activePromptId}</span>
+            </p>
+          </div>
         </section>
 
         <section className="panel-surface mb-5 rounded-3xl p-6">
@@ -251,6 +358,10 @@ export function SettingsPage({
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
               <dt className="text-text-tertiary">Provider</dt>
               <dd className="m-0 text-sm font-semibold">{state.providers.ready ? 'Ready' : 'Needs setup'}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
+              <dt className="text-text-tertiary">Polish</dt>
+              <dd className="m-0 text-sm font-semibold">{state.polish.enabled ? state.polish.activePromptId : 'Disabled'}</dd>
             </div>
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
               <dt className="text-text-tertiary">Permissions</dt>

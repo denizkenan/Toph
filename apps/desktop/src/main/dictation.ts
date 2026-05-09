@@ -2,6 +2,7 @@ import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
 import type { SessionOutputService } from './outputs/session-output-service';
+import type { PolishService } from './polish/polish-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import type { DesktopStateStore } from './state';
@@ -31,16 +32,20 @@ export function createDictationController(options: {
     | 'createRecordingSession'
     | 'markRecorded'
     | 'markSegmented'
+    | 'markPolishing'
     | 'markNoSpeech'
+    | 'markFailed'
     | 'markRecordingFailed'
     | 'markRecordedWithProcessingError'
     | 'setProcessingError'
     | 'clearSegmentationData'
+    | 'getPolishSettings'
     | 'pruneRetainedSessions'
   >;
   segmentation: SessionSegmentationService;
   transcription: SessionTranscriptionCoordinator;
   outputs: SessionOutputService;
+  polish: PolishService;
   audioRecorder: RawAudioRecorder;
   clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
@@ -355,9 +360,9 @@ export function createDictationController(options: {
         return;
       }
 
-      let output: Awaited<ReturnType<SessionOutputService['createRawConcatOutput']>>;
+      let rawOutput: Awaited<ReturnType<SessionOutputService['createRawConcatOutput']>>;
       try {
-        output = await options.outputs.createRawConcatOutput(session.id);
+        rawOutput = await options.outputs.createRawConcatOutput(session.id);
       } catch (error) {
         const errorMessage = describeUnexpectedError('Raw transcript assembly failed unexpectedly.', error);
         await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
@@ -369,8 +374,58 @@ export function createDictationController(options: {
         return;
       }
 
-      const pasteAttempt = await options.clipboard.copyAndPasteText(output.text);
-      options.stateStore.completeTranscription(output.text, pasteAttempt, { id: output.id, createdAt: output.createdAt });
+      let polishSettings: Awaited<ReturnType<RecordingSessionStore['getPolishSettings']>>;
+      try {
+        polishSettings = await options.sessionStore.getPolishSettings();
+      } catch (error) {
+        const errorMessage = describeUnexpectedError('Polish settings could not be loaded unexpectedly.', error);
+        await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
+        activeSession = null;
+        lifecycle = 'idle';
+        options.stateStore.failDictation(errorMessage);
+        options.windows.showOverlay();
+        returnToIdleAfterFailure();
+        return;
+      }
+      if (!polishSettings.enabled) {
+        await options.outputs.selectOutput({ sessionId: session.id, outputId: rawOutput.id });
+        const pasteAttempt = await options.clipboard.copyAndPasteText(rawOutput.text);
+        options.stateStore.completeTranscription(rawOutput.text, pasteAttempt, {
+          id: rawOutput.id,
+          createdAt: rawOutput.createdAt,
+          kind: 'raw_concat',
+        });
+        activeSession = null;
+        lifecycle = 'idle';
+        options.windows.emitSound('done');
+        return;
+      }
+
+      let polishedOutput: Awaited<ReturnType<PolishService['polishOutput']>>;
+      try {
+        await options.sessionStore.markPolishing(session.id);
+        options.stateStore.startPolishing();
+        polishedOutput = await options.polish.polishOutput({ sessionId: session.id, rawOutput });
+        await options.outputs.selectOutput({ sessionId: session.id, outputId: polishedOutput.id });
+      } catch (error) {
+        const errorMessage = describeUnexpectedError('Polish failed unexpectedly.', error);
+        await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
+        activeSession = null;
+        lifecycle = 'idle';
+        options.stateStore.failDictation(errorMessage);
+        options.windows.showOverlay();
+        returnToIdleAfterFailure();
+        return;
+      }
+
+      const pasteAttempt = await options.clipboard.copyAndPasteText(polishedOutput.text);
+      options.stateStore.completeTranscription(polishedOutput.text, pasteAttempt, {
+        id: polishedOutput.id,
+        createdAt: polishedOutput.createdAt,
+        kind: 'polished',
+        promptId: polishedOutput.promptId,
+        promptHash: polishedOutput.promptHash,
+      });
       activeSession = null;
       lifecycle = 'idle';
       options.windows.emitSound('done');

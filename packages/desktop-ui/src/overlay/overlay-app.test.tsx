@@ -36,6 +36,11 @@ const baseState: AppState = {
       },
     ],
   },
+  polish: {
+    enabled: true,
+    activePromptId: 'default',
+    prompts: [{ id: 'default', title: 'Default', bodyHash: 'hash', isBuiltin: true }],
+  },
   permissions: {
     ready: true,
     requirements: [],
@@ -68,6 +73,8 @@ function createClient(state: AppState): DesktopApi {
     submitProviderAuthorization: async () => {},
     removeProvider: async () => {},
     refreshProviders: async () => {},
+    setPolishEnabled: async () => {},
+    setActivePolishPrompt: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
@@ -86,5 +93,11 @@ describe('OverlayApp', () => {
     render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />);
 
     await screen.findByRole('heading', { name: 'Processing...' });
+  });
+
+  it('renders the polishing state', async () => {
+    render(<OverlayApp client={createClient({ ...baseState, phase: 'polishing' })} soundsEnabled={false} />);
+
+    await screen.findByRole('heading', { name: 'Polishing...' });
   });
 });

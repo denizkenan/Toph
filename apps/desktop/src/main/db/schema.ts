@@ -5,7 +5,9 @@ export type RecordingSessionStatus =
   | 'recorded'
   | 'segmenting'
   | 'segmented'
+  | 'polishing'
   | 'completed'
+  | 'failed'
   | 'no_speech'
   | 'recording_failed'
   | 'removed';
@@ -13,7 +15,7 @@ export type RecordingSessionStatus =
 export type TimelineRegionKind = 'speech' | 'silence';
 export type TranscriptionBatchStatus = 'planned' | 'transcribing' | 'transcribed' | 'failed';
 export type BatchSourceRangeReason = 'speech' | 'pause_buffer' | 'normal_pause';
-export type SessionOutputKind = 'raw_concat';
+export type SessionOutputKind = 'raw_concat' | 'polished';
 
 export const recordingSessions = sqliteTable('recording_sessions', {
   id: text('id').primaryKey(),
@@ -23,7 +25,18 @@ export const recordingSessions = sqliteTable('recording_sessions', {
   durationMs: integer('duration_ms'),
   rawAudioPath: text('raw_audio_path').notNull(),
   status: text('status', {
-    enum: ['recording', 'recorded', 'segmenting', 'segmented', 'completed', 'no_speech', 'recording_failed', 'removed'],
+    enum: [
+      'recording',
+      'recorded',
+      'segmenting',
+      'segmented',
+      'polishing',
+      'completed',
+      'failed',
+      'no_speech',
+      'recording_failed',
+      'removed',
+    ],
   }).notNull(),
   selectedOutputId: text('selected_output_id'),
   errorMessage: text('error_message'),
@@ -72,9 +85,31 @@ export const batchTranscripts = sqliteTable('batch_transcripts', {
 export const sessionOutputs = sqliteTable('session_outputs', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull(),
-  kind: text('kind', { enum: ['raw_concat'] }).notNull(),
+  kind: text('kind', { enum: ['raw_concat', 'polished'] }).notNull(),
   text: text('text').notNull(),
+  sourceOutputId: text('source_output_id'),
+  provider: text('provider'),
+  model: text('model'),
+  promptId: text('prompt_id'),
+  promptHash: text('prompt_hash'),
   createdAt: integer('created_at').notNull(),
+});
+
+export const polishPrompts = sqliteTable('polish_prompts', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  bodyHash: text('body_hash').notNull(),
+  isBuiltin: integer('is_builtin', { mode: 'boolean' }).notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const polishSettings = sqliteTable('polish_settings', {
+  id: text('id').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+  activePromptId: text('active_prompt_id').notNull(),
+  updatedAt: integer('updated_at').notNull(),
 });
 
 export const batchSourceRanges = sqliteTable('batch_source_ranges', {
@@ -95,3 +130,5 @@ export type TranscriptionBatch = typeof transcriptionBatches.$inferSelect;
 export type BatchTranscript = typeof batchTranscripts.$inferSelect;
 export type BatchSourceRange = typeof batchSourceRanges.$inferSelect;
 export type SessionOutput = typeof sessionOutputs.$inferSelect;
+export type PolishPrompt = typeof polishPrompts.$inferSelect;
+export type PolishSettings = typeof polishSettings.$inferSelect;

@@ -28,6 +28,8 @@ export function registerDesktopIpc(options: {
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
   refreshProviders: () => Promise<void>;
+  setPolishEnabled: (enabled: boolean) => Promise<void>;
+  setActivePolishPrompt: (promptId: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
   quit: () => void;
@@ -74,6 +76,20 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.refreshProviders, async () => {
     await options.refreshProviders();
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setPolishEnabled, async (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') {
+      throw new Error('Invalid Polish enabled setting.');
+    }
+
+    await options.setPolishEnabled(enabled);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setActivePolishPrompt, async (_event, promptId: unknown) => {
+    if (typeof promptId !== 'string' || promptId.trim().length === 0) {
+      throw new Error('Invalid Polish prompt.');
+    }
+
+    await options.setActivePolishPrompt(promptId);
+  });
   ipcMain.handle(
     DESKTOP_IPC_CHANNELS.performPermissionAction,
     async (_event, permissionId: unknown) => {
@@ -101,6 +117,8 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.submitProviderAuthorization);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.removeProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshProviders);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishPrompt);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.performPermissionAction);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshPermissions);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.quit);

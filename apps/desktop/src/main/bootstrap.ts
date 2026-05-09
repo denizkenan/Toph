@@ -6,6 +6,7 @@ import { app, shell } from 'electron';
 import { createProviderAuthService } from './auth/provider-auth-service';
 import { createDictationController } from './dictation';
 import { registerDesktopIpc } from './ipc';
+import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
 import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
 import { createClipboardManager } from './managers/clipboard';
 import { createPermissionManager } from './managers/permissions';
@@ -13,12 +14,15 @@ import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
 import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
+import { defaultPolishPrompt } from './polish/builtin-prompts';
+import { createPolishService } from './polish/polish-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
+import type { PolishPrompt, PolishSettings } from './db/schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'Toph';
@@ -26,6 +30,19 @@ const appName = 'Toph';
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
   return `${prefix} ${detail}.`;
+}
+
+function toPolishState(settings: PolishSettings, prompts: PolishPrompt[]) {
+  return {
+    enabled: settings.enabled,
+    activePromptId: settings.activePromptId,
+    prompts: prompts.map((prompt) => ({
+      id: prompt.id,
+      title: prompt.title,
+      bodyHash: prompt.bodyHash,
+      isBuiltin: prompt.isBuiltin,
+    })),
+  };
 }
 
 export async function bootstrap(options: {
@@ -58,10 +75,18 @@ export async function bootstrap(options: {
     paths: dataPaths,
     migrationsFolder: join(__dirname, '../../drizzle'),
   });
+  await sessionStore.syncBuiltinPolishPrompt(defaultPolishPrompt);
+  const refreshPolishState = async () => {
+    stateStore.setPolish(toPolishState(await sessionStore.getPolishSettings(), await sessionStore.listPolishPrompts()));
+  };
+  await refreshPolishState();
   stateStore.setRecentConversions(
     (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
       id: output.id,
       text: output.text,
+      kind: output.kind,
+      promptId: output.promptId,
+      promptHash: output.promptHash,
       createdAt: output.createdAt,
       pasteStatus: 'idle',
       pasteDetail: 'Loaded from local history.',
@@ -77,9 +102,15 @@ export async function bootstrap(options: {
   });
   stateStore.setProviders(await providerAuth.getState());
   const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: providerAuth });
+  const inferenceProvider = createOpenAiSubInferenceProvider({ auth: providerAuth });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
     provider: transcriptionProvider,
+  });
+  const polish = createPolishService({
+    sessionStore,
+    outputs,
+    inference: inferenceProvider,
   });
 
   const ensurePermissionsReady = async () => {
@@ -104,6 +135,7 @@ export async function bootstrap(options: {
     segmentation,
     transcription,
     outputs,
+    polish,
     audioRecorder,
     clipboard,
     ensurePermissionsReady: async () => (await ensureProvidersReady()) && (await ensurePermissionsReady()),
@@ -182,6 +214,14 @@ export async function bootstrap(options: {
     },
     refreshProviders: async () => {
       stateStore.setProviders(await providerAuth.refreshProviders());
+    },
+    setPolishEnabled: async (enabled) => {
+      await sessionStore.setPolishEnabled(enabled);
+      await refreshPolishState();
+    },
+    setActivePolishPrompt: async (promptId) => {
+      await sessionStore.setActivePolishPrompt(promptId);
+      await refreshPolishState();
     },
     performPermissionAction: async (permissionId) => {
       stateStore.setPermissions(await permissions.performPermissionAction(permissionId));

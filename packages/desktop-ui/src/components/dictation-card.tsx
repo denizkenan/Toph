@@ -105,6 +105,11 @@ export function DictationCard({
             <span className={`text-sm font-medium ${statusTone}`}>
               {statusLabel}
             </span>
+            {conversion.kind === 'polished' && conversion.promptId && (
+              <span className="rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-xs font-medium text-text-tertiary">
+                Polish: {conversion.promptId}
+              </span>
+            )}
           </div>
 
           <p className="m-0 pr-24 text-[0.95rem] leading-relaxed text-text-primary line-clamp-2 group-has-data-panel-open:line-clamp-none">
@@ -117,6 +122,12 @@ export function DictationCard({
             {conversion.pasteDetail && (
               <p className="m-0 text-sm text-text-secondary">
                 {conversion.pasteDetail}
+              </p>
+            )}
+            {conversion.kind === 'polished' && conversion.promptId && (
+              <p className="mt-2 mb-0 text-xs text-text-tertiary">
+                Polished with prompt <span className="font-semibold text-text-secondary">{conversion.promptId}</span>
+                {conversion.promptHash ? ` (${conversion.promptHash.slice(0, 12)})` : ''}
               </p>
             )}
           </div>

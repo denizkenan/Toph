@@ -7,6 +7,7 @@ import {
   type PasteAttempt,
   type PasteSupport,
   type PermissionState,
+  type PolishState,
   type ProviderState,
   type ShortcutPreset,
 } from '@toph/desktop-contracts';
@@ -24,19 +25,27 @@ export interface DesktopStateStore {
   subscribe: (listener: (state: AppState) => void) => () => void;
   setShortcut: (preset: ShortcutPreset, support: ShortcutStateSupport) => void;
   setProviders: (providers: ProviderState) => void;
+  setPolish: (polish: PolishState) => void;
   setPermissions: (permissions: PermissionState) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
   setRecentConversions: (conversions: ConversionRecord[]) => void;
   setPhase: (phase: DictationPhase) => void;
   startListening: () => void;
   startTranscribing: () => void;
+  startPolishing: () => void;
   completeRecording: () => void;
   noSpeechDetected: () => void;
   failDictation: (detail: string) => void;
   completeTranscription: (
     transcript: string,
     pasteAttempt: PasteAttempt,
-    options?: { id?: string; createdAt?: number },
+    options?: {
+      id?: string;
+      createdAt?: number;
+      kind?: ConversionRecord['kind'];
+      promptId?: string | null;
+      promptHash?: string | null;
+    },
   ) => void;
 }
 
@@ -77,6 +86,11 @@ function createInitialState(): AppState {
           error: null,
         },
       ],
+    },
+    polish: {
+      enabled: true,
+      activePromptId: 'default',
+      prompts: [],
     },
     permissions: {
       ready: process.platform !== 'darwin',
@@ -142,6 +156,12 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
+    setPolish(polish) {
+      commit((draft) => {
+        draft.polish = polish;
+      });
+    },
+
     setPermissions(permissions) {
       commit((draft) => {
         draft.permissions = permissions;
@@ -189,6 +209,17 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
+    startPolishing() {
+      commit((draft) => {
+        draft.phase = 'polishing';
+        draft.lastPasteAttempt = {
+          helper: draft.lastPasteAttempt.helper,
+          status: 'idle',
+          detail: 'Polishing transcript...',
+        };
+      });
+    },
+
     completeRecording() {
       commit((draft) => {
         draft.phase = 'idle';
@@ -228,6 +259,9 @@ export function createDesktopStateStore(): DesktopStateStore {
         const nextConversion = {
           id: options?.id ?? `${createdAt}`,
           text: transcript,
+          kind: options?.kind ?? 'raw_concat',
+          promptId: options?.promptId ?? null,
+          promptHash: options?.promptHash ?? null,
           createdAt,
           pasteStatus: pasteAttempt.status,
           pasteDetail: pasteAttempt.detail,

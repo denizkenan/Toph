@@ -36,6 +36,11 @@ const baseState: AppState = {
       },
     ],
   },
+  polish: {
+    enabled: true,
+    activePromptId: 'default',
+    prompts: [{ id: 'default', title: 'Default', bodyHash: 'hash', isBuiltin: true }],
+  },
   permissions: {
     ready: true,
     requirements: [],
@@ -65,6 +70,8 @@ function createClient(onSubscribe: (listener: (state: AppState) => void) => () =
     submitProviderAuthorization: async () => {},
     removeProvider: async () => {},
     refreshProviders: async () => {},
+    setPolishEnabled: async () => {},
+    setActivePolishPrompt: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},

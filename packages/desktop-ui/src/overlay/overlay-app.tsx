@@ -52,6 +52,7 @@ export function OverlayApp({
   const phase = state?.phase || 'idle';
   const isIdle = phase === 'idle';
   const listening = phase === 'listening';
+  const polishing = phase === 'polishing';
   const noSpeech = phase === 'no_speech';
   const failed = phase === 'failed';
 
@@ -86,7 +87,7 @@ export function OverlayApp({
           </div>
 
           <h2 className="pill-text m-0 text-left whitespace-nowrap text-[0.92rem] font-medium tracking-tight text-text-primary">
-            {failed ? 'Failed' : noSpeech ? 'No speech detected' : listening ? 'Listening...' : 'Processing...'}
+            {failed ? 'Failed' : noSpeech ? 'No speech detected' : listening ? 'Listening...' : polishing ? 'Polishing...' : 'Processing...'}
           </h2>
         </div>
       </section>

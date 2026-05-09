@@ -36,6 +36,11 @@ const baseState: AppState = {
       },
     ],
   },
+  polish: {
+    enabled: true,
+    activePromptId: 'default',
+    prompts: [{ id: 'default', title: 'Default', bodyHash: 'hash', isBuiltin: true }],
+  },
   permissions: {
     ready: true,
     requirements: [],
@@ -68,6 +73,8 @@ function createClient(state: AppState): DesktopApi {
     submitProviderAuthorization: async () => {},
     removeProvider: async () => {},
     refreshProviders: async () => {},
+    setPolishEnabled: async () => {},
+    setActivePolishPrompt: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
@@ -91,6 +98,9 @@ describe('HomeApp', () => {
         {
           id: 'conv-1',
           text: 'This is a test dictation result from the mock flow.',
+          kind: 'polished',
+          promptId: 'default',
+          promptHash: 'hash',
           createdAt: Date.now() - 120_000,
           pasteStatus: 'success',
           pasteDetail: 'Pasted via ydotool.',
@@ -98,6 +108,9 @@ describe('HomeApp', () => {
         {
           id: 'conv-2',
           text: 'Another dictation that failed to paste.',
+          kind: 'raw_concat',
+          promptId: null,
+          promptHash: null,
           createdAt: Date.now() - 600_000,
           pasteStatus: 'failed',
           pasteDetail: 'ydotool timed out.',
@@ -109,6 +122,7 @@ describe('HomeApp', () => {
 
     await screen.findByText('This is a test dictation result from the mock flow.');
     expect(screen.getByText('Pasted')).toBeTruthy();
+    expect(screen.getByText('Polish: default')).toBeTruthy();
     expect(screen.getByText('Paste failed')).toBeTruthy();
   });
 

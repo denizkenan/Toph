@@ -3,7 +3,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
@@ -11,10 +11,14 @@ import {
   batchTranscripts,
   batchSourceRanges,
   recordingSessions,
+  polishPrompts,
+  polishSettings,
   sessionOutputs,
   timelineRegions,
   transcriptionBatches,
   type BatchTranscript,
+  type PolishPrompt,
+  type PolishSettings,
   type RecordingSession,
   type SessionOutput,
   type TranscriptionBatch,
@@ -32,7 +36,9 @@ export interface RecordingSessionStore {
   }) => Promise<void>;
   markSegmenting: (sessionId: string) => Promise<void>;
   markSegmented: (sessionId: string) => Promise<void>;
+  markPolishing: (sessionId: string) => Promise<void>;
   markNoSpeech: (sessionId: string) => Promise<void>;
+  markFailed: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
   // A recorded session with an error is recoverable because the raw WAV exists.
   markRecordedWithProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
   markRecordingFailed: (options: { sessionId: string; errorMessage: string; endedAt?: number }) => Promise<void>;
@@ -55,14 +61,28 @@ export interface RecordingSessionStore {
   markBatchFailed: (options: { batchId: string; attempts: number; errorMessage: string }) => Promise<void>;
   insertBatchTranscript: (transcript: BatchTranscript) => Promise<void>;
   listOrderedBatchTranscriptTexts: (sessionId: string) => Promise<string[]>;
-  createSelectedSessionOutput: (output: SessionOutput) => Promise<void>;
+  createSessionOutput: (output: SessionOutput) => Promise<void>;
+  selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
   listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
+  syncBuiltinPolishPrompt: (prompt: {
+    id: string;
+    title: string;
+    body: string;
+    bodyHash: string;
+  }) => Promise<PolishPrompt>;
+  listPolishPrompts: () => Promise<PolishPrompt[]>;
+  getPolishPrompt: (promptId: string) => Promise<PolishPrompt | null>;
+  getPolishSettings: () => Promise<PolishSettings>;
+  setPolishEnabled: (enabled: boolean) => Promise<PolishSettings>;
+  setActivePolishPrompt: (promptId: string) => Promise<PolishSettings>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
 
 const retainedSessionCount = 10;
-const retainableSessionStatuses = ['recorded', 'segmented', 'completed', 'no_speech', 'recording_failed'] as const;
+const retainableSessionStatuses = ['recorded', 'segmented', 'completed', 'failed', 'no_speech', 'recording_failed'] as const;
+const polishSettingsId = 'polish';
+const defaultPolishPromptId = 'default';
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
@@ -157,11 +177,31 @@ export async function createRecordingSessionStore(options: {
         .run();
     },
 
+    async markPolishing(sessionId) {
+      db.update(recordingSessions)
+        .set({
+          status: 'polishing',
+          errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
     async markNoSpeech(sessionId) {
       db.update(recordingSessions)
         .set({
           status: 'no_speech',
           errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async markFailed({ sessionId, errorMessage }) {
+      db.update(recordingSessions)
+        .set({
+          status: 'failed',
+          errorMessage,
         })
         .where(eq(recordingSessions.id, sessionId))
         .run();
@@ -371,16 +411,19 @@ export async function createRecordingSessionStore(options: {
         .map((row) => row.text);
     },
 
-    async createSelectedSessionOutput(output) {
+    async createSessionOutput(output) {
+      db.insert(sessionOutputs).values(output).run();
+    },
+
+    async selectSessionOutput({ sessionId, outputId }) {
       db.transaction(() => {
-        db.insert(sessionOutputs).values(output).run();
         db.update(recordingSessions)
           .set({
             status: 'completed',
-            selectedOutputId: output.id,
+            selectedOutputId: outputId,
             errorMessage: null,
           })
-          .where(eq(recordingSessions.id, output.sessionId))
+          .where(eq(recordingSessions.id, sessionId))
           .run();
       });
     },
@@ -392,6 +435,11 @@ export async function createRecordingSessionStore(options: {
           sessionId: sessionOutputs.sessionId,
           kind: sessionOutputs.kind,
           text: sessionOutputs.text,
+          sourceOutputId: sessionOutputs.sourceOutputId,
+          provider: sessionOutputs.provider,
+          model: sessionOutputs.model,
+          promptId: sessionOutputs.promptId,
+          promptHash: sessionOutputs.promptHash,
           createdAt: sessionOutputs.createdAt,
         })
         .from(sessionOutputs)
@@ -400,6 +448,114 @@ export async function createRecordingSessionStore(options: {
         .orderBy(desc(sessionOutputs.createdAt))
         .limit(limit)
         .all();
+    },
+
+    async syncBuiltinPolishPrompt(prompt) {
+      const now = Date.now();
+      const existing = db.select().from(polishPrompts).where(eq(polishPrompts.id, prompt.id)).get();
+      if (!existing) {
+        const inserted = {
+          id: prompt.id,
+          title: prompt.title,
+          body: prompt.body,
+          bodyHash: prompt.bodyHash,
+          isBuiltin: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+        db.insert(polishPrompts).values(inserted).run();
+        return inserted;
+      }
+
+      if (existing.bodyHash !== prompt.bodyHash || existing.title !== prompt.title || !existing.isBuiltin) {
+        db.update(polishPrompts)
+          .set({
+            title: prompt.title,
+            body: prompt.body,
+            bodyHash: prompt.bodyHash,
+            isBuiltin: true,
+            updatedAt: now,
+          })
+          .where(eq(polishPrompts.id, prompt.id))
+          .run();
+        return {
+          ...existing,
+          title: prompt.title,
+          body: prompt.body,
+          bodyHash: prompt.bodyHash,
+          isBuiltin: true,
+          updatedAt: now,
+        };
+      }
+
+      return existing;
+    },
+
+    async listPolishPrompts() {
+      return db.select().from(polishPrompts).orderBy(desc(polishPrompts.isBuiltin), asc(polishPrompts.title)).all();
+    },
+
+    async getPolishPrompt(promptId) {
+      return db.select().from(polishPrompts).where(eq(polishPrompts.id, promptId)).get() ?? null;
+    },
+
+    async getPolishSettings() {
+      const existing = db.select().from(polishSettings).where(eq(polishSettings.id, polishSettingsId)).get();
+      if (existing) {
+        return existing;
+      }
+
+      const settings = {
+        id: polishSettingsId,
+        enabled: true,
+        activePromptId: defaultPolishPromptId,
+        updatedAt: Date.now(),
+      };
+      db.insert(polishSettings).values(settings).run();
+      return settings;
+    },
+
+    async setPolishEnabled(enabled) {
+      let current = db.select().from(polishSettings).where(eq(polishSettings.id, polishSettingsId)).get();
+      if (!current) {
+        current = {
+          id: polishSettingsId,
+          enabled: true,
+          activePromptId: defaultPolishPromptId,
+          updatedAt: Date.now(),
+        };
+        db.insert(polishSettings).values(current).run();
+      }
+      const updated = { ...current, enabled, updatedAt: Date.now() };
+      db.update(polishSettings)
+        .set({ enabled: updated.enabled, updatedAt: updated.updatedAt })
+        .where(eq(polishSettings.id, polishSettingsId))
+        .run();
+      return updated;
+    },
+
+    async setActivePolishPrompt(promptId) {
+      const prompt = db.select().from(polishPrompts).where(eq(polishPrompts.id, promptId)).get();
+      if (!prompt) {
+        throw new Error(`Unknown Polish prompt: ${promptId}`);
+      }
+
+      let current = db.select().from(polishSettings).where(eq(polishSettings.id, polishSettingsId)).get();
+      if (!current) {
+        current = {
+          id: polishSettingsId,
+          enabled: true,
+          activePromptId: defaultPolishPromptId,
+          updatedAt: Date.now(),
+        };
+        db.insert(polishSettings).values(current).run();
+      }
+      const updated = { ...current, activePromptId: promptId, updatedAt: Date.now() };
+      db.update(polishSettings)
+        .set({ activePromptId: updated.activePromptId, updatedAt: updated.updatedAt })
+        .where(eq(polishSettings.id, polishSettingsId))
+        .run();
+      return updated;
     },
 
     async pruneRetainedSessions() {

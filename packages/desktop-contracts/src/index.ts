@@ -9,6 +9,8 @@ export const DESKTOP_IPC_CHANNELS = {
   submitProviderAuthorization: 'toph:submit-provider-authorization',
   removeProvider: 'toph:remove-provider',
   refreshProviders: 'toph:refresh-providers',
+  setPolishEnabled: 'toph:set-polish-enabled',
+  setActivePolishPrompt: 'toph:set-active-polish-prompt',
   performPermissionAction: 'toph:perform-permission-action',
   refreshPermissions: 'toph:refresh-permissions',
   sound: 'toph:sound',
@@ -89,7 +91,7 @@ export function resolveShortcutPresetForPlatform(
   };
 }
 
-export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'no_speech' | 'failed';
+export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'polishing' | 'no_speech' | 'failed';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
@@ -124,9 +126,25 @@ export interface PasteAttempt {
 export interface ConversionRecord {
   id: string;
   text: string;
+  kind: 'raw_concat' | 'polished';
+  promptId: string | null;
+  promptHash: string | null;
   createdAt: number;
   pasteStatus: PasteAttemptStatus;
   pasteDetail: string;
+}
+
+export interface PolishPromptSummary {
+  id: string;
+  title: string;
+  bodyHash: string;
+  isBuiltin: boolean;
+}
+
+export interface PolishState {
+  enabled: boolean;
+  activePromptId: string;
+  prompts: PolishPromptSummary[];
 }
 
 export interface PermissionRequirement {
@@ -177,6 +195,7 @@ export interface AppState {
     currentDesktop: string;
   };
   providers: ProviderState;
+  polish: PolishState;
   permissions: PermissionState;
   pasteSupport: PasteSupport;
   lastPasteAttempt: PasteAttempt;
@@ -199,6 +218,8 @@ export interface DesktopApi {
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
   refreshProviders: () => Promise<void>;
+  setPolishEnabled: (enabled: boolean) => Promise<void>;
+  setActivePolishPrompt: (promptId: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
