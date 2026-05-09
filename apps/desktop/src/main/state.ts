@@ -1,7 +1,9 @@
 import {
   DEFAULT_SHORTCUT_PRESET,
+  DEFAULT_APP_SETTINGS,
   resolveShortcutPresetForPlatform,
   type AppState,
+  type AppSettings,
   type ConversionRecord,
   type DictationPhase,
   type PasteAttempt,
@@ -25,6 +27,7 @@ export interface DesktopStateStore {
   subscribe: (listener: (state: AppState) => void) => () => void;
   setShortcut: (preset: ShortcutPreset, support: ShortcutStateSupport) => void;
   setProviders: (providers: ProviderState) => void;
+  setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
   setPermissions: (permissions: PermissionState) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
@@ -87,9 +90,8 @@ function createInitialState(): AppState {
         },
       ],
     },
+    settings: DEFAULT_APP_SETTINGS,
     polish: {
-      enabled: true,
-      activePromptId: 'default',
       prompts: [],
     },
     permissions: {
@@ -153,6 +155,12 @@ export function createDesktopStateStore(): DesktopStateStore {
     setProviders(providers) {
       commit((draft) => {
         draft.providers = providers;
+      });
+    },
+
+    setSettings(settings) {
+      commit((draft) => {
+        draft.settings = settings;
       });
     },
 

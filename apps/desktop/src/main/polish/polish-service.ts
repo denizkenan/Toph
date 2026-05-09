@@ -1,4 +1,5 @@
 import type { SessionOutputService } from '../outputs/session-output-service';
+import type { AppSettingsStore } from '../settings/app-settings-store';
 import type { RecordingSessionStore } from '../stores/session-store';
 import type { InferenceProvider, InferenceProviderResult } from '../inference/inference-provider';
 
@@ -45,19 +46,20 @@ function isTransientInferenceFailure(error: unknown) {
 }
 
 export function createPolishService(options: {
-  sessionStore: Pick<RecordingSessionStore, 'getPolishSettings' | 'getPolishPrompt'>;
+  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
+  sessionStore: Pick<RecordingSessionStore, 'getPolishPrompt'>;
   outputs: Pick<SessionOutputService, 'createPolishedOutput'>;
   inference: InferenceProvider;
 }): PolishService {
   return {
     async polishOutput(input) {
-      const settings = await options.sessionStore.getPolishSettings();
-      const prompt = await options.sessionStore.getPolishPrompt(settings.activePromptId);
+      const settings = options.settingsStore.getSettings();
+      const prompt = await options.sessionStore.getPolishPrompt(settings.polish.promptId);
       if (!prompt) {
-        throw new Error(`Active Polish prompt "${settings.activePromptId}" is not available.`);
+        throw new Error(`Active Polish prompt "${settings.polish.promptId}" is not available.`);
       }
       if (!prompt.body) {
-        throw new Error(`Active Polish prompt "${settings.activePromptId}" is empty.`);
+        throw new Error(`Active Polish prompt "${settings.polish.promptId}" is empty.`);
       }
 
       let attempt = 0;

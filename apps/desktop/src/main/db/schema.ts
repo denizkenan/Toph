@@ -105,13 +105,6 @@ export const polishPrompts = sqliteTable('polish_prompts', {
   updatedAt: integer('updated_at').notNull(),
 });
 
-export const polishSettings = sqliteTable('polish_settings', {
-  id: text('id').primaryKey(),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
-  activePromptId: text('active_prompt_id').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-});
-
 export const batchSourceRanges = sqliteTable('batch_source_ranges', {
   id: text('id').primaryKey(),
   batchId: text('batch_id').notNull(),
@@ -131,4 +124,3 @@ export type BatchTranscript = typeof batchTranscripts.$inferSelect;
 export type BatchSourceRange = typeof batchSourceRanges.$inferSelect;
 export type SessionOutput = typeof sessionOutputs.$inferSelect;
 export type PolishPrompt = typeof polishPrompts.$inferSelect;
-export type PolishSettings = typeof polishSettings.$inferSelect;

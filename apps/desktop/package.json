@@ -11,6 +11,7 @@
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "test:polish": "node --experimental-strip-types --test test/polish/*.test.ts",
     "test:segmentation": "node --experimental-strip-types --test test/segmentation/*.test.ts",
+    "test:settings": "node --experimental-strip-types --test test/settings/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -18,7 +19,8 @@
     "@toph/desktop-contracts": "workspace:*",
     "@toph/desktop-ui": "workspace:*",
     "better-sqlite3": "^12.9.0",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",

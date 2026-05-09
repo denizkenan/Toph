@@ -2,6 +2,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { app, shell } from 'electron';
+import { DEFAULT_APP_SETTINGS } from '@toph/desktop-contracts';
 
 import { createProviderAuthService } from './auth/provider-auth-service';
 import { createDictationController } from './dictation';
@@ -17,12 +18,13 @@ import { resolveTophDataPaths } from './paths';
 import { defaultPolishPrompt } from './polish/builtin-prompts';
 import { createPolishService } from './polish/polish-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
+import { createAppSettingsStore } from './settings/app-settings-store';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
-import type { PolishPrompt, PolishSettings } from './db/schema';
+import type { PolishPrompt } from './db/schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'Toph';
@@ -32,10 +34,8 @@ function describeUnexpectedError(prefix: string, error: unknown) {
   return `${prefix} ${detail}.`;
 }
 
-function toPolishState(settings: PolishSettings, prompts: PolishPrompt[]) {
+function toPolishState(prompts: PolishPrompt[]) {
   return {
-    enabled: settings.enabled,
-    activePromptId: settings.activePromptId,
     prompts: prompts.map((prompt) => ({
       id: prompt.id,
       title: prompt.title,
@@ -76,9 +76,31 @@ export async function bootstrap(options: {
     migrationsFolder: join(__dirname, '../../drizzle'),
   });
   await sessionStore.syncBuiltinPolishPrompt(defaultPolishPrompt);
+  const legacyPolishSettings = await sessionStore.getLegacyPolishSettings();
+  const settingsStore = await createAppSettingsStore({
+    settingsPath: dataPaths.settingsPath,
+    listPromptIds: async () => (await sessionStore.listPolishPrompts()).map((prompt) => prompt.id),
+    defaultSettings: legacyPolishSettings
+      ? {
+          ...DEFAULT_APP_SETTINGS,
+          polish: {
+            enabled: legacyPolishSettings.enabled,
+            promptId: legacyPolishSettings.activePromptId,
+          },
+        }
+      : DEFAULT_APP_SETTINGS,
+  });
   const refreshPolishState = async () => {
-    stateStore.setPolish(toPolishState(await sessionStore.getPolishSettings(), await sessionStore.listPolishPrompts()));
+    stateStore.setPolish(toPolishState(await sessionStore.listPolishPrompts()));
   };
+  const publishSettings = async () => {
+    stateStore.setSettings(settingsStore.getSettings());
+    await refreshPolishState();
+  };
+  const unsubscribeSettings = settingsStore.subscribe(() => {
+    void publishSettings();
+  });
+  stateStore.setSettings(settingsStore.getSettings());
   await refreshPolishState();
   stateStore.setRecentConversions(
     (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
@@ -101,13 +123,14 @@ export async function bootstrap(options: {
     onStateChanged: stateStore.setProviders,
   });
   stateStore.setProviders(await providerAuth.getState());
-  const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: providerAuth });
-  const inferenceProvider = createOpenAiSubInferenceProvider({ auth: providerAuth });
+  const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: providerAuth, settingsStore });
+  const inferenceProvider = createOpenAiSubInferenceProvider({ auth: providerAuth, settingsStore });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
     provider: transcriptionProvider,
   });
   const polish = createPolishService({
+    settingsStore,
     sessionStore,
     outputs,
     inference: inferenceProvider,
@@ -136,6 +159,7 @@ export async function bootstrap(options: {
     transcription,
     outputs,
     polish,
+    settingsStore,
     audioRecorder,
     clipboard,
     ensurePermissionsReady: async () => (await ensureProvidersReady()) && (await ensurePermissionsReady()),
@@ -215,13 +239,33 @@ export async function bootstrap(options: {
     refreshProviders: async () => {
       stateStore.setProviders(await providerAuth.refreshProviders());
     },
+    setAuthProvider: async (providerId) => {
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setAuthProvider(providerId);
+    },
+    setTranscriptionProvider: async (providerId) => {
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setTranscriptionProvider(providerId);
+    },
+    setTranscriptionModel: async (model) => {
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setTranscriptionModel(model);
+    },
+    setInferenceProvider: async (providerId) => {
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setInferenceProvider(providerId);
+    },
+    setInferenceModel: async (model) => {
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setInferenceModel(model);
+    },
     setPolishEnabled: async (enabled) => {
-      await sessionStore.setPolishEnabled(enabled);
-      await refreshPolishState();
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setPolishEnabled(enabled);
     },
     setActivePolishPrompt: async (promptId) => {
-      await sessionStore.setActivePolishPrompt(promptId);
-      await refreshPolishState();
+      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setPolishPrompt(promptId);
     },
     performPermissionAction: async (permissionId) => {
       stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
@@ -267,7 +311,8 @@ export async function bootstrap(options: {
     event.preventDefault();
     stopTrackingOverlayPlacement();
     unregisterIpc();
-    unsubscribeState();
+      unsubscribeState();
+      unsubscribeSettings();
     shortcuts.unregister();
 
     void dictation.dispose().finally(async () => {

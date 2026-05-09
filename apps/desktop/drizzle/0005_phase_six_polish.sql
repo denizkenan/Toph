@@ -17,10 +17,3 @@ CREATE TABLE `polish_prompts` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE `polish_settings` (
-	`id` text PRIMARY KEY NOT NULL,
-	`enabled` integer NOT NULL,
-	`active_prompt_id` text NOT NULL,
-	`updated_at` integer NOT NULL
-);

@@ -52,6 +52,16 @@ const api: DesktopApi = {
   removeProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.removeProvider, providerId) as Promise<void>,
   refreshProviders: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshProviders) as Promise<void>,
+  setAuthProvider: (providerId: ProviderId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setAuthProvider, providerId) as Promise<void>,
+  setTranscriptionProvider: (providerId: ProviderId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setTranscriptionProvider, providerId) as Promise<void>,
+  setTranscriptionModel: (model: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setTranscriptionModel, model) as Promise<void>,
+  setInferenceProvider: (providerId: ProviderId) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceProvider, providerId) as Promise<void>,
+  setInferenceModel: (model: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceModel, model) as Promise<void>,
   setPolishEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setPolishEnabled, enabled) as Promise<void>,
   setActivePolishPrompt: (promptId: string) =>

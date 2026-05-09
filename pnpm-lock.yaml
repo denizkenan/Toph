@@ -35,6 +35,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.9.0)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@electron/rebuild':
         specifier: ^4.0.4
@@ -2714,6 +2717,9 @@ packages:
   yauzl@2.10.0:
     resolution: {integrity: sha512-p4a9I6X6nu6IhoGmBqAcbJy1mlC4j27vEPZX9F4L4/vZT3Lyq1VkFHw/V/PUcB9Buo+DG3iHkT0x3Qya58zc3g==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@asamuzakjp/css-color@3.2.0':
@@ -4892,3 +4898,5 @@ snapshots:
     dependencies:
       buffer-crc32: 0.2.13
       fd-slicer: 1.1.0
+
+  zod@4.4.3: {}

@@ -4,9 +4,9 @@ import {
   type InferenceProviderResult,
 } from '../inference-provider';
 import type { ProviderAuthService } from '../../auth/provider-auth-service';
+import type { AppSettingsStore } from '../../settings/app-settings-store';
 
 const providerId = 'openai-sub';
-const model = 'gpt-5.4-mini';
 const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
 
 function isRetryableFailure(status: number, body: string) {
@@ -119,12 +119,14 @@ function extractText(events: unknown[]) {
 
 export function createOpenAiSubInferenceProvider(options: {
   auth: Pick<ProviderAuthService, 'resolveCredentials'>;
+  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
 }): InferenceProvider {
   return {
     id: providerId,
 
     async inferText(input): Promise<InferenceProviderResult> {
       const credentials = await options.auth.resolveCredentials(providerId);
+      const model = options.settingsStore.getSettings().inference.model;
       const headers: Record<string, string> = {
         Authorization: `Bearer ${credentials.accessToken}`,
         'Content-Type': 'application/json',

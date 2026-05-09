@@ -36,9 +36,14 @@ const baseState: AppState = {
       },
     ],
   },
+  settings: {
+    version: 1,
+    auth: { providerId: 'openai-sub' },
+    transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
+    inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    polish: { enabled: true, promptId: 'default' },
+  },
   polish: {
-    enabled: true,
-    activePromptId: 'default',
     prompts: [{ id: 'default', title: 'Default', bodyHash: 'hash', isBuiltin: true }],
   },
   permissions: {
@@ -73,6 +78,11 @@ function createClient(state: AppState): DesktopApi {
     submitProviderAuthorization: async () => {},
     removeProvider: async () => {},
     refreshProviders: async () => {},
+    setAuthProvider: async () => {},
+    setTranscriptionProvider: async () => {},
+    setTranscriptionModel: async () => {},
+    setInferenceProvider: async () => {},
+    setInferenceModel: async () => {},
     setPolishEnabled: async () => {},
     setActivePolishPrompt: async () => {},
     performPermissionAction: async () => {},

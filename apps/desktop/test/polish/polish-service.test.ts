@@ -17,10 +17,18 @@ const prompt = {
 function createService(provider: InferenceProvider, options: { promptAvailable?: boolean } = {}) {
   return createPolishService({
     inference: provider,
-    sessionStore: {
-      async getPolishSettings() {
-        return { id: 'polish', enabled: true, activePromptId: 'default', updatedAt: 1 };
+    settingsStore: {
+      getSettings() {
+        return {
+          version: 1,
+          auth: { providerId: 'openai-sub' },
+          transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
+          inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+          polish: { enabled: true, promptId: 'default' },
+        };
       },
+    },
+    sessionStore: {
       async getPolishPrompt() {
         return options.promptAvailable === false ? null : prompt;
       },

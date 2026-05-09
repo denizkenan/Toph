@@ -28,6 +28,11 @@ export function registerDesktopIpc(options: {
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
   refreshProviders: () => Promise<void>;
+  setAuthProvider: (providerId: ProviderId) => Promise<void>;
+  setTranscriptionProvider: (providerId: ProviderId) => Promise<void>;
+  setTranscriptionModel: (model: string) => Promise<void>;
+  setInferenceProvider: (providerId: ProviderId) => Promise<void>;
+  setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishPrompt: (promptId: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
@@ -76,6 +81,36 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.refreshProviders, async () => {
     await options.refreshProviders();
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setAuthProvider, async (_event, providerId: unknown) => {
+    if (!isProviderId(providerId)) {
+      throw new Error('Unknown auth provider.');
+    }
+    await options.setAuthProvider(providerId);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setTranscriptionProvider, async (_event, providerId: unknown) => {
+    if (!isProviderId(providerId)) {
+      throw new Error('Unknown transcription provider.');
+    }
+    await options.setTranscriptionProvider(providerId);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setTranscriptionModel, async (_event, model: unknown) => {
+    if (typeof model !== 'string') {
+      throw new Error('Invalid transcription model.');
+    }
+    await options.setTranscriptionModel(model);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setInferenceProvider, async (_event, providerId: unknown) => {
+    if (!isProviderId(providerId)) {
+      throw new Error('Unknown inference provider.');
+    }
+    await options.setInferenceProvider(providerId);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setInferenceModel, async (_event, model: unknown) => {
+    if (typeof model !== 'string') {
+      throw new Error('Invalid inference model.');
+    }
+    await options.setInferenceModel(model);
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setPolishEnabled, async (_event, enabled: unknown) => {
     if (typeof enabled !== 'boolean') {
       throw new Error('Invalid Polish enabled setting.');
@@ -117,6 +152,11 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.submitProviderAuthorization);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.removeProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshProviders);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setAuthProvider);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTranscriptionProvider);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTranscriptionModel);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceProvider);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceModel);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishPrompt);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.performPermissionAction);

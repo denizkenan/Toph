@@ -5,6 +5,7 @@ import type { SessionOutputService } from './outputs/session-output-service';
 import type { PolishService } from './polish/polish-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
+import type { AppSettingsStore } from './settings/app-settings-store';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
 import type { SessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
@@ -39,13 +40,13 @@ export function createDictationController(options: {
     | 'markRecordedWithProcessingError'
     | 'setProcessingError'
     | 'clearSegmentationData'
-    | 'getPolishSettings'
     | 'pruneRetainedSessions'
   >;
   segmentation: SessionSegmentationService;
   transcription: SessionTranscriptionCoordinator;
   outputs: SessionOutputService;
   polish: PolishService;
+  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
   audioRecorder: RawAudioRecorder;
   clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
@@ -374,19 +375,7 @@ export function createDictationController(options: {
         return;
       }
 
-      let polishSettings: Awaited<ReturnType<RecordingSessionStore['getPolishSettings']>>;
-      try {
-        polishSettings = await options.sessionStore.getPolishSettings();
-      } catch (error) {
-        const errorMessage = describeUnexpectedError('Polish settings could not be loaded unexpectedly.', error);
-        await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
-        activeSession = null;
-        lifecycle = 'idle';
-        options.stateStore.failDictation(errorMessage);
-        options.windows.showOverlay();
-        returnToIdleAfterFailure();
-        return;
-      }
+      const polishSettings = options.settingsStore.getSettings().polish;
       if (!polishSettings.enabled) {
         await options.outputs.selectOutput({ sessionId: session.id, outputId: rawOutput.id });
         const pasteAttempt = await options.clipboard.copyAndPasteText(rawOutput.text);

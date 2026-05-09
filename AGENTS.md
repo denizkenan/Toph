@@ -33,3 +33,4 @@ Toph is a voice-to-text dictation app.
   - `pnpm run typecheck`
   - `pnpm run build`
 - Don't make git commits unless you have the user's explicit consent.
+- Don't change files in `apps/desktop/drizzle`. Those are generated migrations.

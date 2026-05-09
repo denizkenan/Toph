@@ -6,6 +6,7 @@ import {
   SHORTCUT_PRESETS,
   type AppState,
   type DesktopApi,
+  type ProviderId,
   type ShortcutPresetId,
 } from '@toph/desktop-contracts';
 
@@ -33,6 +34,7 @@ export function SettingsPage({
   const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(null);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
+  const [busySettings, setBusySettings] = useState(false);
   const selectedPresetId = presetOverride ?? state.shortcut.presetId;
   const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
   const shortcutTone = state.shortcut.registered ? 'ready' : 'blocked';
@@ -44,6 +46,11 @@ export function SettingsPage({
   }));
   const provider = state.providers.providers[0];
   const providerConnected = provider?.status === 'connected';
+  const providerItems = state.providers.providers.map((item) => ({
+    value: item.id,
+    label: item.label,
+  }));
+  const settingsEditable = state.phase === 'idle';
   const polishPromptItems = state.polish.prompts.map((prompt) => ({
     value: prompt.id,
     label: prompt.title,
@@ -83,6 +90,15 @@ export function SettingsPage({
       await client.setPolishEnabled(enabled);
     } finally {
       setBusyPolish(false);
+    }
+  };
+
+  const updateSetting = async (action: () => Promise<void>) => {
+    setBusySettings(true);
+    try {
+      await action();
+    } finally {
+      setBusySettings(false);
     }
   };
 
@@ -178,6 +194,71 @@ export function SettingsPage({
         </section>
 
         <section className="panel-surface mb-5 rounded-3xl p-6">
+          <div className="mb-5">
+            <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
+              Models
+            </span>
+            <h2 className="m-0 font-display text-xl tracking-[-0.03em]">Provider routing</h2>
+            <p className="mt-2 mb-0 text-sm leading-relaxed text-text-secondary">
+              Choose which provider and model Toph uses for auth, transcription, and inference.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <div>
+              <label className="mb-2 block text-sm text-text-secondary">Auth provider</label>
+              <Select.Root
+                items={providerItems}
+                value={state.settings.auth.providerId}
+                onValueChange={(value) => {
+                  if (value) void updateSetting(() => client.setAuthProvider(value as ProviderId));
+                }}
+              >
+                <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6 disabled:opacity-55" disabled={!settingsEditable || busySettings}>
+                  <Select.Value placeholder="Select auth provider" />
+                  <Select.Icon className="text-text-tertiary"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4L5 7L8 4" /></svg></Select.Icon>
+                </Select.Trigger>
+                <Select.Portal><Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}><Select.Popup className="menu-popup-surface origin-[var(--transform-origin)] rounded-xl py-1.5 transition-[transform,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"><Select.List>{providerItems.map((item) => <Select.Item key={item.value} value={item.value} className="flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8"><Select.ItemText>{item.label}</Select.ItemText></Select.Item>)}</Select.List></Select.Popup></Select.Positioner></Select.Portal>
+              </Select.Root>
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 max-[640px]:grid-cols-1">
+              <div>
+                <label className="mb-2 block text-sm text-text-secondary">Transcription provider</label>
+                <Select.Root items={providerItems} value={state.settings.transcription.providerId} onValueChange={(value) => { if (value) void updateSetting(() => client.setTranscriptionProvider(value as ProviderId)); }}>
+                  <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6 disabled:opacity-55" disabled={!settingsEditable || busySettings}>
+                    <Select.Value placeholder="Select transcription provider" />
+                    <Select.Icon className="text-text-tertiary"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4L5 7L8 4" /></svg></Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal><Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}><Select.Popup className="menu-popup-surface origin-[var(--transform-origin)] rounded-xl py-1.5"><Select.List>{providerItems.map((item) => <Select.Item key={item.value} value={item.value} className="flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8"><Select.ItemText>{item.label}</Select.ItemText></Select.Item>)}</Select.List></Select.Popup></Select.Positioner></Select.Portal>
+                </Select.Root>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-text-secondary">Transcription model</label>
+                <input className="h-12 w-full rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:bg-white/6 disabled:opacity-55" value={state.settings.transcription.model} disabled={!settingsEditable} onChange={(event) => void updateSetting(() => client.setTranscriptionModel(event.currentTarget.value))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 max-[640px]:grid-cols-1">
+              <div>
+                <label className="mb-2 block text-sm text-text-secondary">Inference provider</label>
+                <Select.Root items={providerItems} value={state.settings.inference.providerId} onValueChange={(value) => { if (value) void updateSetting(() => client.setInferenceProvider(value as ProviderId)); }}>
+                  <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6 disabled:opacity-55" disabled={!settingsEditable || busySettings}>
+                    <Select.Value placeholder="Select inference provider" />
+                    <Select.Icon className="text-text-tertiary"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4L5 7L8 4" /></svg></Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal><Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}><Select.Popup className="menu-popup-surface origin-[var(--transform-origin)] rounded-xl py-1.5"><Select.List>{providerItems.map((item) => <Select.Item key={item.value} value={item.value} className="flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8"><Select.ItemText>{item.label}</Select.ItemText></Select.Item>)}</Select.List></Select.Popup></Select.Positioner></Select.Portal>
+                </Select.Root>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-text-secondary">Inference model</label>
+                <input className="h-12 w-full rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:bg-white/6 disabled:opacity-55" value={state.settings.inference.model} disabled={!settingsEditable} onChange={(event) => void updateSetting(() => client.setInferenceModel(event.currentTarget.value))} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel-surface mb-5 rounded-3xl p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
@@ -188,9 +269,9 @@ export function SettingsPage({
                 Polish uses inference after transcription to preserve your voice while fixing dictation artifacts.
               </p>
             </div>
-            <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${state.polish.enabled ? 'text-accent-green' : 'text-text-secondary'}`}>
-              <span className={`size-2 rounded-full ${state.polish.enabled ? 'bg-accent-green' : 'bg-white/20'}`} />
-              {state.polish.enabled ? 'Enabled' : 'Disabled'}
+            <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${state.settings.polish.enabled ? 'text-accent-green' : 'text-text-secondary'}`}>
+              <span className={`size-2 rounded-full ${state.settings.polish.enabled ? 'bg-accent-green' : 'bg-white/20'}`} />
+              {state.settings.polish.enabled ? 'Enabled' : 'Disabled'}
             </span>
           </div>
 
@@ -205,11 +286,11 @@ export function SettingsPage({
             </div>
             <button
               type="button"
-              className={`${buttonClass} ${state.polish.enabled ? 'border-white/10 bg-white/6 text-text-primary hover:bg-white/10' : 'bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]'}`}
-              onClick={() => void setPolishEnabled(!state.polish.enabled)}
-              disabled={busyPolish}
+              className={`${buttonClass} ${state.settings.polish.enabled ? 'border-white/10 bg-white/6 text-text-primary hover:bg-white/10' : 'bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]'}`}
+              onClick={() => void setPolishEnabled(!state.settings.polish.enabled)}
+              disabled={!settingsEditable || busyPolish}
             >
-              {state.polish.enabled ? 'Disable Polish' : 'Enable Polish'}
+              {state.settings.polish.enabled ? 'Disable Polish' : 'Enable Polish'}
             </button>
           </div>
 
@@ -217,14 +298,14 @@ export function SettingsPage({
             <label className="mb-2 block text-sm text-text-secondary">Prompt</label>
             <Select.Root
               items={polishPromptItems}
-              value={state.polish.activePromptId}
+              value={state.settings.polish.promptId}
               onValueChange={(value) => {
-                if (value && value !== state.polish.activePromptId) {
+                if (settingsEditable && value && value !== state.settings.polish.promptId) {
                   void setActivePolishPrompt(value);
                 }
               }}
             >
-              <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6">
+              <Select.Trigger className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6 disabled:opacity-55" disabled={!settingsEditable || busyPolish}>
                 <Select.Value placeholder="Select prompt" />
                 <Select.Icon className="text-text-tertiary">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -256,7 +337,7 @@ export function SettingsPage({
               </Select.Portal>
             </Select.Root>
             <p className="mt-3 mb-0 text-xs text-text-tertiary">
-              Active prompt ID: <span className="font-semibold text-text-secondary">{state.polish.activePromptId}</span>
+              Active prompt ID: <span className="font-semibold text-text-secondary">{state.settings.polish.promptId}</span>
             </p>
           </div>
         </section>
@@ -361,7 +442,7 @@ export function SettingsPage({
             </div>
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
               <dt className="text-text-tertiary">Polish</dt>
-              <dd className="m-0 text-sm font-semibold">{state.polish.enabled ? state.polish.activePromptId : 'Disabled'}</dd>
+              <dd className="m-0 text-sm font-semibold">{state.settings.polish.enabled ? state.settings.polish.promptId : 'Disabled'}</dd>
             </div>
             <div className="flex justify-between gap-4 border-b border-white/6 pb-3">
               <dt className="text-text-tertiary">Permissions</dt>

@@ -12,13 +12,11 @@ import {
   batchSourceRanges,
   recordingSessions,
   polishPrompts,
-  polishSettings,
   sessionOutputs,
   timelineRegions,
   transcriptionBatches,
   type BatchTranscript,
   type PolishPrompt,
-  type PolishSettings,
   type RecordingSession,
   type SessionOutput,
   type TranscriptionBatch,
@@ -72,17 +70,13 @@ export interface RecordingSessionStore {
   }) => Promise<PolishPrompt>;
   listPolishPrompts: () => Promise<PolishPrompt[]>;
   getPolishPrompt: (promptId: string) => Promise<PolishPrompt | null>;
-  getPolishSettings: () => Promise<PolishSettings>;
-  setPolishEnabled: (enabled: boolean) => Promise<PolishSettings>;
-  setActivePolishPrompt: (promptId: string) => Promise<PolishSettings>;
+  getLegacyPolishSettings: () => Promise<{ enabled: boolean; activePromptId: string } | null>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
 
 const retainedSessionCount = 10;
 const retainableSessionStatuses = ['recorded', 'segmented', 'completed', 'failed', 'no_speech', 'recording_failed'] as const;
-const polishSettingsId = 'polish';
-const defaultPolishPromptId = 'default';
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
@@ -499,63 +493,25 @@ export async function createRecordingSessionStore(options: {
       return db.select().from(polishPrompts).where(eq(polishPrompts.id, promptId)).get() ?? null;
     },
 
-    async getPolishSettings() {
-      const existing = db.select().from(polishSettings).where(eq(polishSettings.id, polishSettingsId)).get();
-      if (existing) {
-        return existing;
+    async getLegacyPolishSettings() {
+      const table = sqlite
+        .prepare("select name from sqlite_master where type = 'table' and name = 'polish_settings'")
+        .get();
+      if (!table) {
+        return null;
       }
 
-      const settings = {
-        id: polishSettingsId,
-        enabled: true,
-        activePromptId: defaultPolishPromptId,
-        updatedAt: Date.now(),
+      const row = sqlite
+        .prepare('select enabled, active_prompt_id from polish_settings where id = ?')
+        .get('polish') as { enabled?: unknown; active_prompt_id?: unknown } | undefined;
+      if (!row || typeof row.active_prompt_id !== 'string') {
+        return null;
+      }
+
+      return {
+        enabled: Boolean(row.enabled),
+        activePromptId: row.active_prompt_id,
       };
-      db.insert(polishSettings).values(settings).run();
-      return settings;
-    },
-
-    async setPolishEnabled(enabled) {
-      let current = db.select().from(polishSettings).where(eq(polishSettings.id, polishSettingsId)).get();
-      if (!current) {
-        current = {
-          id: polishSettingsId,
-          enabled: true,
-          activePromptId: defaultPolishPromptId,
-          updatedAt: Date.now(),
-        };
-        db.insert(polishSettings).values(current).run();
-      }
-      const updated = { ...current, enabled, updatedAt: Date.now() };
-      db.update(polishSettings)
-        .set({ enabled: updated.enabled, updatedAt: updated.updatedAt })
-        .where(eq(polishSettings.id, polishSettingsId))
-        .run();
-      return updated;
-    },
-
-    async setActivePolishPrompt(promptId) {
-      const prompt = db.select().from(polishPrompts).where(eq(polishPrompts.id, promptId)).get();
-      if (!prompt) {
-        throw new Error(`Unknown Polish prompt: ${promptId}`);
-      }
-
-      let current = db.select().from(polishSettings).where(eq(polishSettings.id, polishSettingsId)).get();
-      if (!current) {
-        current = {
-          id: polishSettingsId,
-          enabled: true,
-          activePromptId: defaultPolishPromptId,
-          updatedAt: Date.now(),
-        };
-        db.insert(polishSettings).values(current).run();
-      }
-      const updated = { ...current, activePromptId: promptId, updatedAt: Date.now() };
-      db.update(polishSettings)
-        .set({ activePromptId: updated.activePromptId, updatedAt: updated.updatedAt })
-        .where(eq(polishSettings.id, polishSettingsId))
-        .run();
-      return updated;
     },
 
     async pruneRetainedSessions() {

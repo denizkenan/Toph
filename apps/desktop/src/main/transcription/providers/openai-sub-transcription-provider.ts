@@ -7,9 +7,9 @@ import {
   type TranscriptionProviderResult,
 } from '../transcription-provider';
 import type { ProviderAuthService } from '../../auth/provider-auth-service';
+import type { AppSettingsStore } from '../../settings/app-settings-store';
 
 const providerId = 'openai-sub';
-const model = 'chatgpt-backend-transcribe';
 const endpoint = 'https://chatgpt.com/backend-api/transcribe';
 
 function isRetryableFailure(status: number, body: unknown) {
@@ -49,16 +49,19 @@ async function readResponseBody(response: Response) {
 
 export function createOpenAiSubTranscriptionProvider(options: {
   auth: Pick<ProviderAuthService, 'resolveCredentials'>;
+  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
 }): TranscriptionProvider {
   return {
     id: providerId,
 
     async transcribeBatch(input): Promise<TranscriptionProviderResult> {
       const credentials = await options.auth.resolveCredentials(providerId);
+      const model = options.settingsStore.getSettings().transcription.model;
       const audio = await readFile(input.audioPath);
       const form = new FormData();
       form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));
       form.set('duration_ms', String(input.durationMs));
+      form.set('model', model);
 
       const headers: Record<string, string> = {
         Accept: '*/*',

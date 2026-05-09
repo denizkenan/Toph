@@ -9,6 +9,11 @@ export const DESKTOP_IPC_CHANNELS = {
   submitProviderAuthorization: 'toph:submit-provider-authorization',
   removeProvider: 'toph:remove-provider',
   refreshProviders: 'toph:refresh-providers',
+  setAuthProvider: 'toph:set-auth-provider',
+  setTranscriptionProvider: 'toph:set-transcription-provider',
+  setTranscriptionModel: 'toph:set-transcription-model',
+  setInferenceProvider: 'toph:set-inference-provider',
+  setInferenceModel: 'toph:set-inference-model',
   setPolishEnabled: 'toph:set-polish-enabled',
   setActivePolishPrompt: 'toph:set-active-polish-prompt',
   performPermissionAction: 'toph:perform-permission-action',
@@ -98,6 +103,12 @@ export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcu
 export type PermissionRequirementId = 'microphone' | 'accessibility';
 export type ProviderId = 'openai-sub';
 export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub'];
+export const DEFAULT_AUTH_PROVIDER_ID: ProviderId = 'openai-sub';
+export const DEFAULT_TRANSCRIPTION_PROVIDER_ID: ProviderId = 'openai-sub';
+export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
+export const DEFAULT_TRANSCRIPTION_MODEL = 'chatgpt-backend-transcribe';
+export const DEFAULT_INFERENCE_MODEL = 'gpt-5.4-mini';
+export const DEFAULT_POLISH_PROMPT_ID = 'default';
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
   'microphone',
@@ -142,10 +153,46 @@ export interface PolishPromptSummary {
 }
 
 export interface PolishState {
-  enabled: boolean;
-  activePromptId: string;
   prompts: PolishPromptSummary[];
 }
+
+export interface AppSettings {
+  version: 1;
+  auth: {
+    providerId: ProviderId;
+  };
+  transcription: {
+    providerId: ProviderId;
+    model: string;
+  };
+  inference: {
+    providerId: ProviderId;
+    model: string;
+  };
+  polish: {
+    enabled: boolean;
+    promptId: string;
+  };
+}
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  version: 1,
+  auth: {
+    providerId: DEFAULT_AUTH_PROVIDER_ID,
+  },
+  transcription: {
+    providerId: DEFAULT_TRANSCRIPTION_PROVIDER_ID,
+    model: DEFAULT_TRANSCRIPTION_MODEL,
+  },
+  inference: {
+    providerId: DEFAULT_INFERENCE_PROVIDER_ID,
+    model: DEFAULT_INFERENCE_MODEL,
+  },
+  polish: {
+    enabled: true,
+    promptId: DEFAULT_POLISH_PROMPT_ID,
+  },
+};
 
 export interface PermissionRequirement {
   id: PermissionRequirementId;
@@ -195,6 +242,7 @@ export interface AppState {
     currentDesktop: string;
   };
   providers: ProviderState;
+  settings: AppSettings;
   polish: PolishState;
   permissions: PermissionState;
   pasteSupport: PasteSupport;
@@ -218,6 +266,11 @@ export interface DesktopApi {
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
   refreshProviders: () => Promise<void>;
+  setAuthProvider: (providerId: ProviderId) => Promise<void>;
+  setTranscriptionProvider: (providerId: ProviderId) => Promise<void>;
+  setTranscriptionModel: (model: string) => Promise<void>;
+  setInferenceProvider: (providerId: ProviderId) => Promise<void>;
+  setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishPrompt: (promptId: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
