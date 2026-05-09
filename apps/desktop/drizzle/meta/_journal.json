@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1778045244654,
-      "tag": "0000_real_ender_wiggin",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1778097600000,
-      "tag": "0001_phase_two_segmentation",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1778101200000,
-      "tag": "0002_phase_three_statuses",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1778104800000,
-      "tag": "0003_phase_four_transcription",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1778108400000,
-      "tag": "0004_phase_five_outputs",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1778112000000,
-      "tag": "0005_phase_six_polish",
+      "when": 1778293609483,
+      "tag": "0000_pink_stone_men",
       "breakpoints": true
     }
   ]
