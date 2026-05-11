@@ -49,7 +49,17 @@ Use this when the change raises questions like:
 - Are runtime boundaries, failure handling, diagnosability, or cross-process interactions safe?
 - Will this create leaks, stale behavior, rerender churn, or ordering bugs?
 
-If the main risk is unclear, skim both lenses.
+### Use `lenses/react-component-structure-and-reviewability.md` when the main risk is React UI structure
+
+Use this when the change raises questions like:
+
+- Is this React file still a reviewable unit?
+- Should substantial subcomponents be split into colocated files?
+- Is screen-specific or surface-specific UI easy to find together?
+- Does the screen compose clear sections, or render everything inline?
+- Are component props honest, narrow, and understandable?
+
+If the main risk is unclear, skim the relevant lenses.
 
 ## Quick And Deep Use
 
@@ -63,6 +73,7 @@ Ask:
 - Did coupling increase in a way that will make future changes harder?
 - Are names, boundaries, and surfaces honest enough to understand the change quickly?
 - Is state or runtime behavior still locally understandable?
+- Are React component files still navigable and reviewable when the change touches UI code?
 - If this introduces a new package dependency, is it necessary and proportionate to its long-term maintenance, bundle, and security cost?
 - Does the verification evidence match the risk of the change?
 - Does anything important need a deeper pass?

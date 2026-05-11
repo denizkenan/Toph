@@ -47,6 +47,10 @@ Use this lens when the main question is whether the shape of the system is getti
 
 Use this lens when the main question is whether runtime behavior is safe, understandable, diagnosable, and easy to evolve.
 
+### `lenses/react-component-structure-and-reviewability.md`
+
+Use this lens when the main question is whether React UI code is organized into clear, navigable, reviewable component units.
+
 ## How To Think About These Docs
 
 - Treat the guidance as prompts, not a mechanical checklist.
