@@ -1,19 +1,20 @@
-import type { ProviderConnection, ProviderId } from '@toph/desktop-contracts';
+import type { ProviderConnection, ProviderId } from "@toph/desktop-contracts";
 
-import { Button } from '../button';
-import { StatusText } from './status-text';
+import { Button } from "../button";
+import { DropdownSelect } from "../dropdown";
+import { StatusText } from "./status-text";
 
 function getProviderStatusLabel(provider: ProviderConnection) {
-  if (provider.status === 'connected') {
-    return 'Connected';
+  if (provider.status === "connected") {
+    return "Connected";
   }
-  if (provider.status === 'connecting') {
-    return 'Connecting';
+  if (provider.status === "connecting") {
+    return "Connecting";
   }
-  if (provider.status === 'invalid') {
-    return 'Reconnect';
+  if (provider.status === "invalid") {
+    return "Reconnect";
   }
-  return 'Not added';
+  return "Not added";
 }
 
 export function ProviderCard({
@@ -35,9 +36,11 @@ export function ProviderCard({
   onConnect: () => void;
   onSubmitManual: () => void;
 }) {
-  const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? providers[0];
-  const connected = selectedProvider.status === 'connected';
-  const connecting = selectedProvider.status === 'connecting' || busy;
+  const selectedProvider =
+    providers.find((provider) => provider.id === selectedProviderId) ??
+    providers[0];
+  const connected = selectedProvider.status === "connected";
+  const connecting = selectedProvider.status === "connecting" || busy;
 
   return (
     <article className="rounded-[1.375rem] border border-white/6 bg-white/2 px-7 py-6 transition-[transform,border-color,background-color] duration-300 ease-out hover:-translate-y-px hover:border-white/10 hover:bg-white/3 max-[640px]:px-5">
@@ -45,31 +48,37 @@ export function ProviderCard({
         Pick the transcription engine that powers Toph.
       </p>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-[14rem] flex-1">
-          <select
-            className="h-11 w-full rounded-xl border border-white/8 bg-canvas-elevated px-3 text-sm text-text-primary outline-none transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/40"
+        <div className="min-w-56 flex-1">
+          <DropdownSelect
+            ariaLabel="Transcription provider"
+            items={providers.map((provider) => ({
+              value: provider.id,
+              label: provider.label,
+            }))}
             value={selectedProviderId}
-            onChange={(event) => onSelectProvider(event.target.value as ProviderId)}
-          >
-            {providers.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.label}
-              </option>
-            ))}
-          </select>
+            placeholder="Select provider"
+            variant="default"
+            onValueChange={onSelectProvider}
+          />
         </div>
 
         <Button
-          variant={connected ? 'secondary' : 'primary'}
+          variant={connected ? "secondary" : "primary"}
           onClick={onConnect}
           disabled={connecting || connected}
         >
-          {connecting ? 'Opening...' : connected ? 'Connected' : 'Connect provider'}
+          {connecting
+            ? "Opening..."
+            : connected
+              ? "Connected"
+              : "Connect provider"}
         </Button>
       </div>
 
       <div className="mt-3">
-        <StatusText complete={connected}>{getProviderStatusLabel(selectedProvider)}</StatusText>
+        <StatusText complete={connected}>
+          {getProviderStatusLabel(selectedProvider)}
+        </StatusText>
       </div>
 
       {selectedProvider.error && (
@@ -81,7 +90,8 @@ export function ProviderCard({
       {connecting && (
         <div className="mt-4 grid gap-2 rounded-2xl border border-white/8 bg-white/4 p-3">
           <p className="m-0 text-sm text-text-secondary">
-            Waiting for browser authorization. If localhost gets grumpy, paste the redirect URL or code here.
+            Waiting for browser authorization. If localhost gets grumpy, paste
+            the redirect URL or code here.
           </p>
           <div className="flex gap-2 max-[640px]:flex-col">
             <input

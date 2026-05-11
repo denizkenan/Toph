@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Collapsible } from '@base-ui/react/collapsible';
-import { Menu } from '@base-ui/react/menu';
 import type { ConversionRecord } from '@toph/desktop-contracts';
 import { Check, Copy, Sparkles, X } from 'lucide-react';
 
+import { DropdownMenu } from './dropdown';
 import { useRelativeTime } from '../hooks/use-desktop-state';
 
 const pasteStatusLabel: Record<string, string> = {
@@ -21,14 +21,8 @@ const pasteStatusTone: Record<string, string> = {
   idle: 'text-text-tertiary',
 };
 
-const menuItemClass =
-  'flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8 data-[highlighted]:text-text-primary';
-
 const actionButtonClass =
   'inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden';
-
-const menuPopupSurfaceClass =
-  'rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(54,58,79,0.98),rgba(36,39,58,0.98))] py-1.5 text-text-primary shadow-menu backdrop-blur-[18px]';
 
 export function DictationCard({
   conversion,
@@ -164,34 +158,22 @@ export function DictationCard({
             <Sparkles size={15} />
           </button>
 
-          <Menu.Root>
-            <Menu.Trigger className={actionButtonClass}>
+          <DropdownMenu
+            ariaLabel="More dictation actions"
+            trigger={
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <circle cx="3" cy="8" r="1.5" />
                 <circle cx="8" cy="8" r="1.5" />
                 <circle cx="13" cy="8" r="1.5" />
               </svg>
-            </Menu.Trigger>
-            <Menu.Portal>
-              <Menu.Positioner className="outline-hidden" sideOffset={6}>
-                <Menu.Popup className={`${menuPopupSurfaceClass} origin-(--transform-origin) transition-[transform,opacity] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0`}>
-                  <Menu.Item className={menuItemClass} onClick={handleRerun}>
-                    Rerun workflow
-                  </Menu.Item>
-                  <Menu.Item className={menuItemClass} onClick={handlePasteAgain}>
-                    Paste again
-                  </Menu.Item>
-                  <Menu.Separator className="mx-3 my-1.5 h-px bg-white/8" />
-                  <Menu.Item
-                    className={`${menuItemClass} text-accent-red data-highlighted:text-accent-red`}
-                    onClick={handleDelete}
-                  >
-                    Delete
-                  </Menu.Item>
-                </Menu.Popup>
-              </Menu.Positioner>
-            </Menu.Portal>
-          </Menu.Root>
+            }
+            items={[
+              { id: 'rerun', label: 'Rerun workflow', onClick: handleRerun },
+              { id: 'paste-again', label: 'Paste again', onClick: handlePasteAgain },
+              { type: 'separator' },
+              { id: 'delete', label: 'Delete', onClick: handleDelete, tone: 'danger' },
+            ]}
+          />
         </div>
       </article>
     </Collapsible.Root>

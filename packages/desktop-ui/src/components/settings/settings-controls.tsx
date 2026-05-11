@@ -1,19 +1,8 @@
-import { Select } from '@base-ui/react/select';
 import type { ReactNode } from 'react';
 
-const selectTriggerClass =
-  'inline-flex min-w-0 items-center justify-end gap-2 rounded-lg bg-transparent px-0 py-0 text-right text-sm font-semibold text-text-secondary transition-colors duration-150 hover:text-text-primary data-[popup-open]:text-text-primary disabled:opacity-55';
+import { DropdownSelect, type DropdownSelectItem } from '../dropdown';
 
-const selectItemClass =
-  'flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8';
-
-const menuPopupSurfaceClass =
-  'rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(54,58,79,0.98),rgba(36,39,58,0.98))] py-1.5 shadow-menu backdrop-blur-[18px]';
-
-export type SettingsSelectItem<TValue extends string = string> = {
-  value: TValue;
-  label: string;
-};
+export type SettingsSelectItem<TValue extends string = string> = DropdownSelectItem<TValue>;
 
 export function SettingsSection({
   eyebrow,
@@ -165,34 +154,15 @@ export function SettingsSelect<TValue extends string>({
   onValueChange: (value: TValue) => void;
 }) {
   return (
-    <Select.Root items={items} value={value} onValueChange={(nextValue) => nextValue && onValueChange(nextValue as TValue)}>
-      <Select.Trigger className={selectTriggerClass} disabled={disabled}>
-        <Select.Value placeholder={placeholder} />
-        <Select.Icon className="text-text-tertiary">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 2L7 5L3 8" />
-          </svg>
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}>
-          <Select.Popup className={`${menuPopupSurfaceClass} origin-[var(--transform-origin)] transition-[transform,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0`}>
-            <Select.List>
-              {items.map((item) => (
-                <Select.Item key={item.value} value={item.value} className={selectItemClass}>
-                  <Select.ItemIndicator className="text-accent-green">
-                    <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor">
-                      <path d="M9.16 1.12a.75.75 0 0 1 .22 1.04L5.14 8.66a.75.75 0 0 1-1.13.13L1.25 6.31a.75.75 0 1 1 1.06-1.06l2.1 1.91L8.12 1.34a.75.75 0 0 1 1.04-.22Z" />
-                    </svg>
-                  </Select.ItemIndicator>
-                  <Select.ItemText>{item.label}</Select.ItemText>
-                </Select.Item>
-              ))}
-            </Select.List>
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
-    </Select.Root>
+    <DropdownSelect
+      ariaLabel={placeholder}
+      items={items}
+      value={value}
+      placeholder={placeholder}
+      disabled={disabled}
+      variant="inline"
+      onValueChange={onValueChange}
+    />
   );
 }
 
