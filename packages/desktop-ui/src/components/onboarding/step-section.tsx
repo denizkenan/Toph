@@ -8,18 +8,26 @@ export function StepSection({
   marker,
   title,
   status,
+  showConnector = false,
   children,
 }: {
   complete: boolean;
   marker: ReactNode;
   title: string;
   status: string;
+  showConnector?: boolean;
   children: ReactNode;
 }) {
   return (
     <section
-      className={`relative grid grid-cols-[2.75rem_1fr] gap-5 pb-9 max-[640px]:grid-cols-[2.25rem_1fr] max-[640px]:gap-3.5 ${complete ? 'onboarding-step-complete' : ''}`}
+      className="relative grid grid-cols-[2.75rem_1fr] gap-5 pb-9 max-[640px]:grid-cols-[2.25rem_1fr] max-[640px]:gap-3.5"
     >
+      {showConnector && (
+        <span
+          className={`absolute top-11 bottom-[-0.25rem] left-[1.3125rem] w-0.5 rounded-full max-[640px]:left-[1.0625rem] ${complete ? 'bg-accent-green/22' : 'bg-white/6'}`}
+          aria-hidden="true"
+        />
+      )}
       <StepMarker complete={complete}>{marker}</StepMarker>
       <div className="min-w-0">
         <h2 className="mt-0 mb-1 font-display text-lg font-semibold tracking-[-0.025em] text-text-primary">

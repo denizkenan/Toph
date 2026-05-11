@@ -2,7 +2,9 @@ import { useState } from 'react';
 
 import type { AppState, ConversionRecord, DesktopApi } from '@toph/desktop-contracts';
 
+import { AppBackdrop } from '../components/app-backdrop';
 import { DictationCard } from '../components/dictation-card';
+import { WindowDragRegion } from '../components/window-drag-region';
 import { useDesktopState } from '../hooks/use-desktop-state';
 import { OnboardingScreen } from './onboarding/onboarding-screen';
 import { SettingsPage } from './settings-page';
@@ -82,9 +84,9 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
       {state.environment.platform === 'darwin' && (
-        <div className="window-drag-region fixed top-0 right-0 left-0 h-10" aria-hidden="true" />
+        <WindowDragRegion />
       )}
-      <div className="home-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
+      <AppBackdrop variant="home" />
 
       <section className="relative mx-auto max-w-[720px]">
         <header className="mb-8 flex items-start justify-between gap-4">
@@ -192,7 +194,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
   if (!state) {
     return (
       <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
-        <div className="home-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
+        <AppBackdrop variant="home" />
         <section className="relative mx-auto max-w-[720px]">
           <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
           <p className="mt-3 mb-0 text-text-secondary">Connecting to the desktop runtime...</p>

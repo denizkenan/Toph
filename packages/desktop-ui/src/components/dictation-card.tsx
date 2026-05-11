@@ -27,6 +27,9 @@ const menuItemClass =
 const actionButtonClass =
   'inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden';
 
+const menuPopupSurfaceClass =
+  'rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(54,58,79,0.98),rgba(36,39,58,0.98))] py-1.5 text-text-primary shadow-menu backdrop-blur-[18px]';
+
 export function DictationCard({
   conversion,
 }: {
@@ -171,7 +174,7 @@ export function DictationCard({
             </Menu.Trigger>
             <Menu.Portal>
               <Menu.Positioner className="outline-hidden" sideOffset={6}>
-                <Menu.Popup className="menu-popup-surface origin-(--transform-origin) rounded-xl py-1.5 text-text-primary transition-[transform,opacity] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
+                <Menu.Popup className={`${menuPopupSurfaceClass} origin-(--transform-origin) transition-[transform,opacity] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0`}>
                   <Menu.Item className={menuItemClass} onClick={handleRerun}>
                     Rerun workflow
                   </Menu.Item>

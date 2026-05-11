@@ -7,6 +7,9 @@ const selectTriggerClass =
 const selectItemClass =
   'flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8';
 
+const menuPopupSurfaceClass =
+  'rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(54,58,79,0.98),rgba(36,39,58,0.98))] py-1.5 shadow-menu backdrop-blur-[18px]';
+
 export type SettingsSelectItem<TValue extends string = string> = {
   value: TValue;
   label: string;
@@ -173,7 +176,7 @@ export function SettingsSelect<TValue extends string>({
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner className="outline-hidden" sideOffset={6} alignItemWithTrigger={false}>
-          <Select.Popup className="menu-popup-surface origin-[var(--transform-origin)] rounded-xl py-1.5 transition-[transform,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+          <Select.Popup className={`${menuPopupSurfaceClass} origin-[var(--transform-origin)] transition-[transform,opacity] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0`}>
             <Select.List>
               {items.map((item) => (
                 <Select.Item key={item.value} value={item.value} className={selectItemClass}>

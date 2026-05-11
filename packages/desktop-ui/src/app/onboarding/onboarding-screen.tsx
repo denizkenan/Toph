@@ -7,12 +7,14 @@ import type {
   ProviderId,
   ProviderState,
 } from '@toph/desktop-contracts';
+import { AppBackdrop } from '../../components/app-backdrop';
 import { Button } from '../../components/button';
 import { CheckIcon } from '../../components/onboarding/check-icon';
 import { isPermissionComplete } from '../../components/onboarding/onboarding-utils';
 import { PermissionCard } from '../../components/onboarding/permission-card';
 import { ProviderCard } from '../../components/onboarding/provider-card';
 import { StepSection } from '../../components/onboarding/step-section';
+import { WindowDragRegion } from '../../components/window-drag-region';
 
 export function OnboardingScreen({
   platform,
@@ -114,9 +116,9 @@ export function OnboardingScreen({
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-20 pb-10 max-[980px]:px-6 max-[980px]:pt-14 max-[980px]:pb-8">
       {platform === 'darwin' && (
-        <div className="window-drag-region fixed top-0 right-0 left-0 h-10" aria-hidden="true" />
+        <WindowDragRegion />
       )}
-      <div className="onboarding-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
+      <AppBackdrop variant="onboarding" />
 
       <section className="relative mx-auto min-h-[calc(100vh-7.5rem)] max-w-[1100px]">
         <div className="grid gap-16 lg:grid-cols-[1fr_1.4fr] max-[980px]:gap-12">
@@ -145,9 +147,10 @@ export function OnboardingScreen({
           </header>
 
           <div>
-            <div className="onboarding-timeline">
+            <div>
               <StepSection
                 complete={providerComplete}
+                showConnector
                 marker={providerComplete ? <CheckIcon size={16} /> : <span className="font-display text-sm font-semibold">1</span>}
                 title="Choose a provider"
                 status={providerComplete ? 'Complete' : 'Pending'}

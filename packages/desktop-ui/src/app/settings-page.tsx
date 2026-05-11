@@ -15,6 +15,8 @@ import { ProviderSection } from "../components/settings/provider-section";
 import { RoutingSection } from "../components/settings/routing-section";
 import { ShortcutSection } from "../components/settings/shortcut-section";
 import { Button } from "../components/button";
+import { AppBackdrop } from "../components/app-backdrop";
+import { WindowDragRegion } from "../components/window-drag-region";
 
 export function SettingsPage({
   state,
@@ -108,17 +110,11 @@ export function SettingsPage({
   };
 
   return (
-    <main className="settings-scrollbar-hidden relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 max-[640px]:px-5">
+    <main className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 [scrollbar-width:none] max-[640px]:px-5 [&::-webkit-scrollbar]:hidden">
       {state.environment.platform === "darwin" && (
-        <div
-          className="window-drag-region fixed top-0 right-0 left-0 h-10"
-          aria-hidden="true"
-        />
+        <WindowDragRegion />
       )}
-      <div
-        className="settings-backdrop-wash pointer-events-none fixed inset-0"
-        aria-hidden="true"
-      />
+      <AppBackdrop variant="settings" fixed />
 
       <section className="relative mx-auto max-w-160">
         <header className="mb-5 flex items-center gap-4 pt-4 pb-5">
