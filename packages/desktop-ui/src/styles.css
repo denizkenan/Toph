@@ -87,6 +87,27 @@
       linear-gradient(210deg, rgba(245, 169, 127, 0.06), transparent 44%);
   }
 
+  .onboarding-timeline > section:not(:last-of-type)::before {
+    content: "";
+    position: absolute;
+    top: 2.75rem;
+    bottom: -0.25rem;
+    left: 1.3125rem;
+    width: 2px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .onboarding-timeline > section.onboarding-step-complete:not(:last-of-type)::before {
+    background: rgba(166, 218, 149, 0.22);
+  }
+
+  @media (max-width: 640px) {
+    .onboarding-timeline > section:not(:last-of-type)::before {
+      left: 1.0625rem;
+    }
+  }
+
   .window-drag-region {
     -webkit-app-region: drag;
   }

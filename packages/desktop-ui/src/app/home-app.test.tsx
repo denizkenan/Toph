@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
@@ -64,7 +65,7 @@ const baseState: AppState = {
   updatedAt: 1,
 };
 
-function createClient(state: AppState): DesktopApi {
+function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
     subscribeState: (listener) => {
       listener(state);
@@ -89,6 +90,7 @@ function createClient(state: AppState): DesktopApi {
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
+    ...overrides,
   };
 }
 
@@ -170,8 +172,121 @@ describe('HomeApp', () => {
       />,
     );
 
-    await screen.findByRole('heading', { name: /Pick my brain/ });
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    expect(screen.getByText(/Real-time voice transcription across all your apps/)).toBeTruthy();
+    expect(screen.getByText(/Bring your own subscription/)).toBeTruthy();
     expect(screen.getByText('Microphone')).toBeTruthy();
     expect(screen.getByText('Accessibility')).toBeTruthy();
+  });
+
+  it('refreshes onboarding state when the window regains focus', async () => {
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {});
+    const refreshProviders = vi.fn<() => Promise<void>>(async () => {});
+
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            permissions: {
+              ready: false,
+              requirements: [
+                {
+                  id: 'microphone',
+                  label: 'Microphone',
+                  status: 'promptable',
+                  required: true,
+                  detail: 'Toph needs microphone access before it can listen.',
+                  action: 'request',
+                },
+              ],
+            },
+          },
+          { refreshPermissions, refreshProviders },
+        )}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(refreshPermissions).toHaveBeenCalledTimes(1);
+      expect(refreshProviders).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('shows complete permissions when no requirements are needed', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          providers: {
+            ...baseState.providers,
+            ready: false,
+            providers: [
+              {
+                ...baseState.providers.providers[0],
+                status: 'missing',
+              },
+            ],
+          },
+          permissions: {
+            ready: true,
+            requirements: [],
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    expect(screen.getByText('No permissions needed')).toBeTruthy();
+  });
+
+  it('still refreshes providers when permission refresh fails', async () => {
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {
+      throw new Error('permission refresh failed');
+    });
+    const refreshProviders = vi.fn<() => Promise<void>>(async () => {});
+
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            permissions: {
+              ready: false,
+              requirements: [
+                {
+                  id: 'microphone',
+                  label: 'Microphone',
+                  status: 'promptable',
+                  required: true,
+                  detail: 'Toph needs microphone access before it can listen.',
+                  action: 'request',
+                },
+              ],
+            },
+          },
+          { refreshPermissions, refreshProviders },
+        )}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(refreshPermissions).toHaveBeenCalledTimes(1);
+      expect(refreshProviders).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByText(/Refresh could not verify everything/);
+    await screen.findByRole('button', { name: 'Check again' });
   });
 });
