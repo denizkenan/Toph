@@ -7,8 +7,8 @@ import type {
   ProviderId,
   ProviderState,
 } from '@toph/desktop-contracts';
+import { Button } from '../../components/button';
 import { CheckIcon } from '../../components/onboarding/check-icon';
-import { OnboardingButton } from '../../components/onboarding/onboarding-button';
 import { isPermissionComplete } from '../../components/onboarding/onboarding-utils';
 import { PermissionCard } from '../../components/onboarding/permission-card';
 import { ProviderCard } from '../../components/onboarding/provider-card';
@@ -203,14 +203,13 @@ export function OnboardingScreen({
 
               <p className="mt-0 mb-0 pl-16 text-sm text-text-tertiary max-[640px]:pl-12">
                 Changed something in System Settings?{' '}
-                <OnboardingButton
-                  type="button"
+                <Button
                   variant="ghost"
                   onClick={() => void refresh()}
                   disabled={busyPermission !== null || busyProvider !== null}
                 >
                   {busyPermission === 'refresh' ? 'Checking...' : 'Check again'}
-                </OnboardingButton>
+                </Button>
                 {refreshFailed && (
                   <span className="block pt-1 text-accent-amber">
                     Refresh could not verify everything. Very rude of the runtime.

@@ -1,6 +1,7 @@
 import type { ShortcutPresetId } from '@toph/desktop-contracts';
 
-import { SettingsSectionHeader, SettingsSelect, settingsButtonClass, type SettingsSelectItem } from './settings-controls';
+import { Button } from '../button';
+import { SettingsRow, SettingsSection, SettingsSelect, StatusBadge, type SettingsSelectItem } from './settings-controls';
 
 export function ShortcutSection({
   presetItems,
@@ -26,43 +27,33 @@ export function ShortcutSection({
   onApply: () => void;
 }) {
   return (
-    <section className="panel-surface mb-5 rounded-3xl p-6">
-      <SettingsSectionHeader
+    <SettingsSection
         eyebrow="Shortcut"
-        title="Change the trigger"
-        badge={
-          <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${registered ? 'text-accent-green' : 'text-accent-red'}`}>
-            <span className={`size-2 rounded-full ${registered ? 'bg-accent-green' : 'bg-accent-red'}`} />
-            {registered ? 'Active' : 'Needs attention'}
-          </span>
-        }
-      />
+      description="Configure the keyboard shortcut that triggers dictation."
+      footer={detail}
+    >
+      <SettingsRow label="Registration">
+        <StatusBadge active={registered} activeLabel="Active" inactiveLabel="Needs attention" inactiveTone="red" />
+      </SettingsRow>
 
-      <div className="mb-4">
-        <label className="mb-2 block text-sm text-text-secondary">Shortcut preset</label>
+      <SettingsRow label="Shortcut Preset">
         <SettingsSelect
           items={presetItems}
           value={selectedPresetId}
           placeholder="Select preset"
           onValueChange={onPresetChange}
         />
-      </div>
+      </SettingsRow>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          className={`${settingsButtonClass} bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]`}
-          onClick={onApply}
-          disabled={(!dirty && installed) || !installable}
-        >
+      <SettingsRow label="Backend">
+        <span className="text-sm font-semibold text-text-secondary">{backend}</span>
+      </SettingsRow>
+
+      <div className="flex justify-end px-4 py-3">
+        <Button variant="primary" onClick={onApply} disabled={(!dirty && installed) || !installable}>
           {dirty || !installed ? 'Apply shortcut' : 'Shortcut installed'}
-        </button>
-        <span className="text-sm text-text-secondary">
-          Backend: {backend}
-        </span>
+        </Button>
       </div>
-
-      <p className="mt-4 mb-0 text-sm text-text-secondary">{detail}</p>
-    </section>
+    </SettingsSection>
   );
 }

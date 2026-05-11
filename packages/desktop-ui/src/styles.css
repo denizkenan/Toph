@@ -80,6 +80,14 @@
       linear-gradient(180deg, rgba(166, 218, 149, 0.05), transparent 52%);
   }
 
+  .settings-scrollbar-hidden {
+    scrollbar-width: none;
+  }
+
+  .settings-scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
   .onboarding-backdrop-wash {
     background:
       linear-gradient(128deg, rgba(145, 215, 227, 0.1), transparent 34%),

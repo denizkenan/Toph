@@ -1,6 +1,6 @@
 import type { ProviderConnection, ProviderId } from '@toph/desktop-contracts';
 
-import { OnboardingButton } from './onboarding-button';
+import { Button } from '../button';
 import { StatusText } from './status-text';
 
 function getProviderStatusLabel(provider: ProviderConnection) {
@@ -59,14 +59,13 @@ export function ProviderCard({
           </select>
         </div>
 
-        <OnboardingButton
-          type="button"
+        <Button
           variant={connected ? 'secondary' : 'primary'}
           onClick={onConnect}
           disabled={connecting || connected}
         >
           {connecting ? 'Opening...' : connected ? 'Connected' : 'Connect provider'}
-        </OnboardingButton>
+        </Button>
       </div>
 
       <div className="mt-3">
@@ -91,14 +90,13 @@ export function ProviderCard({
               onChange={(event) => onManualInputChange(event.target.value)}
               placeholder="Authorization URL or code"
             />
-            <OnboardingButton
-              type="button"
+            <Button
               variant="secondary"
               onClick={onSubmitManual}
               disabled={manualInput.trim().length === 0}
             >
               Submit code
-            </OnboardingButton>
+            </Button>
           </div>
         </div>
       )}

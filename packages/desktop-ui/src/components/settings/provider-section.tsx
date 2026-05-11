@@ -1,6 +1,7 @@
 import type { ProviderConnection } from '@toph/desktop-contracts';
 
-import { SettingsSectionHeader, StatusBadge, settingsButtonClass } from './settings-controls';
+import { Button } from '../button';
+import { SettingsIcon, SettingsRow, SettingsSection, StatusBadge } from './settings-controls';
 
 export function ProviderSection({
   provider,
@@ -16,56 +17,52 @@ export function ProviderSection({
   const connected = provider?.status === 'connected';
 
   return (
-    <section className="panel-surface mb-5 rounded-3xl p-6">
-      <SettingsSectionHeader
+    <SettingsSection
         eyebrow="Providers"
-        title="Transcription engine"
-        badge={provider && <StatusBadge active={connected} activeLabel="Connected" inactiveLabel="Needs setup" inactiveTone="text-accent-amber" />}
-      />
+      description="Connect your transcription service to enable dictation."
+    >
+      {!provider && <SettingsRow label="No provider available" description="Toph could not find a configured transcription provider." />}
 
       {provider && (
-        <div className="rounded-3xl border border-white/8 bg-white/4 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h3 className="m-0 font-display text-lg tracking-[-0.025em] text-text-primary">
-                {provider.label}
-              </h3>
-              <p className="mt-1 mb-0 text-sm leading-relaxed text-text-secondary">
+        <>
+          <SettingsRow
+            label={provider.label}
+            description={(
+              <>
                 {provider.description}
-              </p>
-              {provider.accountId && (
-                <p className="mt-3 mb-0 text-xs text-text-tertiary">
-                  Account: <span className="font-semibold text-text-secondary">{provider.accountId}</span>
-                </p>
-              )}
-              {provider.error && (
-                <p className="mt-3 mb-0 rounded-2xl border border-accent-red/16 bg-accent-red/10 px-3 py-2 text-sm text-accent-red">
-                  {provider.error}
-                </p>
-              )}
-            </div>
+                {provider.accountId && (
+                  <span className="block text-text-tertiary">
+                    Account: <span className="font-semibold text-text-secondary">{provider.accountId}</span>
+                  </span>
+                )}
+              </>
+            )}
+            icon={(
+              <SettingsIcon tone="blue">
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="10" cy="7" r="4" />
+                  <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+                </svg>
+              </SettingsIcon>
+            )}
+          >
+            <StatusBadge active={connected} activeLabel="Connected" inactiveLabel="Needs setup" inactiveTone="amber" />
+          </SettingsRow>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={`${settingsButtonClass} bg-linear-to-br from-accent-blue to-accent-violet text-[#11131f]`}
-                onClick={onConnect}
-                disabled={busy || provider.status === 'connecting'}
-              >
-                {connected ? 'Reconnect' : 'Connect'}
-              </button>
-              <button
-                type="button"
-                className={`${settingsButtonClass} border-accent-red/20 bg-accent-red/10 text-accent-red hover:bg-accent-red/18`}
-                onClick={onRemove}
-                disabled={busy || !connected}
-              >
-                Remove
-              </button>
-            </div>
+          {provider.error && (
+            <SettingsRow label="Provider error" description={provider.error} tone="danger" />
+          )}
+
+          <div className="flex justify-end gap-2 px-4 py-3">
+            <Button variant="primary" onClick={onConnect} disabled={busy || provider.status === 'connecting'}>
+              {connected ? 'Reconnect' : 'Connect'}
+            </Button>
+            <Button variant="danger" onClick={onRemove} disabled={busy || !connected}>
+              Remove
+            </Button>
           </div>
-        </div>
+        </>
       )}
-    </section>
+    </SettingsSection>
   );
 }

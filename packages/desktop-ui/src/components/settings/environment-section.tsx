@@ -1,3 +1,5 @@
+import { SettingsSection } from './settings-controls';
+
 export function EnvironmentSection({
   currentDesktop,
   sessionType,
@@ -30,24 +32,15 @@ export function EnvironmentSection({
   ];
 
   return (
-    <section className="panel-surface mb-5 rounded-3xl p-6">
-      <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
-        Runtime
-      </span>
-      <h2 className="m-0 mb-4 font-display text-xl tracking-[-0.03em]">Environment</h2>
-
-      <dl className="grid gap-3">
+    <SettingsSection eyebrow="Runtime" description="Read-only information about your current session." footer={pasteDetail || undefined}>
+      <dl>
         {rows.map(([label, value], index) => (
-          <div key={label} className={`flex justify-between gap-4 ${index === rows.length - 1 ? '' : 'border-b border-white/6 pb-3'}`}>
-            <dt className="text-text-tertiary">{label}</dt>
-            <dd className="m-0 text-sm font-semibold">{value}</dd>
+          <div key={label} className={`flex min-h-11 items-center justify-between gap-4 px-4 py-2.5 ${index === rows.length - 1 ? '' : 'border-b border-white/5'}`}>
+            <dt className="text-sm text-text-tertiary">{label}</dt>
+            <dd className="m-0 text-sm font-semibold text-text-primary">{value}</dd>
           </div>
         ))}
       </dl>
-
-      {pasteDetail && (
-        <p className="mt-4 mb-0 text-sm text-text-secondary">{pasteDetail}</p>
-      )}
-    </section>
+    </SettingsSection>
   );
 }

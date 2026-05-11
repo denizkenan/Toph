@@ -1,7 +1,7 @@
 import type { PermissionRequirement, PermissionRequirementId } from '@toph/desktop-contracts';
 
+import { Button } from '../button';
 import { CheckIcon } from './check-icon';
-import { OnboardingButton } from './onboarding-button';
 import { isPermissionComplete } from './onboarding-utils';
 import { PendingDot } from './pending-dot';
 import { StatusText } from './status-text';
@@ -64,15 +64,14 @@ export function PermissionCard({
         <StatusText complete={complete}>{getStatusLabel(requirement)}</StatusText>
       </div>
 
-      <OnboardingButton
-        type="button"
+      <Button
         variant={complete ? 'secondary' : 'primary'}
         className="h-8 shrink-0 rounded-lg px-3 py-0 text-xs"
         onClick={() => onAction(requirement.id)}
         disabled={complete || busy || disabled || requirement.action === 'none'}
       >
         {busy ? 'Checking...' : getActionLabel(requirement)}
-      </OnboardingButton>
+      </Button>
     </article>
   );
 }

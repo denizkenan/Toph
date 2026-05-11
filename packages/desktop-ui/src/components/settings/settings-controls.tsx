@@ -1,11 +1,8 @@
 import { Select } from '@base-ui/react/select';
 import type { ReactNode } from 'react';
 
-export const settingsButtonClass =
-  'inline-flex cursor-pointer items-center justify-center rounded-full border border-transparent px-5 py-3 text-sm font-semibold transition-[transform,border-color,background-color,opacity] duration-200 ease-out hover:-translate-y-px hover:scale-[1.01] disabled:cursor-default disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:scale-100';
-
 const selectTriggerClass =
-  'flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary transition-colors duration-150 hover:bg-white/6 data-[popup-open]:bg-white/6 disabled:opacity-55';
+  'inline-flex min-w-0 items-center justify-end gap-2 rounded-lg bg-transparent px-0 py-0 text-right text-sm font-semibold text-text-secondary transition-colors duration-150 hover:text-text-primary data-[popup-open]:text-text-primary disabled:opacity-55';
 
 const selectItemClass =
   'flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-text-primary outline-hidden select-none transition-colors duration-100 data-[highlighted]:bg-white/8';
@@ -15,51 +12,139 @@ export type SettingsSelectItem<TValue extends string = string> = {
   label: string;
 };
 
-export function SettingsSectionHeader({
+export function SettingsSection({
   eyebrow,
-  title,
   description,
-  badge,
+  children,
+  footer,
 }: {
   eyebrow: string;
-  title: string;
   description?: string;
-  badge?: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
-    <div className={`mb-5 ${badge ? 'flex items-start justify-between gap-4' : ''}`}>
-      <div>
-        <span className="mb-2 inline-flex text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">
-          {eyebrow}
-        </span>
-        <h2 className="m-0 font-display text-xl tracking-[-0.03em]">{title}</h2>
-        {description && (
-          <p className="mt-2 mb-0 text-sm leading-relaxed text-text-secondary">
-            {description}
-          </p>
-        )}
+    <section className="mb-7">
+      <span className="mb-2 inline-flex px-1 text-xs font-bold tracking-[0.12em] text-accent-cyan uppercase">
+        {eyebrow}
+      </span>
+      {description && (
+        <p className="mb-2 px-1 text-sm leading-relaxed text-text-secondary">
+          {description}
+        </p>
+      )}
+      <div className="overflow-hidden rounded-xl border border-white/6 bg-canvas-elevated/55">
+        {children}
       </div>
-      {badge}
+      {footer && <div className="px-1 pt-2 text-xs leading-relaxed text-text-tertiary">{footer}</div>}
+    </section>
+  );
+}
+
+export function SettingsRow({
+  label,
+  description,
+  icon,
+  children,
+  className = '',
+  tone = 'default',
+}: {
+  label: string;
+  description?: ReactNode;
+  icon?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+  tone?: 'default' | 'danger';
+}) {
+  const labelClass = tone === 'danger' ? 'text-accent-red' : 'text-text-primary';
+  const descriptionClass = tone === 'danger' ? 'text-accent-red' : 'text-text-secondary';
+
+  return (
+    <div className={`flex min-h-12 items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-b-0 ${className}`}>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {icon}
+        <div className="min-w-0">
+          <div className={`truncate text-sm font-semibold ${labelClass}`}>{label}</div>
+          {description && <div className={`text-xs leading-relaxed ${descriptionClass}`}>{description}</div>}
+        </div>
+      </div>
+      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
     </div>
   );
+}
+
+export function SettingsIcon({
+  tone,
+  children,
+}: {
+  tone: 'blue' | 'violet' | 'amber' | 'green' | 'red' | 'cyan';
+  children: ReactNode;
+}) {
+  const toneClass = {
+    blue: 'bg-accent-blue/14 text-accent-blue',
+    violet: 'bg-accent-violet/14 text-accent-violet',
+    amber: 'bg-accent-amber/14 text-accent-amber',
+    green: 'bg-accent-green/14 text-accent-green',
+    red: 'bg-accent-red/14 text-accent-red',
+    cyan: 'bg-accent-cyan/14 text-accent-cyan',
+  }[tone];
+
+  return <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>{children}</span>;
 }
 
 export function StatusBadge({
   active,
   activeLabel,
   inactiveLabel,
-  inactiveTone = 'text-text-secondary',
+  inactiveTone = 'muted',
 }: {
   active: boolean;
   activeLabel: string;
   inactiveLabel: string;
-  inactiveTone?: string;
+  inactiveTone?: 'muted' | 'amber' | 'red';
 }) {
+  const inactiveClass = {
+    muted: 'bg-white/6 text-text-tertiary',
+    amber: 'bg-accent-amber/12 text-accent-amber',
+    red: 'bg-accent-red/12 text-accent-red',
+  }[inactiveTone];
+  const inactiveDotClass = {
+    muted: 'bg-text-tertiary',
+    amber: 'bg-accent-amber',
+    red: 'bg-accent-red',
+  }[inactiveTone];
+
   return (
-    <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${active ? 'text-accent-green' : inactiveTone}`}>
-      <span className={`size-2 rounded-full ${active ? 'bg-accent-green' : inactiveTone === 'text-accent-amber' ? 'bg-accent-amber' : 'bg-white/20'}`} />
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-accent-green/12 text-accent-green' : inactiveClass}`}>
+      <span className={`size-1.5 rounded-full ${active ? 'bg-accent-green' : inactiveDotClass}`} />
       {active ? activeLabel : inactiveLabel}
     </span>
+  );
+}
+
+export function SettingsSwitch({
+  checked,
+  disabled,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`relative h-[26px] w-11 rounded-full transition-colors duration-200 ease-out disabled:cursor-default disabled:opacity-55 ${checked ? 'bg-accent-green' : 'bg-white/12'}`}
+      onClick={() => onCheckedChange(!checked)}
+      disabled={disabled}
+    >
+      <span className={`absolute top-[3px] left-[3px] size-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${checked ? 'translate-x-[18px]' : ''}`} />
+    </button>
   );
 }
 
@@ -81,8 +166,8 @@ export function SettingsSelect<TValue extends string>({
       <Select.Trigger className={selectTriggerClass} disabled={disabled}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon className="text-text-tertiary">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M2 4L5 7L8 4" />
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 2L7 5L3 8" />
           </svg>
         </Select.Icon>
       </Select.Trigger>
@@ -119,7 +204,7 @@ export function SettingsTextInput({
 }) {
   return (
     <input
-      className="h-12 w-full rounded-2xl border border-white/8 bg-white/4 px-4 text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:bg-white/6 disabled:opacity-55"
+      className="w-40 rounded-lg border border-white/8 bg-white/4 px-3 py-1.5 text-right text-sm font-semibold text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/70 focus:bg-white/6 disabled:opacity-55"
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.currentTarget.value)}

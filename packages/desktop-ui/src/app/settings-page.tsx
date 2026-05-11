@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 import {
   resolveShortcutPresetForPlatform,
@@ -7,14 +7,14 @@ import {
   type DesktopApi,
   type ProviderId,
   type ShortcutPresetId,
-} from '@toph/desktop-contracts';
+} from "@toph/desktop-contracts";
 
-import { EnvironmentSection } from '../components/settings/environment-section';
-import { PolishSection } from '../components/settings/polish-section';
-import { ProviderSection } from '../components/settings/provider-section';
-import { RoutingSection } from '../components/settings/routing-section';
-import { ShortcutSection } from '../components/settings/shortcut-section';
-import { settingsButtonClass } from '../components/settings/settings-controls';
+import { EnvironmentSection } from "../components/settings/environment-section";
+import { PolishSection } from "../components/settings/polish-section";
+import { ProviderSection } from "../components/settings/provider-section";
+import { RoutingSection } from "../components/settings/routing-section";
+import { ShortcutSection } from "../components/settings/shortcut-section";
+import { Button } from "../components/button";
 
 export function SettingsPage({
   state,
@@ -25,18 +25,23 @@ export function SettingsPage({
   client: DesktopApi;
   onBack: () => void;
 }) {
-  const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(null);
+  const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(
+    null,
+  );
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
   const selectedPresetId = presetOverride ?? state.shortcut.presetId;
   const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
   const provider = state.providers.providers[0];
-  const settingsEditable = state.phase === 'idle';
+  const settingsEditable = state.phase === "idle";
 
   const presetItems = SHORTCUT_PRESETS.map((preset) => ({
     value: preset.id,
-    label: resolveShortcutPresetForPlatform(preset.id, state.environment.platform).label,
+    label: resolveShortcutPresetForPlatform(
+      preset.id,
+      state.environment.platform,
+    ).label,
   }));
   const providerItems = state.providers.providers.map((item) => ({
     value: item.id,
@@ -103,24 +108,41 @@ export function SettingsPage({
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
-      {state.environment.platform === 'darwin' && (
-        <div className="window-drag-region fixed top-0 right-0 left-0 h-10" aria-hidden="true" />
+    <main className="settings-scrollbar-hidden relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 max-[640px]:px-5">
+      {state.environment.platform === "darwin" && (
+        <div
+          className="window-drag-region fixed top-0 right-0 left-0 h-10"
+          aria-hidden="true"
+        />
       )}
-      <div className="settings-backdrop-wash pointer-events-none absolute -inset-[10%]" aria-hidden="true" />
+      <div
+        className="settings-backdrop-wash pointer-events-none fixed inset-0"
+        aria-hidden="true"
+      />
 
-      <section className="relative mx-auto max-w-[720px]">
-        <header className="mb-8 flex items-center gap-4">
+      <section className="relative mx-auto max-w-160">
+        <header className="mb-5 flex items-center gap-4 pt-4 pb-5">
           <button
             type="button"
-            className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-white/4 text-text-secondary transition-all duration-200 ease-out hover:-translate-y-px hover:bg-white/8 hover:text-text-primary"
+            className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-white/5 text-text-secondary transition-colors duration-200 ease-out hover:bg-white/10 hover:text-text-primary"
             onClick={onBack}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M11 4L6 9L11 14" />
             </svg>
           </button>
-          <h1 className="m-0 font-display text-2xl tracking-[-0.03em]">Settings</h1>
+          <h1 className="m-0 font-display text-[28px] font-bold tracking-[-0.03em]">
+            Settings
+          </h1>
         </header>
 
         <ProviderSection
@@ -138,11 +160,23 @@ export function SettingsPage({
           inferenceProviderId={state.settings.inference.providerId}
           inferenceModel={state.settings.inference.model}
           disabled={!settingsEditable || busySettings}
-          onAuthProviderChange={(providerId: ProviderId) => void updateSetting(() => client.setAuthProvider(providerId))}
-          onTranscriptionProviderChange={(providerId: ProviderId) => void updateSetting(() => client.setTranscriptionProvider(providerId))}
-          onTranscriptionModelChange={(model) => void updateSetting(() => client.setTranscriptionModel(model))}
-          onInferenceProviderChange={(providerId: ProviderId) => void updateSetting(() => client.setInferenceProvider(providerId))}
-          onInferenceModelChange={(model) => void updateSetting(() => client.setInferenceModel(model))}
+          onAuthProviderChange={(providerId: ProviderId) =>
+            void updateSetting(() => client.setAuthProvider(providerId))
+          }
+          onTranscriptionProviderChange={(providerId: ProviderId) =>
+            void updateSetting(() =>
+              client.setTranscriptionProvider(providerId),
+            )
+          }
+          onTranscriptionModelChange={(model) =>
+            void updateSetting(() => client.setTranscriptionModel(model))
+          }
+          onInferenceProviderChange={(providerId: ProviderId) =>
+            void updateSetting(() => client.setInferenceProvider(providerId))
+          }
+          onInferenceModelChange={(model) =>
+            void updateSetting(() => client.setInferenceModel(model))
+          }
         />
 
         <PolishSection
@@ -179,14 +213,10 @@ export function SettingsPage({
           pasteDetail={state.pasteSupport.detail}
         />
 
-        <div className="flex justify-end">
-          <button
-            type="button"
-            className={`${settingsButtonClass} border-accent-red/20 bg-accent-red/10 text-accent-red hover:bg-accent-red/18`}
-            onClick={() => void client.quit()}
-          >
+        <div className="flex justify-end border-t border-white/6 pt-5">
+          <Button variant="danger" onClick={() => void client.quit()}>
             Quit Toph
-          </button>
+          </Button>
         </div>
       </section>
     </main>

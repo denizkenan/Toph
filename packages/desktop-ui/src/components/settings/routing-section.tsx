@@ -1,6 +1,6 @@
 import type { ProviderId } from '@toph/desktop-contracts';
 
-import { SettingsSectionHeader, SettingsSelect, SettingsTextInput, type SettingsSelectItem } from './settings-controls';
+import { SettingsRow, SettingsSection, SettingsSelect, SettingsTextInput, type SettingsSelectItem } from './settings-controls';
 
 export function RoutingSection({
   providerItems,
@@ -30,16 +30,11 @@ export function RoutingSection({
   onInferenceModelChange: (model: string) => void;
 }) {
   return (
-    <section className="panel-surface mb-5 rounded-3xl p-6">
-      <SettingsSectionHeader
+    <SettingsSection
         eyebrow="Models"
-        title="Provider routing"
-        description="Choose which provider and model Toph uses for auth, transcription, and inference."
-      />
-
-      <div className="grid gap-4">
-        <div>
-          <label className="mb-2 block text-sm text-text-secondary">Auth provider</label>
+      description="Choose which provider and model Toph uses for auth, transcription, and inference."
+    >
+      <SettingsRow label="Auth Provider">
           <SettingsSelect
             items={providerItems}
             value={authProviderId}
@@ -47,11 +42,9 @@ export function RoutingSection({
             disabled={disabled}
             onValueChange={onAuthProviderChange}
           />
-        </div>
+      </SettingsRow>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 max-[640px]:grid-cols-1">
-          <div>
-            <label className="mb-2 block text-sm text-text-secondary">Transcription provider</label>
+      <SettingsRow label="Transcription Provider">
             <SettingsSelect
               items={providerItems}
               value={transcriptionProviderId}
@@ -59,16 +52,13 @@ export function RoutingSection({
               disabled={disabled}
               onValueChange={onTranscriptionProviderChange}
             />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm text-text-secondary">Transcription model</label>
-            <SettingsTextInput value={transcriptionModel} disabled={disabled} onChange={onTranscriptionModelChange} />
-          </div>
-        </div>
+      </SettingsRow>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 max-[640px]:grid-cols-1">
-          <div>
-            <label className="mb-2 block text-sm text-text-secondary">Inference provider</label>
+      <SettingsRow label="Transcription Model">
+        <SettingsTextInput value={transcriptionModel} disabled={disabled} onChange={onTranscriptionModelChange} />
+      </SettingsRow>
+
+      <SettingsRow label="Inference Provider">
             <SettingsSelect
               items={providerItems}
               value={inferenceProviderId}
@@ -76,13 +66,11 @@ export function RoutingSection({
               disabled={disabled}
               onValueChange={onInferenceProviderChange}
             />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm text-text-secondary">Inference model</label>
-            <SettingsTextInput value={inferenceModel} disabled={disabled} onChange={onInferenceModelChange} />
-          </div>
-        </div>
-      </div>
-    </section>
+      </SettingsRow>
+
+      <SettingsRow label="Inference Model">
+        <SettingsTextInput value={inferenceModel} disabled={disabled} onChange={onInferenceModelChange} />
+      </SettingsRow>
+    </SettingsSection>
   );
 }
