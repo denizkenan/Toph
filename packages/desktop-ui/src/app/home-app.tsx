@@ -206,6 +206,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
       <OnboardingScreen
         platform={state.environment.platform}
         providers={state.providers}
+        permissionsReady={state.permissions.ready}
         requirements={state.permissions.requirements}
         client={client}
       />
