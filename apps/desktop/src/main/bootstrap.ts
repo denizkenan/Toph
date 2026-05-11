@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { app, shell } from 'electron';
 import { DEFAULT_APP_SETTINGS } from '@toph/desktop-contracts';
 
+import appIconPath from '../../../../assets/app-icons/icon.png?asset';
+import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
+
 import { createProviderAuthService } from './auth/provider-auth-service';
 import { createDictationController } from './dictation';
 import { registerDesktopIpc } from './ipc';
@@ -63,6 +66,7 @@ export async function bootstrap(options: {
   const stateStore = createDesktopStateStore();
   const windows = createWindowManager({
     appName,
+    appIconPath,
     isQuitting: () => isQuitting,
   });
   const permissions = createPermissionManager();
@@ -70,7 +74,11 @@ export async function bootstrap(options: {
 
   await app.whenReady();
 
-  const dataPaths = await resolveTophDataPaths(app);
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(macAppIconPath);
+  }
+
+  const dataPaths = await resolveTophDataPaths();
   const sessionStore = await createRecordingSessionStore({
     paths: dataPaths,
     migrationsFolder: join(__dirname, '../../drizzle'),

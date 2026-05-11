@@ -26,7 +26,7 @@ Replace the mock-only dictation lifecycle with real session persistence and raw 
 
 ### Build Items
 
-- Resolve local data storage from `TOPH_DATA_DIRECTORY` when set; otherwise use Electron's `userData` path.
+- Resolve local data storage from `TOPH_DATA_DIRECTORY` when set; otherwise use `$HOME/.toph`.
 - During repository-local development, set `TOPH_DATA_DIRECTORY` to `<repo>/.toph` for easier debugging.
 - Add SQLite persistence at `<dataDirectory>/data.db`.
 - Add Drizzle schema and migrations.

@@ -6,7 +6,7 @@ This document describes the local SQLite data model for real dictation. The sche
 
 ## Storage Location
 
-Use `TOPH_DATA_DIRECTORY` when it is set. Otherwise, use Electron's `userData` path. Repository-local development can set `TOPH_DATA_DIRECTORY` to `<repo>/.toph` so the database and recordings are easy to inspect.
+Use `TOPH_DATA_DIRECTORY` when it is set. Otherwise, use `$HOME/.toph`. Repository-local development can set `TOPH_DATA_DIRECTORY` to `<repo>/.toph` so the database and recordings are easy to inspect. This default does not automatically migrate prior data from Electron's `userData` directory.
 
 ```text
 <dataDirectory>/data.db

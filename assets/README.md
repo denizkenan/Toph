@@ -1,5 +1,19 @@
 # Assets
 
+`logo.png` is the source for the packaged app icons. Generated outputs live in
+`app-icons/` and are used by Electron Builder for macOS, Windows, and Linux.
+The generated macOS `.icns` and `icon-mac.png` center the logo inside an
+`832x832` artwork safe area on a `1024x1024` canvas so it has
+platform-appropriate padding in the Dock and Finder.
+The `.icns` includes the standard 1x and 2x macOS icon representations from 16px
+through 1024px.
+
+Regenerate the app icons from `logo.png` when the logo source changes:
+
+```sh
+pnpm run icons:app
+```
+
 `tray-icon.svg` is the source for the monochrome system tray icons.
 
 The tray PNGs are generated variants used by Electron:

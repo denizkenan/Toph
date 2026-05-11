@@ -1,4 +1,4 @@
-import logoPath from '../../../../../../assets/logo-compressed.png?asset';
+import logoPath from '../../../../../../assets/logo.png?asset';
 
 export const openAiSubOAuthLogoPath = logoPath;
 

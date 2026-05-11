@@ -11,16 +11,17 @@ const workspaceAliases = {
   '@toph/desktop-contracts': resolve(rootDir, '../../packages/desktop-contracts/src/index.ts'),
   '@toph/desktop-ui': resolve(rootDir, '../../packages/desktop-ui/src/index.ts'),
 };
+const bundledWorkspacePackages = ['@toph/desktop-contracts', '@toph/desktop-ui'];
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: bundledWorkspacePackages })],
     resolve: {
       alias: workspaceAliases,
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: bundledWorkspacePackages })],
     resolve: {
       alias: workspaceAliases,
     },

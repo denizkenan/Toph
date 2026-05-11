@@ -1,9 +1,17 @@
 import { mkdir } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import type { app } from 'electron';
-
 const dataDirectoryEnvVar = 'TOPH_DATA_DIRECTORY';
+
+function resolveDefaultDataDirectory() {
+  const homeDirectory = homedir();
+  if (!homeDirectory) {
+    throw new Error('Unable to resolve Toph data directory because $HOME is not available.');
+  }
+
+  return join(homeDirectory, '.toph');
+}
 
 export interface TophDataPaths {
   dataDirectory: string;
@@ -13,11 +21,9 @@ export interface TophDataPaths {
   recordingsDirectory: string;
 }
 
-export async function resolveTophDataPaths(electronApp: Pick<typeof app, 'getPath'>) {
+export async function resolveTophDataPaths() {
   const configuredDirectory = process.env[dataDirectoryEnvVar];
-  const dataDirectory = configuredDirectory
-    ? resolve(configuredDirectory)
-    : electronApp.getPath('userData');
+  const dataDirectory = configuredDirectory ? resolve(configuredDirectory) : resolveDefaultDataDirectory();
 
   const paths: TophDataPaths = {
     dataDirectory,

@@ -43,6 +43,7 @@ async function loadRendererPage(window: BrowserWindow, page: 'index.html' | 'ove
 
 export function createWindowManager(options: {
   appName: string;
+  appIconPath: string;
   isQuitting: () => boolean;
 }): WindowManager {
   let settingsWindow: BrowserWindow | null = null;
@@ -112,6 +113,7 @@ export function createWindowManager(options: {
       minWidth: 920,
       minHeight: 680,
       title: options.appName,
+      icon: options.appIconPath,
       backgroundColor: '#24273a',
       autoHideMenuBar: true,
       ...(process.platform === 'darwin'
