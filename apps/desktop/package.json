@@ -7,7 +7,7 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "build": "pnpm --workspace-root run icons:app && electron-vite build",
+    "build": "pnpm run rebuild:native && pnpm --workspace-root run icons:app && electron-vite build",
     "dev": "pnpm --workspace-root run icons:app && TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
     "preview": "pnpm --workspace-root run icons:app && TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
     "pack": "pnpm run build && electron-builder --dir",
