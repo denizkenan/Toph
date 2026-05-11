@@ -159,7 +159,7 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
             {state.phase === 'listening'
               ? 'Listening...'
               : state.phase === 'transcribing'
-                ? 'Processing...'
+                ? 'Transcribing...'
                 : state.phase === 'polishing'
                   ? 'Polishing...'
                 : state.phase === 'no_speech'

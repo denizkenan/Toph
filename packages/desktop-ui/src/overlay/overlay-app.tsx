@@ -92,7 +92,7 @@ export function OverlayApp({
           </div>
 
           <h2 className="m-0 w-(--overlay-text-slot-width) text-left text-[0.92rem] font-medium tracking-tight whitespace-nowrap text-text-primary">
-            {failed ? 'Failed' : noSpeech ? 'No speech detected' : listening ? 'Listening...' : polishing ? 'Polishing...' : 'Processing...'}
+            {failed ? 'Failed' : noSpeech ? 'No speech detected' : listening ? 'Listening...' : polishing ? 'Polishing...' : 'Transcribing...'}
           </h2>
         </div>
       </section>
