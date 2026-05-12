@@ -193,6 +193,7 @@ describe('HomeApp', () => {
     expect(screen.getByText(/Bring your own subscription/)).toBeTruthy();
     expect(screen.getByText('Microphone')).toBeTruthy();
     expect(screen.getByText('Accessibility')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: "Let's get started" })).toBeNull();
   });
 
   it('keeps onboarding open after preset selection until the user gets started', async () => {
@@ -238,18 +239,43 @@ describe('HomeApp', () => {
     );
 
     await screen.findByRole('heading', { name: /Your fingers called/ });
-    const getStarted = screen.getByRole('button', { name: "Let's get started" }) as HTMLButtonElement;
-    expect(getStarted.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: "Let's get started" })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /Engineer/ }));
 
     await waitFor(() => expect(setActivePolishRulePreset).toHaveBeenCalledWith('engineer'));
     expect(screen.getByRole('heading', { name: /Your fingers called/ })).toBeTruthy();
-    expect((screen.getByRole('button', { name: "Let's get started" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: "Let's get started" })).toBeTruthy();
+    expect(screen.getByText('Setup complete. The tiny dictation empire is operational.').closest('.animate-onboarding-ready-enter')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: "Let's get started" }));
 
     await screen.findByText('Nothing here yet.');
+  });
+
+  it('keeps the onboarding completion bar hidden while preset selection is pending', async () => {
+    const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(() => new Promise(() => {}));
+
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            settings: {
+              ...baseState.settings,
+              polish: { enabled: true, rulePresetId: null },
+            },
+          },
+          { setActivePolishRulePreset },
+        )}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    fireEvent.click(screen.getByRole('button', { name: /Engineer/ }));
+
+    await waitFor(() => expect(setActivePolishRulePreset).toHaveBeenCalledWith('engineer'));
+    expect(screen.queryByRole('button', { name: "Let's get started" })).toBeNull();
   });
 
   it('refreshes onboarding state when the window regains focus', async () => {

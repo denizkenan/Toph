@@ -52,7 +52,8 @@ export function OnboardingScreen({
   const providerComplete = providers.ready;
   const permissionsComplete = permissionsReady && completeCount === requirements.length;
   const writingComplete = !!selectedRulePresetId && rulePresets.some((preset) => preset.id === selectedRulePresetId);
-  const locallyComplete = providerComplete && permissionsComplete && writingComplete;
+  const committedWritingComplete = !!activeRulePresetId && rulePresets.some((preset) => preset.id === activeRulePresetId);
+  const setupComplete = providerComplete && permissionsComplete && committedWritingComplete;
 
   useEffect(() => {
     setSelectedRulePresetId(activeRulePresetId);
@@ -288,21 +289,23 @@ export function OnboardingScreen({
         </div>
       </section>
 
-      <div className="fixed right-0 bottom-0 left-0 z-40 border-t border-white/8 bg-canvas/88 px-6 py-4 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-4 max-[640px]:flex-col max-[640px]:items-stretch">
-          <div>
-            <p className="m-0 text-sm font-semibold text-text-primary">
-              {locallyComplete ? 'Setup complete. The tiny dictation empire is operational.' : 'Finish the setup steps above to unlock dictation.'}
-            </p>
-            <p className="mt-0.5 mb-0 text-xs text-text-tertiary">
-              You can change your writing style later from Settings → Writing & Dictionary.
-            </p>
+      {setupComplete && (
+        <div className="fixed right-0 bottom-0 left-0 z-40 animate-onboarding-ready-enter border-t border-white/8 bg-canvas/88 px-6 py-4 backdrop-blur-md">
+          <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-4 max-[640px]:flex-col max-[640px]:items-stretch">
+            <div>
+              <p className="m-0 text-sm font-semibold text-text-primary">
+                Setup complete. The tiny dictation empire is operational.
+              </p>
+              <p className="mt-0.5 mb-0 text-xs text-text-tertiary">
+                You can change your writing style later from Settings → Writing & Dictionary.
+              </p>
+            </div>
+            <Button variant="primary" className="shrink-0" onClick={onGetStarted}>
+              Let&apos;s get started
+            </Button>
           </div>
-          <Button variant="primary" className="shrink-0" onClick={onGetStarted} disabled={!locallyComplete}>
-            Let&apos;s get started
-          </Button>
         </div>
-      </div>
+      )}
     </main>
   );
 }
