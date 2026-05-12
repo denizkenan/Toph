@@ -1,7 +1,8 @@
 import {
-  DEFAULT_SHORTCUT_PRESET,
   DEFAULT_APP_SETTINGS,
-  resolveShortcutPresetForPlatform,
+  formatShortcutChord,
+  resolveDefaultShortcutChord,
+  shortcutChordToElectronAccelerator,
   type AppState,
   type AppSettings,
   type ConversionRecord,
@@ -11,7 +12,7 @@ import {
   type PermissionState,
   type PolishState,
   type ProviderState,
-  type ShortcutPreset,
+  type ShortcutChord,
 } from '@toph/desktop-contracts';
 
 export interface ShortcutStateSupport {
@@ -25,7 +26,7 @@ export interface ShortcutStateSupport {
 export interface DesktopStateStore {
   getState: () => AppState;
   subscribe: (listener: (state: AppState) => void) => () => void;
-  setShortcut: (preset: ShortcutPreset, support: ShortcutStateSupport) => void;
+  setShortcut: (chord: ShortcutChord, support: ShortcutStateSupport) => void;
   setProviders: (providers: ProviderState) => void;
   setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
@@ -53,17 +54,14 @@ export interface DesktopStateStore {
 }
 
 function createInitialState(): AppState {
-  const defaultShortcutPreset = resolveShortcutPresetForPlatform(
-    DEFAULT_SHORTCUT_PRESET.id,
-    process.platform,
-  );
+  const defaultShortcutChord = resolveDefaultShortcutChord(process.platform);
 
   return {
     phase: 'idle',
     shortcut: {
-      presetId: defaultShortcutPreset.id,
-      accelerator: defaultShortcutPreset.accelerator,
-      label: defaultShortcutPreset.label,
+      chord: defaultShortcutChord,
+      accelerator: shortcutChordToElectronAccelerator(defaultShortcutChord, process.platform),
+      label: formatShortcutChord(defaultShortcutChord, process.platform),
       registered: false,
       backend: 'electron-global-shortcut',
       detail: 'Inspecting global shortcut support...',
@@ -141,12 +139,12 @@ export function createDesktopStateStore(): DesktopStateStore {
       };
     },
 
-    setShortcut(preset, support) {
+    setShortcut(chord, support) {
       commit((draft) => {
         draft.shortcut = {
-          presetId: preset.id,
-          accelerator: preset.accelerator,
-          label: preset.label,
+          chord,
+          accelerator: shortcutChordToElectronAccelerator(chord, process.platform),
+          label: formatShortcutChord(chord, process.platform),
           ...support,
         };
       });

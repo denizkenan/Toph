@@ -1,6 +1,6 @@
 import { rename, readFile, writeFile } from 'node:fs/promises';
 
-import type { AppSettings, ProviderId } from '@toph/desktop-contracts';
+import type { AppSettings, ProviderId, ShortcutChord } from '@toph/desktop-contracts';
 
 import {
   defaultAppSettings,
@@ -12,6 +12,7 @@ export interface AppSettingsStore {
   getSettings: () => AppSettings;
   subscribe: (listener: (settings: AppSettings) => void) => () => void;
   reloadFromDisk: () => Promise<AppSettings>;
+  setShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
   setAuthProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setTranscriptionProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setTranscriptionModel: (model: string) => Promise<AppSettings>;
@@ -123,6 +124,12 @@ export async function createAppSettingsStore(options: {
         publish();
       }
       return settings;
+    },
+
+    setShortcut(chord) {
+      return commit((draft) => {
+        draft.shortcut.chord = chord;
+      });
     },
 
     setAuthProvider(providerId) {

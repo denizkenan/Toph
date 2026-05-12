@@ -1,12 +1,9 @@
 import { useState } from "react";
 
 import {
-  resolveShortcutPresetForPlatform,
-  SHORTCUT_PRESETS,
   type AppState,
   type DesktopApi,
   type ProviderId,
-  type ShortcutPresetId,
 } from "@toph/desktop-contracts";
 
 import { DiagnosticsSection } from "../components/settings/diagnostics-section";
@@ -27,24 +24,12 @@ export function SettingsPage({
   client: DesktopApi;
   onBack: () => void;
 }) {
-  const [presetOverride, setPresetOverride] = useState<ShortcutPresetId | null>(
-    null,
-  );
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
-  const selectedPresetId = presetOverride ?? state.shortcut.presetId;
-  const shortcutDirty = selectedPresetId !== state.shortcut.presetId;
   const provider = state.providers.providers[0];
   const settingsEditable = state.phase === "idle";
 
-  const presetItems = SHORTCUT_PRESETS.map((preset) => ({
-    value: preset.id,
-    label: resolveShortcutPresetForPlatform(
-      preset.id,
-      state.environment.platform,
-    ).label,
-  }));
   const providerItems = state.providers.providers.map((item) => ({
     value: item.id,
     label: item.label,
@@ -181,16 +166,16 @@ export function SettingsPage({
         />
 
         <ShortcutSection
-          presetItems={presetItems}
-          selectedPresetId={selectedPresetId}
+          shortcut={state.shortcut.chord}
+          platform={state.environment.platform}
           registered={state.shortcut.registered}
           backend={state.shortcut.backend}
           detail={state.shortcut.detail}
-          dirty={shortcutDirty}
           installed={state.shortcut.installed}
           installable={state.shortcut.installable}
-          onPresetChange={setPresetOverride}
-          onApply={() => void client.installShortcut(selectedPresetId)}
+          onRegister={(chord) => client.installShortcut(chord)}
+          onSuspend={client.suspendShortcut}
+          onResume={client.resumeShortcut}
         />
 
         <DiagnosticsSection

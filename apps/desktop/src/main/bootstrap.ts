@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { app, shell } from 'electron';
-import { DEFAULT_APP_SETTINGS } from '@toph/desktop-contracts';
+import { DEFAULT_APP_SETTINGS, resolveDefaultShortcutChord } from '@toph/desktop-contracts';
 
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
@@ -31,6 +31,13 @@ import type { PolishPrompt } from './db/schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'Toph';
+
+const defaultAppSettings = {
+  ...DEFAULT_APP_SETTINGS,
+  shortcut: {
+    chord: resolveDefaultShortcutChord(process.platform),
+  },
+};
 
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
@@ -90,13 +97,13 @@ export async function bootstrap(options: {
     listPromptIds: async () => (await sessionStore.listPolishPrompts()).map((prompt) => prompt.id),
     defaultSettings: legacyPolishSettings
       ? {
-          ...DEFAULT_APP_SETTINGS,
+          ...defaultAppSettings,
           polish: {
             enabled: legacyPolishSettings.enabled,
             promptId: legacyPolishSettings.activePromptId,
           },
         }
-      : DEFAULT_APP_SETTINGS,
+      : defaultAppSettings,
   });
   const refreshPolishState = async () => {
     stateStore.setPolish(toPolishState(await sessionStore.listPolishPrompts()));
@@ -182,6 +189,9 @@ export async function bootstrap(options: {
     onTrigger: () => {
       void dictation.toggleCapture();
     },
+    persistShortcut: async (chord) => {
+      await settingsStore.setShortcut(chord);
+    },
   });
   const tray = createDesktopTrayController({
     appName,
@@ -225,7 +235,9 @@ export async function bootstrap(options: {
     toggleCapture: dictation.toggleCapture,
     showSettings: windows.showSettings,
     hideSettings: windows.hideSettings,
-    installShortcut: shortcuts.applyPreset,
+    installShortcut: shortcuts.installShortcut,
+    suspendShortcut: shortcuts.suspend,
+    resumeShortcut: shortcuts.resume,
     connectProvider: async (providerId) => {
       stateStore.setProviders(await providerAuth.getState());
       try {
@@ -294,7 +306,10 @@ export async function bootstrap(options: {
   tray.create();
   let quitCleanupComplete = false;
 
-  await shortcuts.applyPreset(stateStore.getState().shortcut.presetId);
+  await shortcuts.registerSavedShortcut(settingsStore.getSettings().shortcut.chord);
+  if (!stateStore.getState().shortcut.registered) {
+    windows.showSettings();
+  }
 
   try {
     stateStore.setPasteSupport(await clipboard.describePasteSupport());

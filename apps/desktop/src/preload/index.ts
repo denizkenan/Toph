@@ -5,7 +5,7 @@ import type {
   DesktopApi,
   PermissionRequirementId,
   ProviderId,
-  ShortcutPresetId,
+  ShortcutChord,
   SoundEventKind,
 } from '@toph/desktop-contracts';
 import { DESKTOP_IPC_CHANNELS } from '@toph/desktop-contracts';
@@ -43,8 +43,10 @@ const api: DesktopApi = {
   toggleCapture: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.toggleCapture) as Promise<void>,
   showSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.showSettings) as Promise<void>,
   hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
-  installShortcut: (presetId: ShortcutPresetId) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, presetId) as Promise<void>,
+  installShortcut: (chord: ShortcutChord) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, chord) as Promise<void>,
+  suspendShortcut: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.suspendShortcut) as Promise<void>,
+  resumeShortcut: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.resumeShortcut) as Promise<void>,
   connectProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId) as Promise<void>,
   submitProviderAuthorization: (providerId: ProviderId, input: string) =>
