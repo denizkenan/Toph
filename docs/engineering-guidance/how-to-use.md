@@ -83,11 +83,13 @@ Ask:
 
 The goal is to catch drift, surface the main risks, and inspect consequences — not just syntax.
 
-## Severity During Review
+## Severity Ladder
+
+Every finding falls into exactly one of three tiers. Use these definitions strictly. Do not smear findings across tiers to populate output, and do not invent a tier in between.
 
 ### Blocker
 
-The change is likely to damage evolvability, boundary integrity, behavioral safety, or verification quality. It should not merge as-is.
+A material violation of guidance: correctness, safety, boundary integrity, or contract issues that ship broken or wrong behavior. The caller must fix this before returning to the user. A re-review is expected after the fix.
 
 Examples:
 
@@ -98,7 +100,7 @@ Examples:
 
 ### Concern
 
-A meaningful problem that may be acceptable if addressed or justified.
+A design, boundary, or runtime gap with real consequence. Not broken, but materially diverges from guidance in a way the user should weigh in on. The caller fixes it directly when the resolution is clear, or surfaces it to the user when it requires a design-level tradeoff. Re-review only if the fix is substantial.
 
 Examples:
 
@@ -108,15 +110,17 @@ Examples:
 - names or boundaries are honest enough to pass but likely to confuse future readers
 - adds avoidable dependency surface for limited benefit
 
-### Suggestion
+### Nit
 
-An optional improvement that would strengthen the code without threatening correctness or architecture.
+A marginal improvement: a legitimate observation but optional and low-stakes. The caller surfaces Nits to the user as a flat list and applies them only when trivial and safe. Nits are terminal. They never warrant a re-review on their own.
 
 Examples:
 
 - a clearer module surface or function name would improve navigability
 - a small restructure would better align code with repo principles
 - additional verification would improve confidence even if current evidence is probably sufficient
+
+If a finding does not clearly meet the bar for Blocker or Concern, it is a Nit. If it does not meet the bar for Nit either, it should not appear in the output.
 
 ## What Good Review Feedback Looks Like
 
@@ -132,9 +136,10 @@ Prefer explaining the direction of improvement over prescribing exact code unles
 For AI reviewers, a good default shape is:
 
 1. Findings first, ordered by severity.
-2. For each finding, include severity, a short title, the reasoning, and concrete evidence.
+2. For each Blocker or Concern, include severity, a short title, the reasoning, and concrete evidence.
 3. If needed, include open questions or assumptions.
-4. End with a short summary only after the findings.
+4. Surface Nits only as a flat list.
+5. End with a short summary only after the findings.
 
 If there are no findings, say so explicitly and mention any residual risk or verification gaps.
 
