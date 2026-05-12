@@ -37,7 +37,7 @@ The durable engineering principles that define what good looks like in this repo
 
 ### `how-to-use.md`
 
-How to apply this guidance while coding or reviewing, including quick vs deep usage, severity, evidence expectations, and feedback shape.
+How to apply this guidance while coding or reviewing, including the core review questions, severity, evidence expectations, and feedback shape.
 
 ### `lenses/architecture-modules-and-boundaries.md`
 

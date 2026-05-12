@@ -61,39 +61,27 @@ Use this when the change raises questions like:
 
 If the main risk is unclear, skim the relevant lenses.
 
-## Quick And Deep Use
+## Core Review Questions
 
-### Quick
-
-Use quick mode by default.
+Use these questions to interrogate the change. They span shape, contracts, runtime behavior, and verification. Not every question applies to every change — pick the ones that match the risks present.
 
 Ask:
 
 - Is responsibility in the right place?
 - Did coupling increase in a way that will make future changes harder?
-- Are names, boundaries, and surfaces honest enough to understand the change quickly?
+- What would become harder to change after this lands?
+- Is the chosen abstraction actually reducing coordination cost?
+- Are names, boundaries, and surfaces honest enough to understand the change?
+- Which contracts changed, even if their TypeScript surface barely changed?
+- What assumptions does this code make about boundaries, ordering, lifecycle, or environment?
+- What behavior is implicit rather than explicit?
 - Is state or runtime behavior still locally understandable?
+- What failure, cleanup, or staleness cases could break this design?
 - Are React component files still navigable and reviewable when the change touches UI code?
 - If this introduces a new package dependency, is it necessary and proportionate to its long-term maintenance, bundle, and security cost?
 - Does the verification evidence match the risk of the change?
-- Does anything important need a deeper pass?
 
-Quick mode catches drift, surfaces the main risks, and decides whether deeper analysis is needed.
-
-### Deep
-
-Use deep mode when the change feels foundational, risky, or difficult to reverse.
-
-Ask:
-
-- What assumptions does this code make about boundaries, ordering, lifecycle, or environment?
-- Which contracts changed, even if their TypeScript surface barely changed?
-- What would become harder to change after this lands?
-- What behavior is implicit rather than explicit?
-- What failure, cleanup, or staleness cases could break this design?
-- Is the chosen abstraction actually reducing coordination cost?
-
-Deep mode inspects consequences, not just syntax.
+The goal is to catch drift, surface the main risks, and inspect consequences — not just syntax.
 
 ## Severity During Review
 
