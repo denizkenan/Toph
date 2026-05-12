@@ -9,7 +9,7 @@ import {
   type ShortcutPresetId,
 } from "@toph/desktop-contracts";
 
-import { EnvironmentSection } from "../components/settings/environment-section";
+import { DiagnosticsSection } from "../components/settings/diagnostics-section";
 import { PolishSection } from "../components/settings/polish-section";
 import { ProviderSection } from "../components/settings/provider-section";
 import { RoutingSection } from "../components/settings/routing-section";
@@ -150,15 +150,11 @@ export function SettingsPage({
 
         <RoutingSection
           providerItems={providerItems}
-          authProviderId={state.settings.auth.providerId}
           transcriptionProviderId={state.settings.transcription.providerId}
           transcriptionModel={state.settings.transcription.model}
           inferenceProviderId={state.settings.inference.providerId}
           inferenceModel={state.settings.inference.model}
           disabled={!settingsEditable || busySettings}
-          onAuthProviderChange={(providerId: ProviderId) =>
-            void updateSetting(() => client.setAuthProvider(providerId))
-          }
           onTranscriptionProviderChange={(providerId: ProviderId) =>
             void updateSetting(() =>
               client.setTranscriptionProvider(providerId),
@@ -197,7 +193,8 @@ export function SettingsPage({
           onApply={() => void client.installShortcut(selectedPresetId)}
         />
 
-        <EnvironmentSection
+        <DiagnosticsSection
+          providerLabel={provider?.label ?? null}
           currentDesktop={state.environment.currentDesktop}
           sessionType={state.environment.sessionType}
           platform={state.environment.platform}

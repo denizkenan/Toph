@@ -1,0 +1,69 @@
+import { SettingsSection } from "./settings-controls";
+
+export function DiagnosticsSection({
+  providerLabel,
+  currentDesktop,
+  sessionType,
+  platform,
+  providerReady,
+  polishEnabled,
+  polishPromptId,
+  permissionsReady,
+  pasteHelper,
+  pasteDetail,
+}: {
+  providerLabel: string | null;
+  currentDesktop: string;
+  sessionType: string;
+  platform: NodeJS.Platform;
+  providerReady: boolean;
+  polishEnabled: boolean;
+  polishPromptId: string;
+  permissionsReady: boolean;
+  pasteHelper: string | null;
+  pasteDetail: string;
+}) {
+  const rows = [
+    ["Provider", providerLabel ?? "None"],
+    ["Desktop environment", currentDesktop || "Unknown"],
+    ["Session type", sessionType || "Unknown"],
+    ["Platform", platform],
+    ["Provider status", providerReady ? "Ready" : "Needs setup"],
+    ["Polish status", polishEnabled ? polishPromptId : "Disabled"],
+    ["Permission status", permissionsReady ? "Ready" : "Needs setup"],
+    ["Paste helper", pasteHelper ?? "None"],
+    ["Paste detail", pasteDetail || "None"],
+  ];
+
+  return (
+    <SettingsSection
+      eyebrow="Advanced"
+      description="Troubleshooting details for support. Hidden until you need them."
+    >
+      <details className="group">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary transition-colors duration-150 hover:bg-white/4 [&::-webkit-details-marker]:hidden">
+          <span className="group-open:hidden">Show diagnostics</span>
+          <span className="hidden group-open:inline">Hide diagnostics</span>
+          <span className="text-text-tertiary transition-transform duration-150 group-open:rotate-90">
+            &gt;
+          </span>
+        </summary>
+        <dl className="border-t border-white/5">
+          {rows.map(([label, value], index) => (
+            <div
+              key={label}
+              className={`flex min-h-11 items-center justify-between gap-4 px-4 py-2.5 ${
+                index === rows.length - 1 ? "" : "border-b border-white/5"
+              }`}
+            >
+              <dt className="text-sm text-text-tertiary">{label}</dt>
+              <dd className="m-0 text-right text-sm font-semibold text-text-primary">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </SettingsSection>
+  );
+}
