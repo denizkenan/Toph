@@ -200,7 +200,6 @@ export async function bootstrap(options: {
     appName,
     getState: stateStore.getState,
     showSettings: windows.showSettings,
-    toggleCapture: dictation.toggleCapture,
     quit: () => {
       isQuitting = true;
       app.quit();
