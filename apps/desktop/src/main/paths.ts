@@ -1,11 +1,10 @@
 import { mkdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const dataDirectoryEnvVar = 'TOPH_DATA_DIRECTORY';
 
 function resolveDefaultDataDirectory() {
-  const homeDirectory = homedir();
+  const homeDirectory = process.env.HOME;
   if (!homeDirectory) {
     throw new Error('Unable to resolve Toph data directory because $HOME is not available.');
   }
