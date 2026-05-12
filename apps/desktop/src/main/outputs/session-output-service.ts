@@ -10,9 +10,9 @@ export interface SessionOutputService {
     text: string;
     provider: string;
     model: string | null;
-    promptId: string;
-    promptHash: string;
-  }) => Promise<{ id: string; text: string; createdAt: number; promptId: string; promptHash: string }>;
+    rulePresetId: string;
+    rulePresetHash: string;
+  }) => Promise<{ id: string; text: string; createdAt: number; rulePresetId: string; rulePresetHash: string }>;
   selectOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
 }
 
@@ -50,8 +50,8 @@ export function createSessionOutputService(options: {
         sourceOutputId: null,
         provider: null,
         model: null,
-        promptId: null,
-        promptHash: null,
+        rulePresetId: null,
+        rulePresetHash: null,
         createdAt: Date.now(),
       };
 
@@ -73,8 +73,8 @@ export function createSessionOutputService(options: {
         sourceOutputId: input.sourceOutputId,
         provider: input.provider,
         model: input.model,
-        promptId: input.promptId,
-        promptHash: input.promptHash,
+        rulePresetId: input.rulePresetId,
+        rulePresetHash: input.rulePresetHash,
         createdAt: Date.now(),
       };
 
@@ -83,8 +83,8 @@ export function createSessionOutputService(options: {
         id: output.id,
         text: output.text,
         createdAt: output.createdAt,
-        promptId: output.promptId,
-        promptHash: output.promptHash,
+          rulePresetId: output.rulePresetId,
+          rulePresetHash: output.rulePresetHash,
       };
     },
 

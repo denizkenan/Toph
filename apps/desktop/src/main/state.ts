@@ -47,8 +47,8 @@ export interface DesktopStateStore {
       id?: string;
       createdAt?: number;
       kind?: ConversionRecord['kind'];
-      promptId?: string | null;
-      promptHash?: string | null;
+      rulePresetId?: string | null;
+      rulePresetHash?: string | null;
     },
   ) => void;
 }
@@ -90,7 +90,8 @@ function createInitialState(): AppState {
     },
     settings: DEFAULT_APP_SETTINGS,
     polish: {
-      prompts: [],
+      rulePresets: [],
+      dictionary: [],
     },
     permissions: {
       ready: process.platform !== 'darwin',
@@ -266,8 +267,8 @@ export function createDesktopStateStore(): DesktopStateStore {
           id: options?.id ?? `${createdAt}`,
           text: transcript,
           kind: options?.kind ?? 'raw_concat',
-          promptId: options?.promptId ?? null,
-          promptHash: options?.promptHash ?? null,
+          rulePresetId: options?.rulePresetId ?? null,
+          rulePresetHash: options?.rulePresetHash ?? null,
           createdAt,
           pasteStatus: pasteAttempt.status,
           pasteDetail: pasteAttempt.detail,

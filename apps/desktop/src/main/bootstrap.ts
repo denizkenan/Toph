@@ -7,7 +7,7 @@ import { DEFAULT_APP_SETTINGS, resolveDefaultShortcutChord } from '@toph/desktop
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import { createProviderAuthService } from './auth/provider-auth-service';
-import type { PolishPrompt } from './db/schema';
+import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createDictationController } from './dictation';
 import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
 import { registerDesktopIpc } from './ipc';
@@ -18,10 +18,11 @@ import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
 import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
-import { defaultPolishPrompt } from './polish/builtin-prompts';
+import { builtinPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createAppSettingsStore } from './settings/app-settings-store';
+import { ensureDictionaryEnabledLimit, normalizeDictionaryEntryDraft, normalizeRulePresetDraft } from './settings/writing-settings-validation';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
@@ -43,13 +44,22 @@ function describeUnexpectedError(prefix: string, error: unknown) {
   return `${prefix} ${detail}.`;
 }
 
-function toPolishState(prompts: PolishPrompt[]) {
+function toPolishState(rulePresets: PolishRulePreset[], dictionary: DictionaryEntry[]) {
   return {
-    prompts: prompts.map((prompt) => ({
-      id: prompt.id,
-      title: prompt.title,
-      bodyHash: prompt.bodyHash,
-      isBuiltin: prompt.isBuiltin,
+    rulePresets: rulePresets.map((rulePreset) => ({
+      id: rulePreset.id,
+      title: rulePreset.title,
+      body: rulePreset.body,
+      bodyHash: rulePreset.bodyHash,
+      isBuiltin: rulePreset.isBuiltin,
+    })),
+    dictionary: dictionary.map((entry) => ({
+      id: entry.id,
+      term: entry.term,
+      hint: entry.hint,
+      enabled: entry.enabled,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
     })),
   };
 }
@@ -89,23 +99,40 @@ export async function bootstrap(options: {
     paths: dataPaths,
     migrationsFolder: join(__dirname, '../../drizzle'),
   });
-  await sessionStore.syncBuiltinPolishPrompt(defaultPolishPrompt);
+  for (const rulePreset of builtinPolishRulePresets) {
+    await sessionStore.syncBuiltinPolishRulePreset(rulePreset);
+  }
   const legacyPolishSettings = await sessionStore.getLegacyPolishSettings();
   const settingsStore = await createAppSettingsStore({
     settingsPath: dataPaths.settingsPath,
-    listPromptIds: async () => (await sessionStore.listPolishPrompts()).map((prompt) => prompt.id),
+    listRulePresetIds: async () => (await sessionStore.listPolishRulePresets()).map((rulePreset) => rulePreset.id),
     defaultSettings: legacyPolishSettings
       ? {
           ...defaultAppSettings,
           polish: {
             enabled: legacyPolishSettings.enabled,
-            promptId: legacyPolishSettings.activePromptId,
+            rulePresetId: legacyPolishSettings.activeRulePresetId,
           },
         }
       : defaultAppSettings,
   });
   const refreshPolishState = async () => {
-    stateStore.setPolish(toPolishState(await sessionStore.listPolishPrompts()));
+    stateStore.setPolish(toPolishState(
+      await sessionStore.listPolishRulePresets(),
+      await sessionStore.listDictionaryEntries(),
+    ));
+  };
+  let writingDataQueue: Promise<unknown> = Promise.resolve();
+  const updateWritingData = async (operation: () => Promise<void>) => {
+    const task = writingDataQueue.then(async () => {
+      if (stateStore.getState().phase !== 'idle') {
+        throw new Error('Settings cannot be changed while dictation is active.');
+      }
+      await operation();
+      await refreshPolishState();
+    });
+    writingDataQueue = task.catch(() => {});
+    return task;
   };
   const publishSettings = async () => {
     stateStore.setSettings(settingsStore.getSettings());
@@ -121,8 +148,8 @@ export async function bootstrap(options: {
       id: output.id,
       text: output.text,
       kind: output.kind,
-      promptId: output.promptId,
-      promptHash: output.promptHash,
+      rulePresetId: output.rulePresetId,
+      rulePresetHash: output.rulePresetHash,
       createdAt: output.createdAt,
       pasteStatus: 'idle',
       pasteDetail: 'Loaded from local history.',
@@ -169,6 +196,16 @@ export async function bootstrap(options: {
     }
     return providerState.ready;
   };
+  const ensureWritingReady = async () => {
+    // Setup intentionally requires a chosen writing style even if polish is later disabled;
+    // this avoids silent defaults and keeps Settings ready when the user re-enables polish.
+    const rulePresetId = settingsStore.getSettings().polish.rulePresetId;
+    const ready = !!rulePresetId && !!(await sessionStore.getPolishRulePreset(rulePresetId));
+    if (!ready) {
+      windows.showSettings();
+    }
+    return ready;
+  };
   const dictation = createDictationController({
     stateStore,
     sessionStore,
@@ -180,7 +217,7 @@ export async function bootstrap(options: {
     audioRecorder,
     clipboard,
     ensurePermissionsReady: async () =>
-      (await ensureProvidersReady()) && (await ensurePermissionsReady()),
+      (await ensureProvidersReady()) && (await ensurePermissionsReady()) && (await ensureWritingReady()),
     windows,
   });
   const shortcuts = createShortcutManager({
@@ -293,10 +330,71 @@ export async function bootstrap(options: {
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setPolishEnabled(enabled);
     },
-    setActivePolishPrompt: async (promptId) => {
+    setActivePolishRulePreset: async (rulePresetId) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
-      await settingsStore.setPolishPrompt(promptId);
+      await updateWritingData(async () => {
+        if (!(await sessionStore.getPolishRulePreset(rulePresetId))) {
+          throw new Error(`Polish rule preset "${rulePresetId}" is not available.`);
+        }
+        await settingsStore.setPolishRulePreset(rulePresetId);
+      });
+    },
+    createPolishRulePreset: async (draft) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        await sessionStore.createPolishRulePreset(normalizeRulePresetDraft(draft));
+      });
+    },
+    updatePolishRulePreset: async (id, draft) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        await sessionStore.updatePolishRulePreset(id, normalizeRulePresetDraft(draft));
+      });
+    },
+    deletePolishRulePreset: async (id) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        if (settingsStore.getSettings().polish.rulePresetId === id) {
+          throw new Error('Choose another active rule preset before deleting this one.');
+        }
+        await sessionStore.deletePolishRulePreset(id);
+      });
+    },
+    createDictionaryEntry: async (draft) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        const normalized = normalizeDictionaryEntryDraft(draft);
+        ensureDictionaryEnabledLimit({
+          entries: await sessionStore.listDictionaryEntries(),
+          draft: normalized,
+        });
+        await sessionStore.createDictionaryEntry(normalized);
+      });
+    },
+    updateDictionaryEntry: async (id, draft) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        const normalized = normalizeDictionaryEntryDraft(draft);
+        ensureDictionaryEnabledLimit({
+          entries: await sessionStore.listDictionaryEntries(),
+          draft: normalized,
+          existingId: id,
+        });
+        await sessionStore.updateDictionaryEntry(id, normalized);
+      });
+    },
+    deleteDictionaryEntry: async (id) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        await sessionStore.deleteDictionaryEntry(id);
+      });
     },
     performPermissionAction: async (permissionId) => {
       stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
@@ -313,6 +411,7 @@ export async function bootstrap(options: {
   await windows.create();
   await ensureProvidersReady();
   await ensurePermissionsReady();
+  await ensureWritingReady();
   const stopTrackingOverlayPlacement = windows.trackOverlayPlacement();
   tray.create();
   let quitCleanupComplete = false;

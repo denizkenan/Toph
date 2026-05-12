@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
@@ -43,10 +43,15 @@ const baseState: AppState = {
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
-    polish: { enabled: true, promptId: 'default' },
+    polish: { enabled: true, rulePresetId: 'general' },
   },
   polish: {
-    prompts: [{ id: 'default', title: 'Default', bodyHash: 'hash', isBuiltin: true }],
+    rulePresets: [
+      { id: 'general', title: 'General', body: 'General rules', bodyHash: 'hash', isBuiltin: true },
+      { id: 'engineer', title: 'Engineer', body: 'Engineer rules', bodyHash: 'hash', isBuiltin: true },
+      { id: 'email-writing', title: 'Email & Writing', body: 'Email rules', bodyHash: 'hash', isBuiltin: true },
+    ],
+    dictionary: [],
   },
   permissions: {
     ready: true,
@@ -90,7 +95,13 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setInferenceProvider: async () => {},
     setInferenceModel: async () => {},
     setPolishEnabled: async () => {},
-    setActivePolishPrompt: async () => {},
+    setActivePolishRulePreset: async () => {},
+    createPolishRulePreset: async () => {},
+    updatePolishRulePreset: async () => {},
+    deletePolishRulePreset: async () => {},
+    createDictionaryEntry: async () => {},
+    updateDictionaryEntry: async () => {},
+    deleteDictionaryEntry: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
@@ -116,8 +127,8 @@ describe('HomeApp', () => {
           id: 'conv-1',
           text: 'This is a test dictation result from the mock flow.',
           kind: 'polished',
-          promptId: 'default',
-          promptHash: 'hash',
+          rulePresetId: 'general',
+          rulePresetHash: 'hash',
           createdAt: Date.now() - 120_000,
           pasteStatus: 'success',
           pasteDetail: 'Pasted via ydotool.',
@@ -126,8 +137,8 @@ describe('HomeApp', () => {
           id: 'conv-2',
           text: 'Another dictation that failed to paste.',
           kind: 'raw_concat',
-          promptId: null,
-          promptHash: null,
+          rulePresetId: null,
+          rulePresetHash: null,
           createdAt: Date.now() - 600_000,
           pasteStatus: 'failed',
           pasteDetail: 'ydotool timed out.',
@@ -139,7 +150,7 @@ describe('HomeApp', () => {
 
     await screen.findByText('This is a test dictation result from the mock flow.');
     expect(screen.getByText('Pasted')).toBeTruthy();
-    expect(screen.getByText('Polish: default')).toBeTruthy();
+    expect(screen.getByText('Rules: general')).toBeTruthy();
     expect(screen.getByText('Paste failed')).toBeTruthy();
   });
 
@@ -182,6 +193,63 @@ describe('HomeApp', () => {
     expect(screen.getByText(/Bring your own subscription/)).toBeTruthy();
     expect(screen.getByText('Microphone')).toBeTruthy();
     expect(screen.getByText('Accessibility')).toBeTruthy();
+  });
+
+  it('keeps onboarding open after preset selection until the user gets started', async () => {
+    let publish: ((state: AppState) => void) | null = null;
+    const initialState = {
+      ...baseState,
+      settings: {
+        ...baseState.settings,
+        polish: { enabled: true, rulePresetId: null },
+      },
+    };
+    const selectedState = {
+      ...baseState,
+      settings: {
+        ...baseState.settings,
+        polish: { enabled: true, rulePresetId: 'engineer' },
+      },
+    };
+    const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(async (rulePresetId) => {
+      act(() => {
+        publish?.({
+          ...selectedState,
+          settings: {
+            ...selectedState.settings,
+            polish: { enabled: true, rulePresetId },
+          },
+        });
+      });
+    });
+
+    render(
+      <HomeApp
+        client={{
+          ...createClient(initialState),
+          subscribeState: (listener) => {
+            publish = listener;
+            listener(initialState);
+            return () => {};
+          },
+          setActivePolishRulePreset,
+        }}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    const getStarted = screen.getByRole('button', { name: "Let's get started" }) as HTMLButtonElement;
+    expect(getStarted.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: /Engineer/ }));
+
+    await waitFor(() => expect(setActivePolishRulePreset).toHaveBeenCalledWith('engineer'));
+    expect(screen.getByRole('heading', { name: /Your fingers called/ })).toBeTruthy();
+    expect((screen.getByRole('button', { name: "Let's get started" }) as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: "Let's get started" }));
+
+    await screen.findByText('Nothing here yet.');
   });
 
   it('refreshes onboarding state when the window regains focus', async () => {

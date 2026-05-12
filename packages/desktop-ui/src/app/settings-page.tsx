@@ -34,10 +34,6 @@ export function SettingsPage({
     value: item.id,
     label: item.label,
   }));
-  const polishPromptItems = state.polish.prompts.map((prompt) => ({
-    value: prompt.id,
-    label: prompt.title,
-  }));
 
   const connectProvider = async () => {
     if (!provider) {
@@ -82,15 +78,6 @@ export function SettingsPage({
       await action();
     } finally {
       setBusySettings(false);
-    }
-  };
-
-  const setActivePolishPrompt = async (promptId: string) => {
-    setBusyPolish(true);
-    try {
-      await client.setActivePolishPrompt(promptId);
-    } finally {
-      setBusyPolish(false);
     }
   };
 
@@ -158,11 +145,12 @@ export function SettingsPage({
 
         <PolishSection
           enabled={state.settings.polish.enabled}
-          promptId={state.settings.polish.promptId}
-          promptItems={polishPromptItems}
+          activeRulePresetId={state.settings.polish.rulePresetId}
+          rulePresets={state.polish.rulePresets}
+          dictionary={state.polish.dictionary}
           disabled={!settingsEditable || busyPolish}
+          client={client}
           onEnabledChange={(enabled) => void setPolishEnabled(enabled)}
-          onPromptChange={(promptId) => void setActivePolishPrompt(promptId)}
         />
 
         <ShortcutSection
@@ -185,7 +173,7 @@ export function SettingsPage({
           platform={state.environment.platform}
           providerReady={state.providers.ready}
           polishEnabled={state.settings.polish.enabled}
-          polishPromptId={state.settings.polish.promptId}
+          polishRulePresetId={state.settings.polish.rulePresetId}
           permissionsReady={state.permissions.ready}
           pasteHelper={state.pasteSupport.helper}
           pasteDetail={state.pasteSupport.detail}

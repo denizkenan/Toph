@@ -7,7 +7,7 @@ export function DiagnosticsSection({
   platform,
   providerReady,
   polishEnabled,
-  polishPromptId,
+  polishRulePresetId,
   permissionsReady,
   pasteHelper,
   pasteDetail,
@@ -18,7 +18,7 @@ export function DiagnosticsSection({
   platform: NodeJS.Platform;
   providerReady: boolean;
   polishEnabled: boolean;
-  polishPromptId: string;
+  polishRulePresetId: string | null;
   permissionsReady: boolean;
   pasteHelper: string | null;
   pasteDetail: string;
@@ -29,7 +29,7 @@ export function DiagnosticsSection({
     ["Session type", sessionType || "Unknown"],
     ["Platform", platform],
     ["Provider status", providerReady ? "Ready" : "Needs setup"],
-    ["Polish status", polishEnabled ? polishPromptId : "Disabled"],
+    ["Polish status", polishEnabled ? (polishRulePresetId ?? "Needs setup") : "Disabled"],
     ["Permission status", permissionsReady ? "Ready" : "Needs setup"],
     ["Paste helper", pasteHelper ?? "None"],
     ["Paste detail", pasteDetail || "None"],

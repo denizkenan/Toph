@@ -4,6 +4,7 @@ import type {
   DesktopApi,
   PermissionRequirement,
   PermissionRequirementId,
+  PolishRulePresetSummary,
   ProviderId,
   ProviderState,
 } from '@toph/desktop-contracts';
@@ -20,18 +21,26 @@ export function OnboardingScreen({
   platform,
   providers,
   permissionsReady,
+  rulePresets,
+  activeRulePresetId,
   requirements,
   client,
+  onGetStarted,
 }: {
   platform: NodeJS.Platform;
   providers: ProviderState;
   permissionsReady: boolean;
+  rulePresets: PolishRulePresetSummary[];
+  activeRulePresetId: string | null;
   requirements: PermissionRequirement[];
   client: DesktopApi;
+  onGetStarted: () => void;
 }) {
   const [busyPermission, setBusyPermission] = useState<PermissionRequirementId | 'refresh' | null>(null);
   const [busyProvider, setBusyProvider] = useState<ProviderId | 'manual' | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
+  const [busyRulePreset, setBusyRulePreset] = useState<string | null>(null);
+  const [selectedRulePresetId, setSelectedRulePresetId] = useState<string | null>(activeRulePresetId);
   const [selectedProviderId, setSelectedProviderId] = useState<ProviderId>(
     providers.selectedProviderId ?? providers.providers[0]?.id ?? 'openai-sub',
   );
@@ -42,6 +51,12 @@ export function OnboardingScreen({
   ).length;
   const providerComplete = providers.ready;
   const permissionsComplete = permissionsReady && completeCount === requirements.length;
+  const writingComplete = !!selectedRulePresetId && rulePresets.some((preset) => preset.id === selectedRulePresetId);
+  const locallyComplete = providerComplete && permissionsComplete && writingComplete;
+
+  useEffect(() => {
+    setSelectedRulePresetId(activeRulePresetId);
+  }, [activeRulePresetId]);
 
   const performAction = async (permissionId: PermissionRequirementId) => {
     setBusyPermission(permissionId);
@@ -72,6 +87,18 @@ export function OnboardingScreen({
       // Main process publishes the actionable provider error in AppState.
     } finally {
       setBusyProvider(null);
+    }
+  };
+
+  const selectRulePreset = async (rulePresetId: string) => {
+    setSelectedRulePresetId(rulePresetId);
+    setBusyRulePreset(rulePresetId);
+    try {
+      await client.setActivePolishRulePreset(rulePresetId);
+    } catch {
+      setSelectedRulePresetId(activeRulePresetId);
+    } finally {
+      setBusyRulePreset(null);
     }
   };
 
@@ -114,15 +141,15 @@ export function OnboardingScreen({
   }, [refresh]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-10 pt-20 pb-10 max-[980px]:px-6 max-[980px]:pt-14 max-[980px]:pb-8">
+    <main className="relative h-screen overflow-hidden px-10 pt-20 pb-32 max-[980px]:px-6 max-[980px]:pt-14 max-[980px]:pb-36">
       {platform === 'darwin' && (
         <WindowDragRegion />
       )}
       <AppBackdrop variant="onboarding" />
 
-      <section className="relative mx-auto min-h-[calc(100vh-7.5rem)] max-w-[1100px]">
-        <div className="grid gap-16 lg:grid-cols-[1fr_1.4fr] max-[980px]:gap-12">
-          <header className="max-w-[390px] lg:sticky lg:top-20 max-[980px]:mx-auto max-[980px]:text-center">
+      <section className="relative mx-auto h-full max-w-[1100px]">
+        <div className="grid h-full min-h-0 gap-16 lg:grid-cols-[1fr_1.4fr] max-[980px]:grid-rows-[auto_1fr] max-[980px]:gap-8">
+          <header className="max-w-[390px] self-start max-[980px]:mx-auto max-[980px]:max-w-[42rem] max-[980px]:text-center">
             <span className="mb-6 inline-flex rounded-full border border-accent-cyan/18 bg-accent-cyan/6 px-3.5 py-1.5 font-display text-xs font-semibold tracking-[0.12em] text-accent-cyan uppercase">
               Setup
             </span>
@@ -146,8 +173,8 @@ export function OnboardingScreen({
             </div>
           </header>
 
-          <div>
-            <div>
+          <div className="min-h-0 overflow-y-auto pr-2 pb-8 [scrollbar-width:none] max-[980px]:pr-0 [&::-webkit-scrollbar]:hidden">
+            <div className="pb-8">
               <StepSection
                 complete={providerComplete}
                 showConnector
@@ -169,6 +196,7 @@ export function OnboardingScreen({
 
               <StepSection
                 complete={permissionsComplete}
+                showConnector
                 marker={permissionsComplete ? <CheckIcon size={16} /> : <span className="font-display text-sm font-semibold">2</span>}
                 title="Grant permissions"
                 status={permissionsComplete ? 'Complete' : 'Pending'}
@@ -204,6 +232,42 @@ export function OnboardingScreen({
                 </div>
               </StepSection>
 
+              <StepSection
+                complete={writingComplete}
+                marker={writingComplete ? <CheckIcon size={16} /> : <span className="font-display text-sm font-semibold">3</span>}
+                title="Choose writing style"
+                status={writingComplete ? 'Complete' : 'Required'}
+              >
+                <div className="grid gap-3 md:grid-cols-3">
+                  {rulePresets.map((preset) => {
+                    const selected = selectedRulePresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className={`group flex min-h-42 cursor-pointer flex-col rounded-[1.375rem] border p-4 text-left transition-[transform,border-color,background-color,opacity] duration-300 ease-out hover:-translate-y-px disabled:cursor-default disabled:opacity-55 ${selected ? 'border-accent-blue/45 bg-accent-blue/10' : 'border-white/6 bg-white/2 hover:border-white/10 hover:bg-white/4'}`}
+                        onClick={() => void selectRulePreset(preset.id)}
+                        disabled={!providerComplete || !permissionsComplete || busyRulePreset !== null}
+                      >
+                        <span className="mb-3 inline-flex w-fit rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em] text-text-tertiary uppercase">
+                          {selected ? 'Selected' : preset.isBuiltin ? 'Built-in' : 'Custom'}
+                        </span>
+                        <span className="font-display text-lg font-semibold tracking-[-0.03em] text-text-primary">{preset.title}</span>
+                        <span className="mt-2 line-clamp-4 text-sm leading-relaxed text-text-secondary">
+                          {preset.body.replace(/^You are polishing dictation /, '').split('\n').find((line) => line.trim().length > 0) ?? 'Custom writing behavior.'}
+                        </span>
+                        <span className="mt-auto pt-4 text-xs font-semibold text-accent-blue">
+                          {busyRulePreset === preset.id ? 'Selecting...' : selected ? 'Ready to dictate' : 'Use this style'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 mb-0 text-xs leading-relaxed text-text-tertiary">
+                  You can change this later from Settings → Writing & Dictionary. No lock-in, unlike that one vendor SDK.
+                </p>
+              </StepSection>
+
               <p className="mt-0 mb-0 pl-16 text-sm text-text-tertiary max-[640px]:pl-12">
                 Changed something in System Settings?{' '}
                 <Button
@@ -223,6 +287,22 @@ export function OnboardingScreen({
           </div>
         </div>
       </section>
+
+      <div className="fixed right-0 bottom-0 left-0 z-40 border-t border-white/8 bg-canvas/88 px-6 py-4 backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-4 max-[640px]:flex-col max-[640px]:items-stretch">
+          <div>
+            <p className="m-0 text-sm font-semibold text-text-primary">
+              {locallyComplete ? 'Setup complete. The tiny dictation empire is operational.' : 'Finish the setup steps above to unlock dictation.'}
+            </p>
+            <p className="mt-0.5 mb-0 text-xs text-text-tertiary">
+              You can change your writing style later from Settings → Writing & Dictionary.
+            </p>
+          </div>
+          <Button variant="primary" className="shrink-0" onClick={onGetStarted} disabled={!locallyComplete}>
+            Let&apos;s get started
+          </Button>
+        </div>
+      </div>
     </main>
   );
 }

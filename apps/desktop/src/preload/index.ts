@@ -3,8 +3,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppState,
   DesktopApi,
+  DictionaryEntryDraft,
   OverlaySize,
   PermissionRequirementId,
+  PolishRulePresetDraft,
   ProviderId,
   ShortcutChord,
   SoundEventKind,
@@ -75,8 +77,20 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceModel, model) as Promise<void>,
   setPolishEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setPolishEnabled, enabled) as Promise<void>,
-  setActivePolishPrompt: (promptId: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setActivePolishPrompt, promptId) as Promise<void>,
+  setActivePolishRulePreset: (rulePresetId: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset, rulePresetId) as Promise<void>,
+  createPolishRulePreset: (draft: PolishRulePresetDraft) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.createPolishRulePreset, draft) as Promise<void>,
+  updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.updatePolishRulePreset, id, draft) as Promise<void>,
+  deletePolishRulePreset: (id: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.deletePolishRulePreset, id) as Promise<void>,
+  createDictionaryEntry: (draft: DictionaryEntryDraft) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.createDictionaryEntry, draft) as Promise<void>,
+  updateDictionaryEntry: (id: string, draft: DictionaryEntryDraft) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.updateDictionaryEntry, id, draft) as Promise<void>,
+  deleteDictionaryEntry: (id: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry, id) as Promise<void>,
   performPermissionAction: (permissionId: PermissionRequirementId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.performPermissionAction, permissionId) as Promise<void>,
   refreshPermissions: () =>

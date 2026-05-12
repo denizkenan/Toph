@@ -7,8 +7,10 @@ import {
   PROVIDER_IDS,
   validateShortcutChord,
   type AppState,
+  type DictionaryEntryDraft,
   type OverlaySize,
   type PermissionRequirementId,
+  type PolishRulePresetDraft,
   type ProviderId,
   type ShortcutChord,
 } from '@toph/desktop-contracts';
@@ -22,6 +24,28 @@ function isPermissionRequirementId(value: unknown): value is PermissionRequireme
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && PROVIDER_IDS.includes(value as ProviderId);
+}
+
+function isPolishRulePresetDraft(value: unknown): value is PolishRulePresetDraft {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const draft = value as Partial<PolishRulePresetDraft>;
+  return typeof draft.title === 'string' && typeof draft.body === 'string';
+}
+
+function isDictionaryEntryDraft(value: unknown): value is DictionaryEntryDraft {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const draft = value as Partial<DictionaryEntryDraft>;
+  return (
+    typeof draft.term === 'string' &&
+    (typeof draft.hint === 'string' || draft.hint === null) &&
+    typeof draft.enabled === 'boolean'
+  );
 }
 
 export function registerDesktopIpc(options: {
@@ -44,7 +68,13 @@ export function registerDesktopIpc(options: {
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
   setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
-  setActivePolishPrompt: (promptId: string) => Promise<void>;
+  setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
+  createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
+  updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
+  deletePolishRulePreset: (id: string) => Promise<void>;
+  createDictionaryEntry: (draft: DictionaryEntryDraft) => Promise<void>;
+  updateDictionaryEntry: (id: string, draft: DictionaryEntryDraft) => Promise<void>;
+  deleteDictionaryEntry: (id: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
   quit: () => void;
@@ -161,12 +191,54 @@ export function registerDesktopIpc(options: {
 
     await options.setPolishEnabled(enabled);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.setActivePolishPrompt, async (_event, promptId: unknown) => {
-    if (typeof promptId !== 'string' || promptId.trim().length === 0) {
-      throw new Error('Invalid Polish prompt.');
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset, async (_event, rulePresetId: unknown) => {
+    if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
+      throw new Error('Invalid Polish rule preset.');
     }
 
-    await options.setActivePolishPrompt(promptId);
+    await options.setActivePolishRulePreset(rulePresetId);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.createPolishRulePreset, async (_event, draft: unknown) => {
+    if (!isPolishRulePresetDraft(draft)) {
+      throw new Error('Invalid Polish rule preset.');
+    }
+
+    await options.createPolishRulePreset(draft);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.updatePolishRulePreset, async (_event, id: unknown, draft: unknown) => {
+    if (typeof id !== 'string' || id.trim().length === 0 || !isPolishRulePresetDraft(draft)) {
+      throw new Error('Invalid Polish rule preset.');
+    }
+
+    await options.updatePolishRulePreset(id, draft);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.deletePolishRulePreset, async (_event, id: unknown) => {
+    if (typeof id !== 'string' || id.trim().length === 0) {
+      throw new Error('Invalid Polish rule preset.');
+    }
+
+    await options.deletePolishRulePreset(id);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.createDictionaryEntry, async (_event, draft: unknown) => {
+    if (!isDictionaryEntryDraft(draft)) {
+      throw new Error('Invalid dictionary entry.');
+    }
+
+    await options.createDictionaryEntry(draft);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.updateDictionaryEntry, async (_event, id: unknown, draft: unknown) => {
+    if (typeof id !== 'string' || id.trim().length === 0 || !isDictionaryEntryDraft(draft)) {
+      throw new Error('Invalid dictionary entry.');
+    }
+
+    await options.updateDictionaryEntry(id, draft);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry, async (_event, id: unknown) => {
+    if (typeof id !== 'string' || id.trim().length === 0) {
+      throw new Error('Invalid dictionary entry.');
+    }
+
+    await options.deleteDictionaryEntry(id);
   });
   ipcMain.handle(
     DESKTOP_IPC_CHANNELS.performPermissionAction,
@@ -205,7 +277,13 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceModel);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);
-    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishPrompt);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createPolishRulePreset);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.updatePolishRulePreset);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deletePolishRulePreset);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createDictionaryEntry);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.updateDictionaryEntry);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.performPermissionAction);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshPermissions);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.quit);

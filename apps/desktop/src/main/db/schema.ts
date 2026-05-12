@@ -92,17 +92,26 @@ export const sessionOutputs = sqliteTable('session_outputs', {
   sourceOutputId: text('source_output_id'),
   provider: text('provider'),
   model: text('model'),
-  promptId: text('prompt_id'),
-  promptHash: text('prompt_hash'),
+  rulePresetId: text('rule_preset_id'),
+  rulePresetHash: text('rule_preset_hash'),
   createdAt: integer('created_at').notNull(),
 });
 
-export const polishPrompts = sqliteTable('polish_prompts', {
+export const polishRulePresets = sqliteTable('polish_rule_presets', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   body: text('body').notNull(),
   bodyHash: text('body_hash').notNull(),
   isBuiltin: integer('is_builtin', { mode: 'boolean' }).notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const dictionaryEntries = sqliteTable('dictionary_entries', {
+  id: text('id').primaryKey(),
+  term: text('term').notNull(),
+  hint: text('hint'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
@@ -125,4 +134,5 @@ export type TranscriptionBatch = typeof transcriptionBatches.$inferSelect;
 export type BatchTranscript = typeof batchTranscripts.$inferSelect;
 export type BatchSourceRange = typeof batchSourceRanges.$inferSelect;
 export type SessionOutput = typeof sessionOutputs.$inferSelect;
-export type PolishPrompt = typeof polishPrompts.$inferSelect;
+export type PolishRulePreset = typeof polishRulePresets.$inferSelect;
+export type DictionaryEntry = typeof dictionaryEntries.$inferSelect;

@@ -102,9 +102,9 @@ export function DictationCard({
             <span className={`text-sm font-medium ${statusTone}`}>
               {statusLabel}
             </span>
-            {conversion.kind === 'polished' && conversion.promptId && (
+            {conversion.kind === 'polished' && conversion.rulePresetId && (
               <span className="rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-xs font-medium text-text-tertiary">
-                Polish: {conversion.promptId}
+                Rules: {conversion.rulePresetId}
               </span>
             )}
           </div>
@@ -121,10 +121,10 @@ export function DictationCard({
                 {conversion.pasteDetail}
               </p>
             )}
-            {conversion.kind === 'polished' && conversion.promptId && (
+            {conversion.kind === 'polished' && conversion.rulePresetId && (
               <p className="mt-2 mb-0 text-xs text-text-tertiary">
-                Polished with prompt <span className="font-semibold text-text-secondary">{conversion.promptId}</span>
-                {conversion.promptHash ? ` (${conversion.promptHash.slice(0, 12)})` : ''}
+                Polished with rules <span className="font-semibold text-text-secondary">{conversion.rulePresetId}</span>
+                {conversion.rulePresetHash ? ` (${conversion.rulePresetHash.slice(0, 12)})` : ''}
               </p>
             )}
           </div>
