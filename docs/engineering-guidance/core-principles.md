@@ -14,6 +14,7 @@ All engineering work should primarily protect these qualities:
 - behavioral safety
 - verification quality
 - navigability
+- drift prevention
 
 ## Principles
 
@@ -43,6 +44,12 @@ Code is easier to evolve when a reader can understand one area without chasing u
 
 Treat contracts broadly. Contracts include types, event semantics, IPC boundaries, state shape assumptions, public APIs, and lifecycle expectations. Make these contracts clear, stable, and easy to verify.
 
+### Prevent Drift Through Intentional Reuse
+
+Actively look for parallel implementations of the same concept, workflow, component shape, state transition, contract, validation rule, persistence behavior, or runtime pattern. When those implementations share future-change pressure, prefer a shared component, function, module, shell, contract, or capability boundary that prevents behavior, UX, visual, or logic drift.
+
+Do not extract just because code looks similar. Reuse is valuable when it creates a deeper module, clearer contract, smaller review surface, or safer future change path. It is harmful when it creates shallow wrappers, broad parameter bags, or coupling between concepts that should evolve independently.
+
 ### Keep Behavior Honest And Visible
 
 Hidden behavior is expensive behavior. Be suspicious when names sound narrower than the work they perform, when state transitions are hidden behind generic helpers, or when runtime effects and failures are difficult to infer from the call site or diagnose from the available signals.
@@ -67,3 +74,5 @@ The codebase should help a new contributor or agent find where logic belongs, ho
 - names that underspecify responsibility or side effects
 - runtime behavior that depends on non-obvious ordering or cleanup assumptions
 - changes that are easy to merge but hard to verify or reason about later
+- duplicated patterns that can drift in behavior, UX, validation, lifecycle, or contracts
+- abstractions that remove repeated code while weakening ownership, boundaries, or local reasoning

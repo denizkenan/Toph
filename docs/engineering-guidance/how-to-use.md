@@ -14,6 +14,8 @@ Ask:
 - Am I making future change cheaper or more expensive?
 - Is this creating a deeper module or just more fragmentation?
 - Is runtime behavior becoming clearer or more implicit?
+- Am I introducing or extending a pattern that already exists nearby?
+- Could intentional reuse prevent future behavioral, visual, UX, contract, or logic drift?
 - Will the evidence I leave behind be enough for someone else to trust this later?
 
 ## While Reviewing
@@ -49,6 +51,16 @@ Use this when the change raises questions like:
 - Are runtime boundaries, failure handling, diagnosability, or cross-process interactions safe?
 - Will this create leaks, stale behavior, rerender churn, or ordering bugs?
 
+### Use `lenses/reuse-and-drift-prevention.md` when the main risk is duplicated patterns or future drift
+
+Use this when the change raises questions like:
+
+- Is this adding a second or third implementation of a similar component, workflow, contract, validation rule, lifecycle pattern, or state transition?
+- Do these implementations share future-change pressure?
+- Could a shared component, function, module, shell, contract, or capability boundary prevent drift?
+- Would the shared abstraction be deep enough to improve the system, or would it be shallow DRY that weakens local reasoning?
+- Has the reviewer done a lightweight scan of nearby related code rather than only reading the diff?
+
 ### Use `lenses/react-component-structure-and-reviewability.md` when the main risk is React UI structure
 
 Use this when the change raises questions like:
@@ -73,6 +85,9 @@ Ask:
 - Is the chosen abstraction actually reducing coordination cost?
 - Are names, boundaries, and surfaces honest enough to understand the change?
 - Which contracts changed, even if their TypeScript surface barely changed?
+- Is this duplicating a concept, workflow, contract, validation rule, lifecycle pattern, or state transition that already exists nearby?
+- Could future drift between these implementations create inconsistent behavior, UX, visuals, or logic?
+- Is a shared abstraction reasonably clear, and would it remain deep rather than shallow?
 - What assumptions does this code make about boundaries, ordering, lifecycle, or environment?
 - What behavior is implicit rather than explicit?
 - Is state or runtime behavior still locally understandable?
@@ -97,6 +112,7 @@ Examples:
 - hides behavior in a way likely to cause incorrectness
 - creates a module shape that will cause lasting maintenance pain or change amplification
 - depends on brittle ordering, cleanup, or environment assumptions
+- duplicates a drift-prone behavior, contract, lifecycle pattern, validation rule, or user-facing shape when a shared deeper abstraction is reasonably clear
 
 ### Concern
 
@@ -109,6 +125,7 @@ Examples:
 - has thin tests or evidence for the type of risk introduced
 - names or boundaries are honest enough to pass but likely to confuse future readers
 - adds avoidable dependency surface for limited benefit
+- duplicates a drift-prone pattern, but the right shared boundary needs design judgment
 
 ### Nit
 
@@ -119,6 +136,7 @@ Examples:
 - a clearer module surface or function name would improve navigability
 - a small restructure would better align code with repo principles
 - additional verification would improve confidence even if current evidence is probably sufficient
+- a small reuse opportunity exists, but drift consequence is low or extraction would be speculative
 
 If a finding does not clearly meet the bar for Blocker or Concern, it is a Nit. If it does not meet the bar for Nit either, it should not appear in the output.
 

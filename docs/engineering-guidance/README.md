@@ -6,7 +6,7 @@ This directory contains the engineering guidance for this repo. These docs are m
 
 The guidance is question-driven, non-prescriptive, and intentionally opinionated toward keeping the codebase maintainable, modular, navigable, and easy to evolve.
 
-These docs focus on engineering quality. They do not currently cover product, UX, or design review.
+These docs focus on engineering quality. They are not a product or visual design spec, but they do treat user-facing behavior, interaction consistency, and UX drift as engineering concerns when a change affects them.
 
 ## Start Here
 
@@ -28,6 +28,7 @@ Across coding and review, this repo's engineering guidance primarily protects:
 - behavioral safety
 - verification quality
 - navigability
+- drift prevention
 
 ## Guidance Map
 
@@ -46,6 +47,10 @@ Use this lens when the main question is whether the shape of the system is getti
 ### `lenses/state-effects-and-runtime-behavior.md`
 
 Use this lens when the main question is whether runtime behavior is safe, understandable, diagnosable, and easy to evolve.
+
+### `lenses/reuse-and-drift-prevention.md`
+
+Use this lens when the main question is whether parallel implementations should stay separate or be unified to prevent behavioral, visual, UX, contract, or logic drift.
 
 ### `lenses/react-component-structure-and-reviewability.md`
 

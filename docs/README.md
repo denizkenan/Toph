@@ -30,4 +30,6 @@
 - [docs/engineering-guidance/core-principles.md](docs/engineering-guidance/core-principles.md)
 - [docs/engineering-guidance/how-to-use.md](docs/engineering-guidance/how-to-use.md)
 - [docs/engineering-guidance/lenses/architecture-modules-and-boundaries.md](docs/engineering-guidance/lenses/architecture-modules-and-boundaries.md)
+- [docs/engineering-guidance/lenses/react-component-structure-and-reviewability.md](docs/engineering-guidance/lenses/react-component-structure-and-reviewability.md)
+- [docs/engineering-guidance/lenses/reuse-and-drift-prevention.md](docs/engineering-guidance/lenses/reuse-and-drift-prevention.md)
 - [docs/engineering-guidance/lenses/state-effects-and-runtime-behavior.md](docs/engineering-guidance/lenses/state-effects-and-runtime-behavior.md)
