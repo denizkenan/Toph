@@ -32,6 +32,10 @@ CREATE TABLE `dictionary_entries` (
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
+INSERT INTO `dictionary_entries` (`id`, `term`, `hint`, `enabled`, `created_at`, `updated_at`) VALUES
+	('dictionary_entry_toph', 'Toph', 'Proper noun. The dictation app being used. Sounds like "Toff".', 1, 0, 0),
+	('dictionary_entry_yourtechbud', 'YourTechBud', 'Proper noun. The creator of this program.', 1, 0, 0);
+--> statement-breakpoint
 CREATE TABLE `polish_rule_presets` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
