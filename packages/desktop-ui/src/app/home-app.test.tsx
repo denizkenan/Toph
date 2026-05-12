@@ -193,10 +193,10 @@ describe('HomeApp', () => {
     expect(screen.getByText(/Bring your own subscription/)).toBeTruthy();
     expect(screen.getByText('Microphone')).toBeTruthy();
     expect(screen.getByText('Accessibility')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: "Let's get started" })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
   });
 
-  it('keeps onboarding open after preset selection until the user gets started', async () => {
+  it('keeps onboarding open after preset selection until the user continues', async () => {
     let publish: ((state: AppState) => void) | null = null;
     const initialState = {
       ...baseState,
@@ -239,18 +239,96 @@ describe('HomeApp', () => {
     );
 
     await screen.findByRole('heading', { name: /Your fingers called/ });
-    expect(screen.queryByRole('button', { name: "Let's get started" })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /Engineer/ }));
 
     await waitFor(() => expect(setActivePolishRulePreset).toHaveBeenCalledWith('engineer'));
     expect(screen.getByRole('heading', { name: /Your fingers called/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: "Let's get started" })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
     expect(screen.getByText('Setup complete. The tiny dictation empire is operational.').closest('.animate-onboarding-ready-enter')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: "Let's get started" }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await screen.findByText('Nothing here yet.');
+  });
+
+  it('skips final onboarding when startup readiness becomes complete without a setup action', async () => {
+    let publish: ((state: AppState) => void) | null = null;
+    const initialState = {
+      ...baseState,
+      settings: {
+        ...baseState.settings,
+        polish: { enabled: true, rulePresetId: null },
+      },
+    };
+
+    render(
+      <HomeApp
+        client={{
+          ...createClient(initialState),
+          subscribeState: (listener) => {
+            publish = listener;
+            listener(initialState);
+            return () => {};
+          },
+        }}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+
+    act(() => {
+      publish?.(baseState);
+    });
+
+    await screen.findByText('Nothing here yet.');
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('keeps onboarding open after a manual refresh completes setup', async () => {
+    let publish: ((state: AppState) => void) | null = null;
+    const initialState = {
+      ...baseState,
+      permissions: {
+        ready: false,
+        requirements: [
+          {
+            id: 'microphone' as const,
+            label: 'Microphone',
+            status: 'promptable' as const,
+            required: true,
+            detail: 'Toph needs microphone access before it can listen.',
+            action: 'request' as const,
+          },
+        ],
+      },
+    };
+    const refreshPermissions = vi.fn<DesktopApi['refreshPermissions']>(async () => {
+      act(() => {
+        publish?.(baseState);
+      });
+    });
+
+    render(
+      <HomeApp
+        client={{
+          ...createClient(initialState, { refreshPermissions }),
+          subscribeState: (listener) => {
+            publish = listener;
+            listener(initialState);
+            return () => {};
+          },
+        }}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+
+    await waitFor(() => expect(refreshPermissions).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('heading', { name: /Your fingers called/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
   });
 
   it('keeps the onboarding completion bar hidden while preset selection is pending', async () => {
@@ -275,7 +353,7 @@ describe('HomeApp', () => {
     fireEvent.click(screen.getByRole('button', { name: /Engineer/ }));
 
     await waitFor(() => expect(setActivePolishRulePreset).toHaveBeenCalledWith('engineer'));
-    expect(screen.queryByRole('button', { name: "Let's get started" })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
   });
 
   it('refreshes onboarding state when the window regains focus', async () => {

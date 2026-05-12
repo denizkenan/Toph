@@ -25,7 +25,8 @@ export function OnboardingScreen({
   activeRulePresetId,
   requirements,
   client,
-  onGetStarted,
+  onSetupAction,
+  onContinue,
 }: {
   platform: NodeJS.Platform;
   providers: ProviderState;
@@ -34,7 +35,8 @@ export function OnboardingScreen({
   activeRulePresetId: string | null;
   requirements: PermissionRequirement[];
   client: DesktopApi;
-  onGetStarted: () => void;
+  onSetupAction: () => void;
+  onContinue: () => void;
 }) {
   const [busyPermission, setBusyPermission] = useState<PermissionRequirementId | 'refresh' | null>(null);
   const [busyProvider, setBusyProvider] = useState<ProviderId | 'manual' | null>(null);
@@ -60,6 +62,7 @@ export function OnboardingScreen({
   }, [activeRulePresetId]);
 
   const performAction = async (permissionId: PermissionRequirementId) => {
+    onSetupAction();
     setBusyPermission(permissionId);
     try {
       await client.performPermissionAction(permissionId);
@@ -69,6 +72,7 @@ export function OnboardingScreen({
   };
 
   const connectProvider = async () => {
+    onSetupAction();
     setBusyProvider(selectedProviderId);
     try {
       await client.connectProvider(selectedProviderId);
@@ -80,6 +84,7 @@ export function OnboardingScreen({
   };
 
   const submitManualAuthorization = async () => {
+    onSetupAction();
     setBusyProvider('manual');
     try {
       await client.submitProviderAuthorization(selectedProviderId, manualInput);
@@ -92,6 +97,7 @@ export function OnboardingScreen({
   };
 
   const selectRulePreset = async (rulePresetId: string) => {
+    onSetupAction();
     setSelectedRulePresetId(rulePresetId);
     setBusyRulePreset(rulePresetId);
     try {
@@ -273,7 +279,10 @@ export function OnboardingScreen({
                 Changed something in System Settings?{' '}
                 <Button
                   variant="ghost"
-                  onClick={() => void refresh()}
+                  onClick={() => {
+                    onSetupAction();
+                    void refresh();
+                  }}
                   disabled={busyPermission !== null || busyProvider !== null}
                 >
                   {busyPermission === 'refresh' ? 'Checking...' : 'Check again'}
@@ -300,8 +309,8 @@ export function OnboardingScreen({
                 You can change your writing style later from Settings → Writing & Dictionary.
               </p>
             </div>
-            <Button variant="primary" className="shrink-0" onClick={onGetStarted}>
-              Let&apos;s get started
+            <Button variant="primary" className="shrink-0" onClick={onContinue}>
+              Continue
             </Button>
           </div>
         </div>

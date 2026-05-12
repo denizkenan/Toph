@@ -199,16 +199,14 @@ function StatCard({ label, value }: { label: string; value: string }) {
 export function HomeApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const [view, setView] = useState<ActiveView>('home');
-  const [setupWasRequired, setSetupWasRequired] = useState(false);
-  const [setupDismissed, setSetupDismissed] = useState(false);
+  const [awaitingSetupContinue, setAwaitingSetupContinue] = useState(false);
   const setupComplete = state ? state.providers.ready && state.permissions.ready && hasActiveWritingPreset(state) : false;
 
   useEffect(() => {
-    if (state && !setupComplete) {
-      setSetupWasRequired(true);
-      setSetupDismissed(false);
+    if (!setupComplete) {
+      setAwaitingSetupContinue(false);
     }
-  }, [state, setupComplete]);
+  }, [setupComplete]);
 
   if (!state) {
     return (
@@ -222,7 +220,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     );
   }
 
-  const showOnboarding = !setupComplete || (setupWasRequired && !setupDismissed);
+  const showOnboarding = !setupComplete || awaitingSetupContinue;
 
   if (showOnboarding) {
     return (
@@ -234,7 +232,8 @@ export function HomeApp({ client }: { client: DesktopApi }) {
         activeRulePresetId={state.settings.polish.rulePresetId}
         requirements={state.permissions.requirements}
         client={client}
-        onGetStarted={() => setSetupDismissed(true)}
+        onSetupAction={() => setAwaitingSetupContinue(true)}
+        onContinue={() => setAwaitingSetupContinue(false)}
       />
     );
   }
