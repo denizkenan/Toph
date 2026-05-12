@@ -2,12 +2,14 @@ import { ipcMain } from 'electron';
 
 import {
   DESKTOP_IPC_CHANNELS,
+  isShortcutChord,
   PERMISSION_REQUIREMENT_IDS,
   PROVIDER_IDS,
+  validateShortcutChord,
   type AppState,
   type PermissionRequirementId,
   type ProviderId,
-  type ShortcutPresetId,
+  type ShortcutChord,
 } from '@toph/desktop-contracts';
 
 function isPermissionRequirementId(value: unknown): value is PermissionRequirementId {
@@ -23,7 +25,9 @@ export function registerDesktopIpc(options: {
   toggleCapture: () => Promise<void>;
   showSettings: () => void;
   hideSettings: () => void;
-  installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
+  installShortcut: (chord: ShortcutChord) => Promise<void>;
+  suspendShortcut: () => Promise<void>;
+  resumeShortcut: () => Promise<void>;
   connectProvider: (providerId: ProviderId) => Promise<void>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
@@ -51,8 +55,23 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.hideSettings, async () => {
     options.hideSettings();
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.installShortcut, async (_event, presetId: ShortcutPresetId) => {
-    await options.installShortcut(presetId);
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.installShortcut, async (_event, chord: unknown) => {
+    if (!isShortcutChord(chord)) {
+      throw new Error('Invalid shortcut.');
+    }
+
+    const validation = validateShortcutChord(chord);
+    if (!validation.valid) {
+      throw new Error('Invalid shortcut.');
+    }
+
+    await options.installShortcut(validation.chord);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.suspendShortcut, async () => {
+    await options.suspendShortcut();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.resumeShortcut, async () => {
+    await options.resumeShortcut();
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.connectProvider, async (_event, providerId: unknown) => {
     if (!isProviderId(providerId)) {
@@ -148,6 +167,8 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.showSettings);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.hideSettings);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.installShortcut);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.suspendShortcut);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.resumeShortcut);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.connectProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.submitProviderAuthorization);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.removeProvider);

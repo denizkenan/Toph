@@ -1,13 +1,24 @@
 import {
   DEFAULT_APP_SETTINGS,
   PROVIDER_IDS,
+  resolveDefaultShortcutChord,
+  validateShortcutChord,
   type AppSettings,
   type ProviderId,
 } from '@toph/desktop-contracts';
 import { z } from 'zod';
 
+const shortcutModifierSchema = z.enum(['command', 'control', 'option', 'alt', 'shift']);
+const shortcutChordSchema = z.object({
+  modifiers: z.array(shortcutModifierSchema),
+  key: z.string(),
+});
+
 const appSettingsFileSchema = z.object({
   version: z.literal(1),
+  shortcut: z.object({
+    chord: shortcutChordSchema,
+  }).optional(),
   auth: z.object({
     providerId: z.string(),
   }),
@@ -29,6 +40,9 @@ type AppSettingsFile = z.infer<typeof appSettingsFileSchema>;
 
 export const defaultAppSettings: AppSettings = {
   ...DEFAULT_APP_SETTINGS,
+  shortcut: {
+    chord: resolveDefaultShortcutChord(process.platform),
+  },
 };
 
 function isKnownProviderId(providerId: string): providerId is ProviderId {
@@ -52,9 +66,15 @@ export function normalizeAppSettings(value: AppSettingsFile, options: { promptId
   const promptId = options.promptIds.includes(value.polish.promptId)
     ? value.polish.promptId
     : defaultAppSettings.polish.promptId;
+  const shortcutValidation = value.shortcut
+    ? validateShortcutChord(value.shortcut.chord)
+    : null;
 
   return {
     version: 1,
+    shortcut: {
+      chord: shortcutValidation?.valid ? shortcutValidation.chord : defaultAppSettings.shortcut.chord,
+    },
     auth: {
       providerId: normalizeProviderId(value.auth.providerId, defaultAppSettings.auth.providerId),
     },

@@ -5,6 +5,8 @@ export const DESKTOP_IPC_CHANNELS = {
   showSettings: 'toph:show-settings',
   hideSettings: 'toph:hide-settings',
   installShortcut: 'toph:install-shortcut',
+  suspendShortcut: 'toph:suspend-shortcut',
+  resumeShortcut: 'toph:resume-shortcut',
   connectProvider: 'toph:connect-provider',
   submitProviderAuthorization: 'toph:submit-provider-authorization',
   removeProvider: 'toph:remove-provider',
@@ -38,62 +40,240 @@ export const OVERLAY_WINDOW_GEOMETRY = {
   height: 80,
 } as const;
 
-export type ShortcutPresetId =
-  | 'toggle-dictation-primary'
-  | 'toggle-dictation-secondary'
-  | 'toggle-dictation-tertiary';
+export type ShortcutModifier = 'command' | 'control' | 'option' | 'alt' | 'shift';
+export type ShortcutKey = string;
 
-export interface ShortcutPreset {
-  id: ShortcutPresetId;
-  accelerator: string;
-  label: string;
-  gnomeBinding: string;
-  darwinAccelerator?: string;
-  darwinLabel?: string;
+export interface ShortcutChord {
+  modifiers: ShortcutModifier[];
+  key: ShortcutKey;
 }
 
-export const SHORTCUT_PRESETS: readonly ShortcutPreset[] = [
-  {
-    id: 'toggle-dictation-primary',
-    accelerator: 'CommandOrControl+Alt+Space',
-    label: 'Ctrl+Alt+Space',
-    gnomeBinding: '<Primary><Alt>space',
-    darwinAccelerator: 'Control+Option+Space',
-    darwinLabel: 'Ctrl+Option+Space',
-  },
-  {
-    id: 'toggle-dictation-secondary',
-    accelerator: 'CommandOrControl+Shift+Space',
-    label: 'Ctrl+Shift+Space',
-    gnomeBinding: '<Primary><Shift>space',
-  },
-  {
-    id: 'toggle-dictation-tertiary',
-    accelerator: 'CommandOrControl+Alt+Shift+Space',
-    label: 'Ctrl+Alt+Shift+Space',
-    gnomeBinding: '<Primary><Alt><Shift>space',
-    darwinAccelerator: 'Control+Option+Shift+Space',
-    darwinLabel: 'Ctrl+Option+Shift+Space',
-  },
+export interface ShortcutCandidate {
+  modifiers: ShortcutModifier[];
+  keys: ShortcutKey[];
+}
+
+export type ShortcutValidationResult =
+  | { valid: true; chord: ShortcutChord; errors: [] }
+  | { valid: false; chord: null; errors: string[] };
+
+export const SHORTCUT_MODIFIER_ORDER: readonly ShortcutModifier[] = [
+  'command',
+  'control',
+  'option',
+  'alt',
+  'shift',
 ];
 
-export const DEFAULT_SHORTCUT_PRESET = SHORTCUT_PRESETS[0];
+const shortcutModifierLabels: Record<ShortcutModifier, { darwin: string; default: string }> = {
+  command: { darwin: '⌘', default: 'Super' },
+  control: { darwin: '⌃', default: 'Ctrl' },
+  option: { darwin: '⌥', default: 'Alt' },
+  alt: { darwin: '⌥', default: 'Alt' },
+  shift: { darwin: '⇧', default: 'Shift' },
+};
 
-export function resolveShortcutPresetForPlatform(
-  presetId: ShortcutPresetId,
+const domCodeToShortcutKey: Record<string, ShortcutKey> = {
+  Space: 'Space',
+  Escape: 'Escape',
+  Enter: 'Enter',
+  Tab: 'Tab',
+  Backspace: 'Backspace',
+  Delete: 'Delete',
+  Insert: 'Insert',
+  Home: 'Home',
+  End: 'End',
+  PageUp: 'PageUp',
+  PageDown: 'PageDown',
+  ArrowUp: 'Up',
+  ArrowDown: 'Down',
+  ArrowLeft: 'Left',
+  ArrowRight: 'Right',
+};
+
+const supportedNamedShortcutKeys = new Set<ShortcutKey>([
+  ...Object.values(domCodeToShortcutKey),
+]);
+
+const electronKeyAliases: Record<ShortcutKey, string> = {
+  Escape: 'Esc',
+};
+
+const gnomeKeyAliases: Record<ShortcutKey, string> = {
+  Space: 'space',
+  Enter: 'Return',
+  PageUp: 'Page_Up',
+  PageDown: 'Page_Down',
+  Backspace: 'BackSpace',
+  Up: 'Up',
+  Down: 'Down',
+  Left: 'Left',
+  Right: 'Right',
+};
+
+function isKnownShortcutModifier(value: string): value is ShortcutModifier {
+  return SHORTCUT_MODIFIER_ORDER.includes(value as ShortcutModifier);
+}
+
+export function normalizeShortcutModifiers(modifiers: readonly ShortcutModifier[]): ShortcutModifier[] {
+  const unique = new Set(modifiers);
+  return SHORTCUT_MODIFIER_ORDER.filter((modifier) => unique.has(modifier));
+}
+
+export function resolveDefaultShortcutChord(platform: NodeJS.Platform): ShortcutChord {
+  return {
+    modifiers: platform === 'darwin' ? ['control', 'option'] : ['control', 'alt'],
+    key: 'Space',
+  };
+}
+
+export function normalizeDomShortcutModifier(
+  key: string,
+  code: string,
   platform: NodeJS.Platform,
-): ShortcutPreset {
-  const preset = SHORTCUT_PRESETS.find((item) => item.id === presetId) ?? DEFAULT_SHORTCUT_PRESET;
+): ShortcutModifier | null {
+  if (key === 'Meta' || code === 'MetaLeft' || code === 'MetaRight') {
+    return 'command';
+  }
+  if (key === 'Control' || code === 'ControlLeft' || code === 'ControlRight') {
+    return 'control';
+  }
+  if (key === 'Alt' || code === 'AltLeft' || code === 'AltRight') {
+    return platform === 'darwin' ? 'option' : 'alt';
+  }
+  if (key === 'Shift' || code === 'ShiftLeft' || code === 'ShiftRight') {
+    return 'shift';
+  }
+  return null;
+}
 
-  if (platform !== 'darwin') {
-    return preset;
+export function normalizeDomShortcutKey(key: string, code: string): ShortcutKey | null {
+  if (/^Key[A-Z]$/.test(code)) {
+    return code.slice(3);
+  }
+  if (/^Digit[0-9]$/.test(code)) {
+    return code.slice(5);
+  }
+  if (/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(code)) {
+    return code;
+  }
+  if (domCodeToShortcutKey[code]) {
+    return domCodeToShortcutKey[code];
+  }
+  if (/^[a-z]$/i.test(key)) {
+    return key.toUpperCase();
+  }
+  if (/^[0-9]$/.test(key)) {
+    return key;
+  }
+  return null;
+}
+
+export function isFunctionShortcutKey(key: ShortcutKey): boolean {
+  return /^F(?:[1-9]|1[0-9]|2[0-4])$/.test(key);
+}
+
+export function isSupportedShortcutKey(key: ShortcutKey): boolean {
+  return /^[A-Z]$/.test(key) || /^[0-9]$/.test(key) || isFunctionShortcutKey(key) || supportedNamedShortcutKeys.has(key);
+}
+
+export function validateShortcutCandidate(candidate: ShortcutCandidate): ShortcutValidationResult {
+  const modifiers = normalizeShortcutModifiers(candidate.modifiers);
+  const keys = Array.from(new Set(candidate.keys));
+  const errors: string[] = [];
+
+  if (keys.length === 0) {
+    errors.push('Press one main key for the shortcut. Try Ctrl+Alt+Space or F15.');
+  }
+  if (keys.length > 1) {
+    errors.push('Shortcuts can only use one main key. Try Ctrl+Alt+Space or F15.');
+  }
+  if (keys.some((key) => !isSupportedShortcutKey(key))) {
+    errors.push('This key is not supported for global shortcuts yet. Try a letter, number, function key, or Space.');
+  }
+  if (keys.length === 1 && modifiers.length === 0 && !isFunctionShortcutKey(keys[0] as ShortcutKey)) {
+    errors.push('Use at least one modifier with this key. Try Ctrl+Alt+Space, or use a function key like F15.');
   }
 
+  if (errors.length > 0) {
+    return { valid: false, chord: null, errors };
+  }
+
+  const key = keys[0] as ShortcutKey;
+
   return {
-    ...preset,
-    accelerator: preset.darwinAccelerator ?? preset.accelerator,
-    label: preset.darwinLabel ?? preset.label,
+    valid: true,
+    chord: {
+      modifiers,
+      key,
+    },
+    errors: [],
   };
+}
+
+export function validateShortcutChord(chord: ShortcutChord): ShortcutValidationResult {
+  return validateShortcutCandidate({ modifiers: chord.modifiers, keys: [chord.key] });
+}
+
+export function isShortcutChord(value: unknown): value is ShortcutChord {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as { modifiers?: unknown; key?: unknown };
+  if (!Array.isArray(candidate.modifiers) || typeof candidate.key !== 'string') {
+    return false;
+  }
+
+  if (!candidate.modifiers.every((modifier) => typeof modifier === 'string' && isKnownShortcutModifier(modifier))) {
+    return false;
+  }
+
+  return validateShortcutChord({ modifiers: candidate.modifiers as ShortcutModifier[], key: candidate.key }).valid;
+}
+
+export function formatShortcutKeyForDisplay(key: ShortcutKey): string {
+  return key;
+}
+
+export function formatShortcutChordKeys(chord: ShortcutChord, platform: NodeJS.Platform): string[] {
+  return [
+    ...normalizeShortcutModifiers(chord.modifiers).map((modifier) =>
+      platform === 'darwin' ? shortcutModifierLabels[modifier].darwin : shortcutModifierLabels[modifier].default
+    ),
+    formatShortcutKeyForDisplay(chord.key),
+  ];
+}
+
+export function formatShortcutChord(chord: ShortcutChord, platform: NodeJS.Platform): string {
+  return formatShortcutChordKeys(chord, platform).join(platform === 'darwin' ? '' : '+');
+}
+
+export function shortcutChordToElectronAccelerator(
+  chord: ShortcutChord,
+  platform: NodeJS.Platform,
+): string {
+  const modifiers = normalizeShortcutModifiers(chord.modifiers).map((modifier) => {
+    if (modifier === 'command') return platform === 'darwin' ? 'Command' : 'Super';
+    if (modifier === 'control') return 'Control';
+    if (modifier === 'option') return platform === 'darwin' ? 'Option' : 'Alt';
+    if (modifier === 'alt') return platform === 'darwin' ? 'Option' : 'Alt';
+    return 'Shift';
+  });
+
+  return [...modifiers, electronKeyAliases[chord.key] ?? chord.key].join('+');
+}
+
+export function shortcutChordToGnomeBinding(chord: ShortcutChord): string {
+  const modifiers = normalizeShortcutModifiers(chord.modifiers).map((modifier) => {
+    if (modifier === 'command') return '<Super>';
+    if (modifier === 'control') return '<Primary>';
+    if (modifier === 'shift') return '<Shift>';
+    return '<Alt>';
+  });
+  const key = gnomeKeyAliases[chord.key] ?? (/^[A-Z]$/.test(chord.key) ? chord.key.toLowerCase() : chord.key);
+
+  return `${modifiers.join('')}${key}`;
 }
 
 export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'polishing' | 'no_speech' | 'failed';
@@ -158,6 +338,9 @@ export interface PolishState {
 
 export interface AppSettings {
   version: 1;
+  shortcut: {
+    chord: ShortcutChord;
+  };
   auth: {
     providerId: ProviderId;
   };
@@ -177,6 +360,12 @@ export interface AppSettings {
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   version: 1,
+  shortcut: {
+    chord: {
+      modifiers: ['control', 'alt'],
+      key: 'Space',
+    },
+  },
   auth: {
     providerId: DEFAULT_AUTH_PROVIDER_ID,
   },
@@ -227,7 +416,7 @@ export interface ProviderState {
 export interface AppState {
   phase: DictationPhase;
   shortcut: {
-    presetId: ShortcutPresetId;
+    chord: ShortcutChord;
     accelerator: string;
     label: string;
     registered: boolean;
@@ -261,7 +450,9 @@ export interface DesktopApi {
   toggleCapture: () => Promise<void>;
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
-  installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
+  installShortcut: (chord: ShortcutChord) => Promise<void>;
+  suspendShortcut: () => Promise<void>;
+  resumeShortcut: () => Promise<void>;
   connectProvider: (providerId: ProviderId) => Promise<void>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;

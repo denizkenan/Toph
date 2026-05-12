@@ -8,8 +8,8 @@ import { HomeApp } from './home-app';
 const baseState: AppState = {
   phase: 'idle',
   shortcut: {
-    presetId: 'toggle-dictation-primary',
-    accelerator: 'CommandOrControl+Alt+Space',
+    chord: { modifiers: ['control', 'alt'], key: 'Space' },
+    accelerator: 'Control+Alt+Space',
     label: 'Ctrl+Alt+Space',
     registered: true,
     backend: 'electron-global-shortcut',
@@ -39,6 +39,7 @@ const baseState: AppState = {
   },
   settings: {
     version: 1,
+    shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
@@ -75,6 +76,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
+    suspendShortcut: async () => {},
+    resumeShortcut: async () => {},
     connectProvider: async () => {},
     submitProviderAuthorization: async () => {},
     removeProvider: async () => {},

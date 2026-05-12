@@ -18,6 +18,7 @@
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "test:polish": "node --experimental-strip-types --test test/polish/*.test.ts",
     "test:segmentation": "node --experimental-strip-types --test test/segmentation/*.test.ts",
+    "test:shortcuts": "node --experimental-strip-types --test test/shortcuts/*.test.ts",
     "test:settings": "node --experimental-strip-types --test test/settings/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
