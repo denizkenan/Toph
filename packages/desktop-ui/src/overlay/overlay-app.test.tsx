@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeAll, vi } from 'vitest';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
@@ -65,13 +66,27 @@ const baseState: AppState = {
   updatedAt: 1,
 };
 
-function createClient(state: AppState): DesktopApi {
+class TestResizeObserver {
+  observe() {}
+  disconnect() {}
+}
+
+beforeAll(() => {
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    value: TestResizeObserver,
+    configurable: true,
+  });
+});
+
+function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
     subscribeState: (listener) => {
       listener(state);
       return () => {};
     },
     toggleCapture: async () => {},
+    cancelCapture: async () => {},
+    resizeOverlay: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
@@ -92,12 +107,15 @@ function createClient(state: AppState): DesktopApi {
     refreshPermissions: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
+    ...overrides,
   };
 }
 
 describe('OverlayApp', () => {
   it('renders the idle ready indicator', async () => {
-    render(<OverlayApp client={createClient({ ...baseState, phase: 'idle' })} soundsEnabled={false} />);
+    render(
+      <OverlayApp client={createClient({ ...baseState, phase: 'idle' })} soundsEnabled={false} />,
+    );
 
     await screen.findByLabelText('Toph ready');
   });
@@ -109,8 +127,24 @@ describe('OverlayApp', () => {
   });
 
   it('renders the polishing state', async () => {
-    render(<OverlayApp client={createClient({ ...baseState, phase: 'polishing' })} soundsEnabled={false} />);
+    render(
+      <OverlayApp
+        client={createClient({ ...baseState, phase: 'polishing' })}
+        soundsEnabled={false}
+      />,
+    );
 
     await screen.findByRole('heading', { name: 'Polishing...' });
+  });
+
+  it('cancels active dictation from the overlay button', async () => {
+    const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
+    render(
+      <OverlayApp client={createClient(baseState, { cancelCapture })} soundsEnabled={false} />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel dictation' }));
+
+    expect(cancelCapture).toHaveBeenCalledOnce();
   });
 });

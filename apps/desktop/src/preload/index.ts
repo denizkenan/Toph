@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppState,
   DesktopApi,
+  OverlaySize,
   PermissionRequirementId,
   ProviderId,
   ShortcutChord,
@@ -41,6 +42,9 @@ const api: DesktopApi = {
     };
   },
   toggleCapture: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.toggleCapture) as Promise<void>,
+  cancelCapture: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.cancelCapture) as Promise<void>,
+  resizeOverlay: (size: OverlaySize) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.resizeOverlay, size) as Promise<void>,
   showSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.showSettings) as Promise<void>,
   hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
   installShortcut: (chord: ShortcutChord) =>
@@ -50,10 +54,15 @@ const api: DesktopApi = {
   connectProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId) as Promise<void>,
   submitProviderAuthorization: (providerId: ProviderId, input: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.submitProviderAuthorization, providerId, input) as Promise<void>,
+    ipcRenderer.invoke(
+      DESKTOP_IPC_CHANNELS.submitProviderAuthorization,
+      providerId,
+      input,
+    ) as Promise<void>,
   removeProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.removeProvider, providerId) as Promise<void>,
-  refreshProviders: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshProviders) as Promise<void>,
+  refreshProviders: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshProviders) as Promise<void>,
   setAuthProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setAuthProvider, providerId) as Promise<void>,
   setTranscriptionProvider: (providerId: ProviderId) =>

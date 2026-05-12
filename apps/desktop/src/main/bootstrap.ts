@@ -4,13 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { app, shell } from 'electron';
 import { DEFAULT_APP_SETTINGS, resolveDefaultShortcutChord } from '@toph/desktop-contracts';
 
-import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
-
+import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import { createProviderAuthService } from './auth/provider-auth-service';
+import type { PolishPrompt } from './db/schema';
 import { createDictationController } from './dictation';
-import { registerDesktopIpc } from './ipc';
 import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
+import { registerDesktopIpc } from './ipc';
 import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
 import { createClipboardManager } from './managers/clipboard';
 import { createPermissionManager } from './managers/permissions';
@@ -24,10 +24,9 @@ import { createSessionSegmentationService } from './segmentation/session-segment
 import { createAppSettingsStore } from './settings/app-settings-store';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
-import { createDesktopTrayController } from './tray';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
-import type { PolishPrompt } from './db/schema';
+import { createDesktopTrayController } from './tray';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'Toph';
@@ -138,7 +137,10 @@ export async function bootstrap(options: {
     onStateChanged: stateStore.setProviders,
   });
   stateStore.setProviders(await providerAuth.getState());
-  const transcriptionProvider = createOpenAiSubTranscriptionProvider({ auth: providerAuth, settingsStore });
+  const transcriptionProvider = createOpenAiSubTranscriptionProvider({
+    auth: providerAuth,
+    settingsStore,
+  });
   const inferenceProvider = createOpenAiSubInferenceProvider({ auth: providerAuth, settingsStore });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
@@ -177,7 +179,8 @@ export async function bootstrap(options: {
     settingsStore,
     audioRecorder,
     clipboard,
-    ensurePermissionsReady: async () => (await ensureProvidersReady()) && (await ensurePermissionsReady()),
+    ensurePermissionsReady: async () =>
+      (await ensureProvidersReady()) && (await ensurePermissionsReady()),
     windows,
   });
   const shortcuts = createShortcutManager({
@@ -233,6 +236,8 @@ export async function bootstrap(options: {
   const unregisterIpc = registerDesktopIpc({
     getState: stateStore.getState,
     toggleCapture: dictation.toggleCapture,
+    cancelCapture: dictation.cancelCapture,
+    resizeOverlay: windows.resizeOverlay,
     showSettings: windows.showSettings,
     hideSettings: windows.hideSettings,
     installShortcut: shortcuts.installShortcut,
@@ -260,31 +265,38 @@ export async function bootstrap(options: {
       stateStore.setProviders(await providerAuth.refreshProviders());
     },
     setAuthProvider: async (providerId) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setAuthProvider(providerId);
     },
     setTranscriptionProvider: async (providerId) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setTranscriptionProvider(providerId);
     },
     setTranscriptionModel: async (model) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setTranscriptionModel(model);
     },
     setInferenceProvider: async (providerId) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setInferenceProvider(providerId);
     },
     setInferenceModel: async (model) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setInferenceModel(model);
     },
     setPolishEnabled: async (enabled) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setPolishEnabled(enabled);
     },
     setActivePolishPrompt: async (promptId) => {
-      if (stateStore.getState().phase !== 'idle') throw new Error('Settings cannot be changed while dictation is active.');
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setPolishPrompt(promptId);
     },
     performPermissionAction: async (permissionId) => {
@@ -334,8 +346,8 @@ export async function bootstrap(options: {
     event.preventDefault();
     stopTrackingOverlayPlacement();
     unregisterIpc();
-      unsubscribeState();
-      unsubscribeSettings();
+    unsubscribeState();
+    unsubscribeSettings();
     shortcuts.unregister();
 
     void dictation.dispose().finally(async () => {

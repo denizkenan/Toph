@@ -65,10 +65,14 @@ const baseState: AppState = {
   updatedAt: 1,
 };
 
-function createClient(onSubscribe: (listener: (state: AppState) => void) => () => void): DesktopApi {
+function createClient(
+  onSubscribe: (listener: (state: AppState) => void) => () => void,
+): DesktopApi {
   return {
     subscribeState: onSubscribe,
     toggleCapture: async () => {},
+    cancelCapture: async () => {},
+    resizeOverlay: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},

@@ -38,8 +38,21 @@ export interface RecordingSessionStore {
   markNoSpeech: (sessionId: string) => Promise<void>;
   markFailed: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
   // A recorded session with an error is recoverable because the raw WAV exists.
-  markRecordedWithProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
-  markRecordingFailed: (options: { sessionId: string; errorMessage: string; endedAt?: number }) => Promise<void>;
+  markRecordedWithProcessingError: (options: {
+    sessionId: string;
+    errorMessage: string;
+  }) => Promise<void>;
+  markRecordingFailed: (options: {
+    sessionId: string;
+    errorMessage: string;
+    endedAt?: number;
+  }) => Promise<void>;
+  markCancelled: (options: {
+    sessionId: string;
+    endedAt?: number;
+    durationMs?: number;
+  }) => Promise<void>;
+  discardSessionArtifacts: (sessionId: string) => Promise<void>;
   setProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
   clearProcessingError: (sessionId: string) => Promise<void>;
   clearSegmentationData: (sessionId: string) => Promise<void>;
@@ -51,12 +64,22 @@ export interface RecordingSessionStore {
     sessionId: string;
     batches: PlannedTranscriptionBatch[];
   }) => Promise<void>;
-  updateBatchDerivedAudioPaths: (updates: Array<{ batchId: string; derivedAudioPath: string }>) => Promise<void>;
+  updateBatchDerivedAudioPaths: (
+    updates: Array<{ batchId: string; derivedAudioPath: string }>,
+  ) => Promise<void>;
   getTranscriptionBatch: (batchId: string) => Promise<TranscriptionBatch | null>;
   listTranscriptionBatchesForSession: (sessionId: string) => Promise<TranscriptionBatch[]>;
-  markBatchTranscribing: (options: { batchId: string; attempts: number; startedAt: number }) => Promise<void>;
+  markBatchTranscribing: (options: {
+    batchId: string;
+    attempts: number;
+    startedAt: number;
+  }) => Promise<void>;
   markBatchTranscribed: (options: { batchId: string; transcribedAt: number }) => Promise<void>;
-  markBatchFailed: (options: { batchId: string; attempts: number; errorMessage: string }) => Promise<void>;
+  markBatchFailed: (options: {
+    batchId: string;
+    attempts: number;
+    errorMessage: string;
+  }) => Promise<void>;
   insertBatchTranscript: (transcript: BatchTranscript) => Promise<void>;
   listOrderedBatchTranscriptTexts: (sessionId: string) => Promise<string[]>;
   createSessionOutput: (output: SessionOutput) => Promise<void>;
@@ -76,16 +99,20 @@ export interface RecordingSessionStore {
 }
 
 const retainedSessionCount = 10;
-const retainableSessionStatuses = ['recorded', 'segmented', 'completed', 'failed', 'no_speech', 'recording_failed'] as const;
+const retainableSessionStatuses = [
+  'recorded',
+  'segmented',
+  'completed',
+  'failed',
+  'no_speech',
+  'recording_failed',
+] as const;
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
 }
 
-function createSessionStoreDatabase(options: {
-  databasePath: string;
-  migrationsFolder: string;
-}): {
+function createSessionStoreDatabase(options: { databasePath: string; migrationsFolder: string }): {
   sqlite: Database.Database;
   db: BetterSQLite3Database;
 } {
@@ -109,6 +136,26 @@ export async function createRecordingSessionStore(options: {
     databasePath: options.paths.databasePath,
     migrationsFolder: options.migrationsFolder,
   });
+
+  const clearSessionGeneratedData = (sessionId: string) => {
+    db.transaction(() => {
+      const batches = db
+        .select({ id: transcriptionBatches.id })
+        .from(transcriptionBatches)
+        .where(eq(transcriptionBatches.sessionId, sessionId))
+        .all();
+      const batchIds = batches.map((batch) => batch.id);
+
+      if (batchIds.length > 0) {
+        db.delete(batchTranscripts).where(inArray(batchTranscripts.batchId, batchIds)).run();
+        db.delete(batchSourceRanges).where(inArray(batchSourceRanges.batchId, batchIds)).run();
+      }
+
+      db.delete(transcriptionBatches).where(eq(transcriptionBatches.sessionId, sessionId)).run();
+      db.delete(timelineRegions).where(eq(timelineRegions.sessionId, sessionId)).run();
+      db.delete(sessionOutputs).where(eq(sessionOutputs.sessionId, sessionId)).run();
+    });
+  };
 
   return {
     async createRecordingSession() {
@@ -136,7 +183,9 @@ export async function createRecordingSessionStore(options: {
     },
 
     async getSession(sessionId) {
-      return db.select().from(recordingSessions).where(eq(recordingSessions.id, sessionId)).get() ?? null;
+      return (
+        db.select().from(recordingSessions).where(eq(recordingSessions.id, sessionId)).get() ?? null
+      );
     },
 
     async markRecorded({ sessionId, endedAt, durationMs }) {
@@ -222,6 +271,42 @@ export async function createRecordingSessionStore(options: {
         .run();
     },
 
+    async markCancelled({ sessionId, endedAt, durationMs }) {
+      const session = db
+        .select()
+        .from(recordingSessions)
+        .where(eq(recordingSessions.id, sessionId))
+        .get();
+      if (!session) {
+        return;
+      }
+
+      db.update(recordingSessions)
+        .set({
+          endedAt: session.endedAt ?? endedAt ?? Date.now(),
+          durationMs: session.durationMs ?? durationMs ?? null,
+          status: 'cancelled',
+          selectedOutputId: null,
+          errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, sessionId))
+        .run();
+    },
+
+    async discardSessionArtifacts(sessionId) {
+      const session = db
+        .select()
+        .from(recordingSessions)
+        .where(eq(recordingSessions.id, sessionId))
+        .get();
+      if (!session) {
+        return;
+      }
+
+      clearSessionGeneratedData(sessionId);
+      await rm(dirname(session.rawAudioPath), { recursive: true, force: true });
+    },
+
     async setProcessingError({ sessionId, errorMessage }) {
       db.update(recordingSessions)
         .set({ errorMessage })
@@ -237,33 +322,7 @@ export async function createRecordingSessionStore(options: {
     },
 
     async clearSegmentationData(sessionId) {
-      db.transaction(() => {
-        const batches = db
-          .select({ id: transcriptionBatches.id })
-          .from(transcriptionBatches)
-          .where(eq(transcriptionBatches.sessionId, sessionId))
-          .all();
-        const batchIds = batches.map((batch) => batch.id);
-
-        if (batchIds.length > 0) {
-          db.delete(batchTranscripts)
-            .where(inArray(batchTranscripts.batchId, batchIds))
-            .run();
-          db.delete(batchSourceRanges)
-            .where(inArray(batchSourceRanges.batchId, batchIds))
-            .run();
-        }
-
-        db.delete(transcriptionBatches)
-          .where(eq(transcriptionBatches.sessionId, sessionId))
-          .run();
-        db.delete(timelineRegions)
-          .where(eq(timelineRegions.sessionId, sessionId))
-          .run();
-        db.delete(sessionOutputs)
-          .where(eq(sessionOutputs.sessionId, sessionId))
-          .run();
-      });
+      clearSessionGeneratedData(sessionId);
     },
 
     async insertTimelineRegions({ sessionId, regions }) {
@@ -349,11 +408,18 @@ export async function createRecordingSessionStore(options: {
     },
 
     async getTranscriptionBatch(batchId) {
-      return db.select().from(transcriptionBatches).where(eq(transcriptionBatches.id, batchId)).get() ?? null;
+      return (
+        db.select().from(transcriptionBatches).where(eq(transcriptionBatches.id, batchId)).get() ??
+        null
+      );
     },
 
     async listTranscriptionBatchesForSession(sessionId) {
-      return db.select().from(transcriptionBatches).where(eq(transcriptionBatches.sessionId, sessionId)).all();
+      return db
+        .select()
+        .from(transcriptionBatches)
+        .where(eq(transcriptionBatches.sessionId, sessionId))
+        .all();
     },
 
     async markBatchTranscribing({ batchId, attempts, startedAt }) {
@@ -461,7 +527,11 @@ export async function createRecordingSessionStore(options: {
         return inserted;
       }
 
-      if (existing.bodyHash !== prompt.bodyHash || existing.title !== prompt.title || !existing.isBuiltin) {
+      if (
+        existing.bodyHash !== prompt.bodyHash ||
+        existing.title !== prompt.title ||
+        !existing.isBuiltin
+      ) {
         db.update(polishPrompts)
           .set({
             title: prompt.title,
@@ -486,7 +556,11 @@ export async function createRecordingSessionStore(options: {
     },
 
     async listPolishPrompts() {
-      return db.select().from(polishPrompts).orderBy(desc(polishPrompts.isBuiltin), asc(polishPrompts.title)).all();
+      return db
+        .select()
+        .from(polishPrompts)
+        .orderBy(desc(polishPrompts.isBuiltin), asc(polishPrompts.title))
+        .all();
     },
 
     async getPolishPrompt(promptId) {

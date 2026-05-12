@@ -73,6 +73,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
       return () => {};
     },
     toggleCapture: async () => {},
+    cancelCapture: async () => {},
+    resizeOverlay: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},

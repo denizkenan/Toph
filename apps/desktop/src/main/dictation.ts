@@ -12,6 +12,7 @@ import type { SessionTranscriptionCoordinator } from './transcription/session-tr
 
 export interface DictationController {
   toggleCapture: () => Promise<void>;
+  cancelCapture: () => Promise<void>;
   dispose: () => Promise<void>;
 }
 
@@ -19,7 +20,7 @@ const toggleDebounceMs = 800;
 const failureVisibleMs = 2_000;
 const noSpeechVisibleMs = 2_000;
 const maxLiveProcessingBacklog = 100;
-type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping';
+type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping' | 'cancelling';
 
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
@@ -37,9 +38,11 @@ export function createDictationController(options: {
     | 'markNoSpeech'
     | 'markFailed'
     | 'markRecordingFailed'
+    | 'markCancelled'
     | 'markRecordedWithProcessingError'
     | 'setProcessingError'
     | 'clearSegmentationData'
+    | 'discardSessionArtifacts'
     | 'pruneRetainedSessions'
   >;
   segmentation: SessionSegmentationService;
@@ -61,7 +64,11 @@ export function createDictationController(options: {
   let liveProcessingQueue: Promise<void> = Promise.resolve();
   let liveProcessingBacklog = 0;
   let liveProcessingGeneration = 0;
+  let activeOperationGeneration = 0;
+  let activeRecorderStop: Promise<Awaited<ReturnType<RawAudioRecorder['stop']>>> | null = null;
+  let activeFinishTask: Promise<void> | null = null;
   let lifecycle: DictationLifecycle = 'idle';
+  let activePolishAbortController: AbortController | null = null;
 
   const clearFailureTimer = () => {
     if (!failureTimer) {
@@ -104,7 +111,10 @@ export function createDictationController(options: {
       try {
         await options.sessionStore.markRecordedWithProcessingError({
           sessionId: session.id,
-          errorMessage: describeUnexpectedError('Live segmentation could not finish unexpectedly.', error),
+          errorMessage: describeUnexpectedError(
+            'Live segmentation could not finish unexpectedly.',
+            error,
+          ),
         });
         await options.transcription.cancelSession(session.id);
         await options.sessionStore.clearSegmentationData(session.id);
@@ -173,6 +183,22 @@ export function createDictationController(options: {
     returnToIdleAfterNoSpeech();
   };
 
+  const isCurrentOperation = (generation: number) => generation === activeOperationGeneration;
+
+  const stopActiveRecorder = () => {
+    activeRecorderStop ??= options.audioRecorder.stop().finally(() => {
+      activeRecorderStop = null;
+    });
+    return activeRecorderStop;
+  };
+
+  const runFinishListening = () => {
+    activeFinishTask ??= finishListening().finally(() => {
+      activeFinishTask = null;
+    });
+    return activeFinishTask;
+  };
+
   const pruneSessions = async () => {
     try {
       await options.sessionStore.pruneRetainedSessions();
@@ -184,9 +210,41 @@ export function createDictationController(options: {
   const beginListening = async () => {
     clearFailureTimer();
     clearNoSpeechTimer();
+    liveProcessingErrorMessage = null;
+    activeOperationGeneration += 1;
+    const operationGeneration = activeOperationGeneration;
+
+    const cancelStartedSession = async (
+      session: { id: string },
+      pipeline?: SegmentationPipelineSession | null,
+      durationMs?: number,
+    ) => {
+      activeSession = null;
+      activeLivePipeline = null;
+      liveProcessingErrorMessage = null;
+      liveProcessingQueue = Promise.resolve();
+      liveProcessingBacklog = 0;
+      await pipeline?.dispose();
+
+      try {
+        await options.transcription.cancelSession(session.id);
+        await options.sessionStore.markCancelled({ sessionId: session.id, durationMs });
+        await options.sessionStore.discardSessionArtifacts(session.id);
+      } catch (error) {
+        console.error('Toph could not persist the cancelled recording session.', error);
+      } finally {
+        lifecycle = 'idle';
+        options.stateStore.setPhase('idle');
+      }
+    };
 
     try {
       const session = await options.sessionStore.createRecordingSession();
+      if (!isCurrentOperation(operationGeneration)) {
+        await cancelStartedSession(session);
+        return;
+      }
+
       liveProcessingGeneration += 1;
       const sessionGeneration = liveProcessingGeneration;
       activeSession = {
@@ -195,7 +253,7 @@ export function createDictationController(options: {
       };
 
       try {
-        activeLivePipeline = await options.segmentation.createLiveSession({
+        const pipeline = await options.segmentation.createLiveSession({
           sessionId: session.id,
           rawAudioPath: session.rawAudioPath,
           generateBatchAudio: true,
@@ -203,13 +261,26 @@ export function createDictationController(options: {
             await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
           },
         });
+        if (!isCurrentOperation(operationGeneration)) {
+          await cancelStartedSession(session, pipeline);
+          return;
+        }
+
+        activeLivePipeline = pipeline;
       } catch (error) {
-        liveProcessingErrorMessage = describeUnexpectedError('Live segmentation could not start unexpectedly.', error);
+        liveProcessingErrorMessage = describeUnexpectedError(
+          'Live segmentation could not start unexpectedly.',
+          error,
+        );
         console.error(liveProcessingErrorMessage, error);
         await options.sessionStore.setProcessingError({
           sessionId: session.id,
           errorMessage: liveProcessingErrorMessage,
         });
+        if (!isCurrentOperation(operationGeneration)) {
+          await cancelStartedSession(session);
+          return;
+        }
       }
 
       await options.audioRecorder.start({
@@ -218,7 +289,11 @@ export function createDictationController(options: {
         onPcmChunk: async (chunk) => {
           const generation = sessionGeneration;
           const pipelineAtEnqueue = activeLivePipeline;
-          if (generation !== liveProcessingGeneration || liveProcessingErrorMessage || !activeLivePipeline) {
+          if (
+            generation !== liveProcessingGeneration ||
+            liveProcessingErrorMessage ||
+            !activeLivePipeline
+          ) {
             return;
           }
 
@@ -238,53 +313,80 @@ export function createDictationController(options: {
           }
 
           liveProcessingBacklog += 1;
-          liveProcessingQueue = liveProcessingQueue.then(async () => {
-            if (
-              generation !== liveProcessingGeneration ||
-              pipelineAtEnqueue !== activeLivePipeline ||
-              !pipelineAtEnqueue ||
-              liveProcessingErrorMessage
-            ) {
-              return;
-            }
-
-            try {
-              await pipelineAtEnqueue.processPcmChunk(chunk);
-            } catch (error) {
-              if (generation !== liveProcessingGeneration || pipelineAtEnqueue !== activeLivePipeline) {
+          liveProcessingQueue = liveProcessingQueue
+            .then(async () => {
+              if (
+                generation !== liveProcessingGeneration ||
+                pipelineAtEnqueue !== activeLivePipeline ||
+                !pipelineAtEnqueue ||
+                liveProcessingErrorMessage
+              ) {
                 return;
               }
 
-              liveProcessingErrorMessage = describeUnexpectedError(
-                'Live segmentation failed while recording.',
-                error,
-              );
-              console.error(liveProcessingErrorMessage, error);
-              activeLivePipeline = null;
-              await pipelineAtEnqueue.dispose();
-              await options.sessionStore.setProcessingError({
-                sessionId: session.id,
-                errorMessage: liveProcessingErrorMessage,
-              });
-            }
-          }).finally(() => {
-            if (generation === liveProcessingGeneration) {
-              liveProcessingBacklog -= 1;
-            }
-          });
+              try {
+                await pipelineAtEnqueue.processPcmChunk(chunk);
+              } catch (error) {
+                if (
+                  generation !== liveProcessingGeneration ||
+                  pipelineAtEnqueue !== activeLivePipeline
+                ) {
+                  return;
+                }
+
+                liveProcessingErrorMessage = describeUnexpectedError(
+                  'Live segmentation failed while recording.',
+                  error,
+                );
+                console.error(liveProcessingErrorMessage, error);
+                activeLivePipeline = null;
+                await pipelineAtEnqueue.dispose();
+                await options.sessionStore.setProcessingError({
+                  sessionId: session.id,
+                  errorMessage: liveProcessingErrorMessage,
+                });
+              }
+            })
+            .finally(() => {
+              if (generation === liveProcessingGeneration) {
+                liveProcessingBacklog -= 1;
+              }
+            });
           await liveProcessingQueue;
         },
       });
+      if (!isCurrentOperation(operationGeneration)) {
+        let stoppedRecordingDurationMs: number | undefined;
+        try {
+          stoppedRecordingDurationMs = (await stopActiveRecorder()).durationMs;
+        } catch (error) {
+          console.error('Toph could not stop the started recording while cancelling.', error);
+        }
+
+        await cancelStartedSession(session, activeLivePipeline, stoppedRecordingDurationMs);
+        return;
+      }
+
       lifecycle = 'listening';
       options.stateStore.startListening();
       options.windows.showOverlay();
       options.windows.emitSound('start');
     } catch (error) {
+      if (!isCurrentOperation(operationGeneration)) {
+        if (activeSession) {
+          await cancelStartedSession(activeSession, activeLivePipeline);
+        }
+
+        lifecycle = 'idle';
+        return;
+      }
+
       await failActiveSession('Recording could not start unexpectedly.', error);
     }
   };
 
   const finishListening = async () => {
+    const operationGeneration = activeOperationGeneration;
     const session = activeSession;
     if (!session) {
       lifecycle = 'idle';
@@ -297,8 +399,16 @@ export function createDictationController(options: {
     let recordingWasSaved = false;
 
     try {
-      const recording = await options.audioRecorder.stop();
+      const recording = await stopActiveRecorder();
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       await liveProcessingQueue;
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       const endedAt = Date.now();
       const pipeline = activeLivePipeline;
 
@@ -307,6 +417,10 @@ export function createDictationController(options: {
         endedAt,
         durationMs: recording.durationMs,
       });
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       recordingWasSaved = true;
 
       if (liveProcessingErrorMessage || !pipeline) {
@@ -333,13 +447,25 @@ export function createDictationController(options: {
       }
 
       const outcome = await pipeline.flush();
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       await pipeline.dispose();
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       activeLivePipeline = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
       liveProcessingGeneration += 1;
 
       await pruneSessions();
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       if (outcome.result === 'no_speech') {
         await options.sessionStore.markNoSpeech(session.id);
         activeSession = null;
@@ -350,6 +476,10 @@ export function createDictationController(options: {
 
       await options.sessionStore.markSegmented(session.id);
       const transcriptionOutcome = await options.transcription.waitForSession(session.id);
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
         const errorMessage = `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`;
         await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
@@ -364,8 +494,18 @@ export function createDictationController(options: {
       let rawOutput: Awaited<ReturnType<SessionOutputService['createRawConcatOutput']>>;
       try {
         rawOutput = await options.outputs.createRawConcatOutput(session.id);
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
       } catch (error) {
-        const errorMessage = describeUnexpectedError('Raw transcript assembly failed unexpectedly.', error);
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
+        const errorMessage = describeUnexpectedError(
+          'Raw transcript assembly failed unexpectedly.',
+          error,
+        );
         await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
         activeSession = null;
         lifecycle = 'idle';
@@ -378,7 +518,15 @@ export function createDictationController(options: {
       const polishSettings = options.settingsStore.getSettings().polish;
       if (!polishSettings.enabled) {
         await options.outputs.selectOutput({ sessionId: session.id, outputId: rawOutput.id });
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
         const pasteAttempt = await options.clipboard.copyAndPasteText(rawOutput.text);
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
         options.stateStore.completeTranscription(rawOutput.text, pasteAttempt, {
           id: rawOutput.id,
           createdAt: rawOutput.createdAt,
@@ -393,10 +541,36 @@ export function createDictationController(options: {
       let polishedOutput: Awaited<ReturnType<PolishService['polishOutput']>>;
       try {
         await options.sessionStore.markPolishing(session.id);
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
         options.stateStore.startPolishing();
-        polishedOutput = await options.polish.polishOutput({ sessionId: session.id, rawOutput });
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
+        activePolishAbortController = new AbortController();
+        polishedOutput = await options.polish.polishOutput({
+          sessionId: session.id,
+          rawOutput,
+          signal: activePolishAbortController.signal,
+        });
+        activePolishAbortController = null;
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
         await options.outputs.selectOutput({ sessionId: session.id, outputId: polishedOutput.id });
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
       } catch (error) {
+        activePolishAbortController = null;
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
         const errorMessage = describeUnexpectedError('Polish failed unexpectedly.', error);
         await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         activeSession = null;
@@ -408,6 +582,10 @@ export function createDictationController(options: {
       }
 
       const pasteAttempt = await options.clipboard.copyAndPasteText(polishedOutput.text);
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       options.stateStore.completeTranscription(polishedOutput.text, pasteAttempt, {
         id: polishedOutput.id,
         createdAt: polishedOutput.createdAt,
@@ -419,6 +597,11 @@ export function createDictationController(options: {
       lifecycle = 'idle';
       options.windows.emitSound('done');
     } catch (error) {
+      activePolishAbortController = null;
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
       if (recordingWasSaved) {
         await failProcessedSession(error);
         return;
@@ -450,7 +633,75 @@ export function createDictationController(options: {
 
       if (lifecycle === 'listening' && phase === 'listening') {
         lifecycle = 'stopping';
-        await finishListening();
+        await runFinishListening();
+      }
+    },
+
+    async cancelCapture() {
+      clearFailureTimer();
+      clearNoSpeechTimer();
+
+      const previousLifecycle = lifecycle;
+      const session = activeSession;
+      const pipeline = activeLivePipeline;
+      const pendingLiveProcessing = liveProcessingQueue;
+      const pendingFinish = activeFinishTask;
+      const shouldStopRecorder =
+        lifecycle === 'starting' || lifecycle === 'listening' || Boolean(activeRecorderStop);
+      activePolishAbortController?.abort();
+      activePolishAbortController = null;
+      activeOperationGeneration += 1;
+      lifecycle = 'cancelling';
+      options.stateStore.setPhase('idle');
+      options.windows.showOverlay();
+
+      if (previousLifecycle === 'starting' || previousLifecycle === 'cancelling') {
+        return;
+      }
+
+      activeSession = null;
+      activeLivePipeline = null;
+      liveProcessingErrorMessage = null;
+      liveProcessingQueue = Promise.resolve();
+      liveProcessingBacklog = 0;
+      liveProcessingGeneration += 1;
+
+      if (!session) {
+        lifecycle = 'idle';
+        return;
+      }
+
+      let stoppedRecordingDurationMs: number | undefined;
+      if (shouldStopRecorder) {
+        try {
+          stoppedRecordingDurationMs = (await stopActiveRecorder()).durationMs;
+        } catch (error) {
+          console.error('Toph could not stop the active recording while cancelling.', error);
+        }
+      }
+
+      await pendingLiveProcessing.catch((queueError: unknown) => {
+        console.error('Toph live segmentation queue failed while cancelling.', queueError);
+      });
+
+      try {
+        // A flush may schedule batches while cancel is waiting for finish cleanup;
+        // cancel both sides of that wait so no transcriptions survive cancellation.
+        await options.transcription.cancelSession(session.id);
+        await pendingFinish?.catch((finishError: unknown) => {
+          console.error('Toph finishing pipeline failed while cancelling.', finishError);
+        });
+        await options.transcription.cancelSession(session.id);
+        await pipeline?.dispose();
+        await options.sessionStore.markCancelled({
+          sessionId: session.id,
+          durationMs: stoppedRecordingDurationMs,
+        });
+        await options.sessionStore.discardSessionArtifacts(session.id);
+      } catch (error) {
+        console.error('Toph could not persist the cancelled recording session.', error);
+      } finally {
+        lifecycle = 'idle';
       }
     },
 
@@ -466,7 +717,10 @@ export function createDictationController(options: {
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
       liveProcessingGeneration += 1;
+      activeOperationGeneration += 1;
       lifecycle = 'idle';
+      activePolishAbortController?.abort();
+      activePolishAbortController = null;
       options.audioRecorder.dispose();
       await pendingLiveProcessing.catch((queueError: unknown) => {
         console.error('Toph live segmentation queue failed during shutdown.', queueError);

@@ -10,6 +10,7 @@ export type RecordingSessionStatus =
   | 'failed'
   | 'no_speech'
   | 'recording_failed'
+  | 'cancelled'
   | 'removed';
 
 export type TimelineRegionKind = 'speech' | 'silence';
@@ -35,6 +36,7 @@ export const recordingSessions = sqliteTable('recording_sessions', {
       'failed',
       'no_speech',
       'recording_failed',
+      'cancelled',
       'removed',
     ],
   }).notNull(),
