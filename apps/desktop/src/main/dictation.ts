@@ -620,7 +620,11 @@ export function createDictationController(options: {
 
       lastToggleRequestAt = now;
 
-      const { phase } = options.stateStore.getState();
+      const { phase, ruleSwitcher } = options.stateStore.getState();
+      if (ruleSwitcher.mode !== 'idle') {
+        return;
+      }
+
       if (lifecycle === 'idle' && phase === 'idle') {
         if (!(await options.ensurePermissionsReady())) {
           return;

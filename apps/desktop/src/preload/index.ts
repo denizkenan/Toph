@@ -51,8 +51,14 @@ const api: DesktopApi = {
   hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
   installShortcut: (chord: ShortcutChord) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, chord) as Promise<void>,
+  installRuleSwitcherShortcut: (chord: ShortcutChord) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut, chord) as Promise<void>,
   suspendShortcut: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.suspendShortcut) as Promise<void>,
   resumeShortcut: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.resumeShortcut) as Promise<void>,
+  openRuleSwitcher: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.openRuleSwitcher) as Promise<void>,
+  closeRuleSwitcher: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.closeRuleSwitcher) as Promise<void>,
+  selectRuleSwitcherPreset: (rulePresetId: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset, rulePresetId) as Promise<void>,
   connectProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId) as Promise<void>,
   submitProviderAuthorization: (providerId: ProviderId, input: string) =>
@@ -85,6 +91,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.updatePolishRulePreset, id, draft) as Promise<void>,
   deletePolishRulePreset: (id: string) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.deletePolishRulePreset, id) as Promise<void>,
+  duplicatePolishRulePreset: (id: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.duplicatePolishRulePreset, id) as Promise<void>,
+  reorderPolishRulePresets: (ids: string[]) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.reorderPolishRulePresets, ids) as Promise<void>,
   createDictionaryEntry: (draft: DictionaryEntryDraft) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.createDictionaryEntry, draft) as Promise<void>,
   updateDictionaryEntry: (id: string, draft: DictionaryEntryDraft) =>

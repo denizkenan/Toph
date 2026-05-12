@@ -59,6 +59,7 @@ function ShortcutKeyChips({ labels, large = false }: { labels: string[]; large?:
 
 function ShortcutRecorderModal({
   currentShortcut,
+  label,
   platform,
   onSuspend,
   onResume,
@@ -66,6 +67,7 @@ function ShortcutRecorderModal({
   onRegister,
 }: {
   currentShortcut: ShortcutChord;
+  label: string;
   platform: NodeJS.Platform;
   onSuspend: () => Promise<void>;
   onResume: () => Promise<void>;
@@ -267,9 +269,9 @@ function ShortcutRecorderModal({
   return (
     <ModalShell
       eyebrow="Shortcut"
-      title="Set shortcut"
+      title={`Set ${label.toLowerCase()} shortcut`}
       titleId="shortcut-recorder-title"
-      description="Press and release the keys you want to use for dictation. Escape gets captured too; no trapdoors here."
+      description="Press and release the keys you want. Escape gets captured too; no trapdoors here."
       onClose={onCancel}
       closeDisabled={submitting}
       footer={
@@ -315,36 +317,52 @@ function ShortcutRecorderModal({
 
 export function ShortcutSection({
   shortcut,
+  ruleSwitcherShortcut,
   platform,
   registered,
+  ruleSwitcherRegistered,
   backend,
+  ruleSwitcherBackend,
   detail,
+  ruleSwitcherDetail,
   installed,
+  ruleSwitcherInstalled,
   installable,
+  ruleSwitcherInstallable,
   onRegister,
+  onRegisterRuleSwitcher,
   onSuspend,
   onResume,
 }: {
   shortcut: ShortcutChord;
+  ruleSwitcherShortcut: ShortcutChord;
   platform: NodeJS.Platform;
   registered: boolean;
+  ruleSwitcherRegistered: boolean;
   backend: string;
+  ruleSwitcherBackend: string;
   detail: string;
+  ruleSwitcherDetail: string;
   installed: boolean;
+  ruleSwitcherInstalled: boolean;
   installable: boolean;
+  ruleSwitcherInstallable: boolean;
   onRegister: (chord: ShortcutChord) => Promise<void>;
+  onRegisterRuleSwitcher: (chord: ShortcutChord) => Promise<void>;
   onSuspend: () => Promise<void>;
   onResume: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<'dictation' | 'ruleSwitcher' | null>(null);
   const [opening, setOpening] = useState(false);
   const shortcutLabels = formatShortcutChordKeys(shortcut, platform);
+  const ruleSwitcherShortcutLabels = formatShortcutChordKeys(ruleSwitcherShortcut, platform);
+  const activeShortcut = open === 'ruleSwitcher' ? ruleSwitcherShortcut : shortcut;
 
-  const openRecorder = async () => {
+  const openRecorder = async (kind: 'dictation' | 'ruleSwitcher') => {
     setOpening(true);
     try {
       await onSuspend();
-      setOpen(true);
+      setOpen(kind);
     } finally {
       setOpening(false);
     }
@@ -353,24 +371,24 @@ export function ShortcutSection({
   return (
     <>
       <SettingsSection
-        eyebrow="Shortcut"
-        description="Configure the keyboard shortcut that triggers dictation."
-        footer={detail}
+        eyebrow="Keyboard Shortcuts"
+        description="Configure the global shortcuts for capture and quick rule switching."
+        footer={`${detail} ${ruleSwitcherDetail}`}
       >
         <SettingsRow label="Registration">
           <StatusBadge
-            active={registered}
+            active={registered && ruleSwitcherRegistered}
             activeLabel="Active"
             inactiveLabel="Needs attention"
             inactiveTone="red"
           />
         </SettingsRow>
 
-        <SettingsRow label="Shortcut">
+        <SettingsRow label="Start dictation">
           <button
             type="button"
             className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-3 py-2 transition-[transform,background-color,opacity] duration-200 ease-out hover:-translate-y-px hover:bg-white/8 disabled:cursor-default disabled:opacity-55 disabled:hover:translate-y-0"
-            onClick={() => void openRecorder()}
+            onClick={() => void openRecorder('dictation')}
             disabled={!installable || opening}
           >
             <ShortcutKeyChips labels={shortcutLabels} />
@@ -380,13 +398,29 @@ export function ShortcutSection({
           </button>
         </SettingsRow>
 
+        <SettingsRow label="Open rule switcher">
+          <button
+            type="button"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-3 py-2 transition-[transform,background-color,opacity] duration-200 ease-out hover:-translate-y-px hover:bg-white/8 disabled:cursor-default disabled:opacity-55 disabled:hover:translate-y-0"
+            onClick={() => void openRecorder('ruleSwitcher')}
+            disabled={!ruleSwitcherInstallable || opening}
+          >
+            <ShortcutKeyChips labels={ruleSwitcherShortcutLabels} />
+            <span className="text-xs font-semibold text-accent-blue">
+              {opening ? 'Opening...' : 'Change'}
+            </span>
+          </button>
+        </SettingsRow>
+
         <SettingsRow label="Backend">
-          <span className="text-sm font-semibold text-text-secondary">{backend}</span>
+          <span className="text-sm font-semibold text-text-secondary">
+            {backend === ruleSwitcherBackend ? backend : `${backend}, ${ruleSwitcherBackend}`}
+          </span>
         </SettingsRow>
 
         <SettingsRow label="Installed">
           <StatusBadge
-            active={installed}
+            active={installed && ruleSwitcherInstalled}
             activeLabel="Installed"
             inactiveLabel="Not installed"
             inactiveTone="amber"
@@ -396,14 +430,19 @@ export function ShortcutSection({
 
       {open && (
         <ShortcutRecorderModal
-          currentShortcut={shortcut}
+          currentShortcut={activeShortcut}
+          label={open === 'ruleSwitcher' ? 'Open rule switcher' : 'Start dictation'}
           platform={platform}
           onSuspend={onSuspend}
           onResume={onResume}
-          onCancel={() => setOpen(false)}
+          onCancel={() => setOpen(null)}
           onRegister={async (chord) => {
-            await onRegister(chord);
-            setOpen(false);
+            if (open === 'ruleSwitcher') {
+              await onRegisterRuleSwitcher(chord);
+            } else {
+              await onRegister(chord);
+            }
+            setOpen(null);
           }}
         />
       )}

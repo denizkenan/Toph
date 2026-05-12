@@ -17,6 +17,7 @@
   --font-display: "Sora", system-ui, sans-serif;
   --shadow-menu: 0 16px 48px rgba(0, 0, 0, 0.4);
   --animate-onboarding-ready-enter: onboarding-ready-enter 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-rule-switcher-content-enter: rule-switcher-content-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-spin-ring: spin 820ms linear infinite;
   --animate-wave: wave 1s ease-in-out infinite;
 }
@@ -79,6 +80,18 @@
 
   to {
     transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes rule-switcher-content-enter {
+  from {
+    transform: translateY(6px) scale(0.985);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
     opacity: 1;
   }
 }

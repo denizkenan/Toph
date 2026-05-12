@@ -32,7 +32,7 @@ function isPolishRulePresetDraft(value: unknown): value is PolishRulePresetDraft
   }
 
   const draft = value as Partial<PolishRulePresetDraft>;
-  return typeof draft.title === 'string' && typeof draft.body === 'string';
+  return typeof draft.title === 'string' && typeof draft.description === 'string' && typeof draft.body === 'string';
 }
 
 function isDictionaryEntryDraft(value: unknown): value is DictionaryEntryDraft {
@@ -56,8 +56,12 @@ export function registerDesktopIpc(options: {
   showSettings: () => void;
   hideSettings: () => void;
   installShortcut: (chord: ShortcutChord) => Promise<void>;
+  installRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
   suspendShortcut: () => Promise<void>;
   resumeShortcut: () => Promise<void>;
+  openRuleSwitcher: () => Promise<void>;
+  closeRuleSwitcher: () => Promise<void>;
+  selectRuleSwitcherPreset: (rulePresetId: string) => Promise<void>;
   connectProvider: (providerId: ProviderId) => Promise<void>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
@@ -72,6 +76,8 @@ export function registerDesktopIpc(options: {
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
   deletePolishRulePreset: (id: string) => Promise<void>;
+  duplicatePolishRulePreset: (id: string) => Promise<void>;
+  reorderPolishRulePresets: (ids: string[]) => Promise<void>;
   createDictionaryEntry: (draft: DictionaryEntryDraft) => Promise<void>;
   updateDictionaryEntry: (id: string, draft: DictionaryEntryDraft) => Promise<void>;
   deleteDictionaryEntry: (id: string) => Promise<void>;
@@ -118,11 +124,36 @@ export function registerDesktopIpc(options: {
 
     await options.installShortcut(validation.chord);
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut, async (_event, chord: unknown) => {
+    if (!isShortcutChord(chord)) {
+      throw new Error('Invalid shortcut.');
+    }
+
+    const validation = validateShortcutChord(chord);
+    if (!validation.valid) {
+      throw new Error('Invalid shortcut.');
+    }
+
+    await options.installRuleSwitcherShortcut(validation.chord);
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.suspendShortcut, async () => {
     await options.suspendShortcut();
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.resumeShortcut, async () => {
     await options.resumeShortcut();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.openRuleSwitcher, async () => {
+    await options.openRuleSwitcher();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.closeRuleSwitcher, async () => {
+    await options.closeRuleSwitcher();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset, async (_event, rulePresetId: unknown) => {
+    if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
+      throw new Error('Invalid Polish rule preset.');
+    }
+
+    await options.selectRuleSwitcherPreset(rulePresetId);
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.connectProvider, async (_event, providerId: unknown) => {
     if (!isProviderId(providerId)) {
@@ -219,6 +250,20 @@ export function registerDesktopIpc(options: {
 
     await options.deletePolishRulePreset(id);
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.duplicatePolishRulePreset, async (_event, id: unknown) => {
+    if (typeof id !== 'string' || id.trim().length === 0) {
+      throw new Error('Invalid Polish rule preset.');
+    }
+
+    await options.duplicatePolishRulePreset(id);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.reorderPolishRulePresets, async (_event, ids: unknown) => {
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string' && id.trim().length > 0)) {
+      throw new Error('Invalid Polish rule order.');
+    }
+
+    await options.reorderPolishRulePresets(ids);
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.createDictionaryEntry, async (_event, draft: unknown) => {
     if (!isDictionaryEntryDraft(draft)) {
       throw new Error('Invalid dictionary entry.');
@@ -265,8 +310,12 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.showSettings);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.hideSettings);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.installShortcut);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.suspendShortcut);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.resumeShortcut);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.openRuleSwitcher);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.closeRuleSwitcher);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.connectProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.submitProviderAuthorization);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.removeProvider);
@@ -281,6 +330,8 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createPolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.updatePolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deletePolishRulePreset);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.duplicatePolishRulePreset);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.reorderPolishRulePresets);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createDictionaryEntry);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.updateDictionaryEntry);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry);

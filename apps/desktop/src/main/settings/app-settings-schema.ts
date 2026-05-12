@@ -2,6 +2,7 @@ import {
   DEFAULT_APP_SETTINGS,
   PROVIDER_IDS,
   resolveDefaultShortcutChord,
+  resolveDefaultRuleSwitcherShortcutChord,
   validateShortcutChord,
   type AppSettings,
   type ProviderId,
@@ -17,6 +18,9 @@ const shortcutChordSchema = z.object({
 const appSettingsFileSchema = z.object({
   version: z.literal(1),
   shortcut: z.object({
+    chord: shortcutChordSchema,
+  }).optional(),
+  ruleSwitcherShortcut: z.object({
     chord: shortcutChordSchema,
   }).optional(),
   auth: z.object({
@@ -43,6 +47,9 @@ export const defaultAppSettings: AppSettings = {
   ...DEFAULT_APP_SETTINGS,
   shortcut: {
     chord: resolveDefaultShortcutChord(process.platform),
+  },
+  ruleSwitcherShortcut: {
+    chord: resolveDefaultRuleSwitcherShortcutChord(process.platform),
   },
 };
 
@@ -71,11 +78,19 @@ export function normalizeAppSettings(value: AppSettingsFile, options: { rulePres
   const shortcutValidation = value.shortcut
     ? validateShortcutChord(value.shortcut.chord)
     : null;
+  const ruleSwitcherShortcutValidation = value.ruleSwitcherShortcut
+    ? validateShortcutChord(value.ruleSwitcherShortcut.chord)
+    : null;
 
   return {
     version: 1,
     shortcut: {
       chord: shortcutValidation?.valid ? shortcutValidation.chord : defaultAppSettings.shortcut.chord,
+    },
+    ruleSwitcherShortcut: {
+      chord: ruleSwitcherShortcutValidation?.valid
+        ? ruleSwitcherShortcutValidation.chord
+        : defaultAppSettings.ruleSwitcherShortcut.chord,
     },
     auth: {
       providerId: normalizeProviderId(value.auth.providerId, defaultAppSettings.auth.providerId),

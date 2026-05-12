@@ -8,9 +8,11 @@ import type { DictionaryEntry } from '../../src/main/db/schema.ts';
 const rulePreset = {
   id: 'general',
   title: 'General',
+  description: 'Clean rules',
   body: 'Polish the transcript.',
   bodyHash: 'rule-hash',
   isBuiltin: true,
+  sortOrder: 0,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -22,6 +24,8 @@ function createService(provider: InferenceProvider, options: { rulePresetAvailab
       getSettings() {
         return {
           version: 1,
+          shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
+          ruleSwitcherShortcut: { chord: { modifiers: ['control'], key: 'Space' } },
           auth: { providerId: 'openai-sub' },
           transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
           inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },

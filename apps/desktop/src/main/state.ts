@@ -2,6 +2,7 @@ import {
   DEFAULT_APP_SETTINGS,
   formatShortcutChord,
   resolveDefaultShortcutChord,
+  resolveDefaultRuleSwitcherShortcutChord,
   shortcutChordToElectronAccelerator,
   type AppState,
   type AppSettings,
@@ -13,6 +14,7 @@ import {
   type PolishState,
   type ProviderState,
   type ShortcutChord,
+  type ShortcutRegistrationState,
 } from '@toph/desktop-contracts';
 
 export interface ShortcutStateSupport {
@@ -26,7 +28,11 @@ export interface ShortcutStateSupport {
 export interface DesktopStateStore {
   getState: () => AppState;
   subscribe: (listener: (state: AppState) => void) => () => void;
-  setShortcut: (chord: ShortcutChord, support: ShortcutStateSupport) => void;
+  setShortcut: (kind: 'dictation' | 'ruleSwitcher', chord: ShortcutChord, support: ShortcutStateSupport) => void;
+  openRuleSwitcher: () => void;
+  showRuleSwitcherSelected: (rulePresetId: string, message: string) => void;
+  showRuleSwitcherDisabled: () => void;
+  closeRuleSwitcher: () => void;
   setProviders: (providers: ProviderState) => void;
   setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
@@ -55,18 +61,29 @@ export interface DesktopStateStore {
 
 function createInitialState(): AppState {
   const defaultShortcutChord = resolveDefaultShortcutChord(process.platform);
+  const defaultRuleSwitcherShortcutChord = resolveDefaultRuleSwitcherShortcutChord(process.platform);
+  const toShortcutState = (chord: ShortcutChord, detail: string): ShortcutRegistrationState => ({
+    chord,
+    accelerator: shortcutChordToElectronAccelerator(chord, process.platform),
+    label: formatShortcutChord(chord, process.platform),
+    registered: false,
+    backend: 'electron-global-shortcut',
+    detail,
+    installable: false,
+    installed: false,
+  });
 
   return {
     phase: 'idle',
-    shortcut: {
-      chord: defaultShortcutChord,
-      accelerator: shortcutChordToElectronAccelerator(defaultShortcutChord, process.platform),
-      label: formatShortcutChord(defaultShortcutChord, process.platform),
-      registered: false,
-      backend: 'electron-global-shortcut',
-      detail: 'Inspecting global shortcut support...',
-      installable: false,
-      installed: false,
+    shortcut: toShortcutState(defaultShortcutChord, 'Inspecting dictation shortcut support...'),
+    ruleSwitcherShortcut: toShortcutState(
+      defaultRuleSwitcherShortcutChord,
+      'Inspecting rule switcher shortcut support...',
+    ),
+    ruleSwitcher: {
+      mode: 'idle',
+      selectedRulePresetId: null,
+      message: null,
     },
     environment: {
       platform: process.platform,
@@ -140,14 +157,47 @@ export function createDesktopStateStore(): DesktopStateStore {
       };
     },
 
-    setShortcut(chord, support) {
+    setShortcut(kind, chord, support) {
       commit((draft) => {
-        draft.shortcut = {
+        const next = {
           chord,
           accelerator: shortcutChordToElectronAccelerator(chord, process.platform),
           label: formatShortcutChord(chord, process.platform),
           ...support,
         };
+        if (kind === 'dictation') {
+          draft.shortcut = next;
+          return;
+        }
+        draft.ruleSwitcherShortcut = next;
+      });
+    },
+
+    openRuleSwitcher() {
+      commit((draft) => {
+        draft.ruleSwitcher = { mode: 'selecting', selectedRulePresetId: null, message: null };
+      });
+    },
+
+    showRuleSwitcherSelected(rulePresetId, message) {
+      commit((draft) => {
+        draft.ruleSwitcher = { mode: 'selected', selectedRulePresetId: rulePresetId, message };
+      });
+    },
+
+    showRuleSwitcherDisabled() {
+      commit((draft) => {
+        draft.ruleSwitcher = {
+          mode: 'disabled',
+          selectedRulePresetId: null,
+          message: 'Can\'t switch rules while the prose engine is unplugged.',
+        };
+      });
+    },
+
+    closeRuleSwitcher() {
+      commit((draft) => {
+        draft.ruleSwitcher = { mode: 'idle', selectedRulePresetId: null, message: null };
       });
     },
 

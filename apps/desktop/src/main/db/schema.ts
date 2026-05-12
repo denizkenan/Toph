@@ -100,9 +100,11 @@ export const sessionOutputs = sqliteTable('session_outputs', {
 export const polishRulePresets = sqliteTable('polish_rule_presets', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
+  description: text('description').notNull(),
   body: text('body').notNull(),
   bodyHash: text('body_hash').notNull(),
   isBuiltin: integer('is_builtin', { mode: 'boolean' }).notNull(),
+  sortOrder: integer('sort_order').notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

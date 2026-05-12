@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeAll, vi } from 'vitest';
+import { afterEach, beforeAll, vi } from 'vitest';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
@@ -16,6 +16,21 @@ const baseState: AppState = {
     detail: 'Electron global shortcut registration is active.',
     installable: true,
     installed: true,
+  },
+  ruleSwitcherShortcut: {
+    chord: { modifiers: ['control'], key: 'Space' },
+    accelerator: 'Control+Space',
+    label: 'Ctrl+Space',
+    registered: true,
+    backend: 'electron-global-shortcut',
+    detail: 'Electron global shortcut registration is active.',
+    installable: true,
+    installed: true,
+  },
+  ruleSwitcher: {
+    mode: 'idle',
+    selectedRulePresetId: null,
+    message: null,
   },
   environment: {
     platform: 'linux',
@@ -40,13 +55,14 @@ const baseState: AppState = {
   settings: {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
+    ruleSwitcherShortcut: { chord: { modifiers: ['control'], key: 'Space' } },
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: 'general' },
   },
   polish: {
-    rulePresets: [{ id: 'general', title: 'General', body: 'General rules', bodyHash: 'hash', isBuiltin: true }],
+    rulePresets: [{ id: 'general', title: 'General', description: 'Clean rules', body: 'General rules', bodyHash: 'hash', sortOrder: 0 }],
     dictionary: [],
   },
   permissions: {
@@ -79,6 +95,10 @@ beforeAll(() => {
   });
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
     subscribeState: (listener) => {
@@ -91,8 +111,12 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     showSettings: async () => {},
     hideSettings: async () => {},
     installShortcut: async () => {},
+    installRuleSwitcherShortcut: async () => {},
     suspendShortcut: async () => {},
     resumeShortcut: async () => {},
+    openRuleSwitcher: async () => {},
+    closeRuleSwitcher: async () => {},
+    selectRuleSwitcherPreset: async () => {},
     connectProvider: async () => {},
     submitProviderAuthorization: async () => {},
     removeProvider: async () => {},
@@ -107,6 +131,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     createPolishRulePreset: async () => {},
     updatePolishRulePreset: async () => {},
     deletePolishRulePreset: async () => {},
+    duplicatePolishRulePreset: async () => {},
+    reorderPolishRulePresets: async () => {},
     createDictionaryEntry: async () => {},
     updateDictionaryEntry: async () => {},
     deleteDictionaryEntry: async () => {},
@@ -153,5 +179,67 @@ describe('OverlayApp', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel dictation' }));
 
     expect(cancelCapture).toHaveBeenCalledOnce();
+  });
+
+  it('sizes the rule switcher from content instead of the current overlay viewport', async () => {
+    const selectRuleSwitcherPreset = vi.fn<DesktopApi['selectRuleSwitcherPreset']>(async () => {});
+    const resizeOverlay = vi.fn<DesktopApi['resizeOverlay']>(async () => {});
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'SECTION') {
+        return {
+          x: 0,
+          y: 0,
+          width: 840,
+          height: 168,
+          top: 0,
+          right: 840,
+          bottom: 168,
+          left: 0,
+          toJSON: () => ({}),
+        };
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        toJSON: () => ({}),
+      };
+    });
+    const state: AppState = {
+      ...baseState,
+      phase: 'idle',
+      ruleSwitcher: { mode: 'selecting', selectedRulePresetId: null, message: null },
+      polish: {
+        ...baseState.polish,
+        rulePresets: Array.from({ length: 6 }, (_, index) => ({
+          id: `rule-${index + 1}`,
+          title: `Rule ${index + 1}`,
+          description: 'Keeps the prose goblin pointed at the right target.',
+          body: 'Rules',
+          bodyHash: 'hash',
+          sortOrder: index,
+        })),
+      },
+    };
+
+    render(
+      <OverlayApp
+        client={createClient(state, { resizeOverlay, selectRuleSwitcherPreset })}
+        soundsEnabled={false}
+      />,
+    );
+
+    const overlay = await screen.findByLabelText('Toph active');
+    expect(overlay.style.getPropertyValue('--rule-switcher-width')).toBe('840px');
+    expect(resizeOverlay).toHaveBeenCalledWith({ width: 872, height: 192 });
+
+    fireEvent.keyDown(window, { key: '6' });
+    expect(selectRuleSwitcherPreset).toHaveBeenCalledWith('rule-6');
   });
 });

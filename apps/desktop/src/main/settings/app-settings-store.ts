@@ -13,6 +13,7 @@ export interface AppSettingsStore {
   subscribe: (listener: (settings: AppSettings) => void) => () => void;
   reloadFromDisk: () => Promise<AppSettings>;
   setShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
+  setRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
   setAuthProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setTranscriptionProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setTranscriptionModel: (model: string) => Promise<AppSettings>;
@@ -129,6 +130,12 @@ export async function createAppSettingsStore(options: {
     setShortcut(chord) {
       return commit((draft) => {
         draft.shortcut.chord = chord;
+      });
+    },
+
+    setRuleSwitcherShortcut(chord) {
+      return commit((draft) => {
+        draft.ruleSwitcherShortcut.chord = chord;
       });
     },
 

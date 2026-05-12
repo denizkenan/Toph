@@ -4,16 +4,27 @@ import test from 'node:test';
 import { shortcutChordToElectronAccelerator, type AppState, type ShortcutChord } from '@toph/desktop-contracts';
 
 import { createShortcutManagerCore } from '../../src/main/managers/shortcut-manager-core.ts';
+import { createShortcutManager } from '../../src/main/managers/shortcuts.ts';
 import type { DesktopStateStore, ShortcutStateSupport } from '../../src/main/state.ts';
 
 const defaultChord: ShortcutChord = { modifiers: ['control', 'alt'], key: 'Space' };
 const alternateChord: ShortcutChord = { modifiers: ['control', 'alt'], key: 'X' };
 const thirdChord: ShortcutChord = { modifiers: ['control', 'shift'], key: 'K' };
+const ruleSwitcherChord: ShortcutChord = { modifiers: ['control'], key: 'Space' };
+const alternateRuleSwitcherChord: ShortcutChord = { modifiers: ['control'], key: 'R' };
 
 function createStateStore(chord: ShortcutChord = defaultChord) {
   const state = {
     shortcut: {
       chord,
+      backend: 'electron-global-shortcut',
+      registered: true,
+      installable: true,
+      installed: true,
+      detail: 'Registered.',
+    },
+    ruleSwitcherShortcut: {
+      chord: ruleSwitcherChord,
       backend: 'electron-global-shortcut',
       registered: true,
       installable: true,
@@ -26,9 +37,18 @@ function createStateStore(chord: ShortcutChord = defaultChord) {
     getState() {
       return state;
     },
-    setShortcut(nextChord: ShortcutChord, support: ShortcutStateSupport) {
-      state.shortcut = {
-        ...state.shortcut,
+    setShortcut(kind: 'dictation' | 'ruleSwitcher', nextChord: ShortcutChord, support: ShortcutStateSupport) {
+      if (kind === 'dictation') {
+        state.shortcut = {
+          ...state.shortcut,
+          chord: nextChord,
+          ...support,
+        };
+        return;
+      }
+
+      state.ruleSwitcherShortcut = {
+        ...state.ruleSwitcherShortcut,
         chord: nextChord,
         ...support,
       };
@@ -36,6 +56,23 @@ function createStateStore(chord: ShortcutChord = defaultChord) {
   };
 
   return store as DesktopStateStore;
+}
+
+function createGlobalShortcutApi(registerResults: boolean[] = [true]) {
+  const registrations: string[] = [];
+  let unregisters = 0;
+
+  return {
+    register(accelerator: string) {
+      registrations.push(accelerator);
+      return registerResults.shift() ?? true;
+    },
+    unregisterAll() {
+      unregisters += 1;
+    },
+    getRegistrations: () => registrations,
+    getUnregisters: () => unregisters,
+  };
 }
 
 function createShortcutApi(registerResults: boolean[] = [true]) {
@@ -157,4 +194,97 @@ test('queues installs so later shortcut requests win in order', async () => {
   assert.deepEqual(persisted, [alternateChord, thirdChord]);
   assert.deepEqual(stateStore.getState().shortcut.chord, thirdChord);
   assert.deepEqual(shortcutApi.getRegistrations(), ['Control+Alt+X', 'Control+Shift+K']);
+});
+
+test('production manager installs rule switcher shortcut while preserving dictation shortcut', async () => {
+  const stateStore = createStateStore();
+  const shortcutApi = createGlobalShortcutApi([true, true]);
+  const persistedRuleSwitcher: ShortcutChord[] = [];
+  const manager = createShortcutManager({
+    stateStore,
+    config: {
+      launcherScriptPath: '/tmp/toph-desktop.sh',
+      toggleCaptureFlag: '--toggle-capture',
+      ruleSwitcherFlag: '--rule-switcher',
+    },
+    onDictationTrigger: () => {},
+    onRuleSwitcherTrigger: () => {},
+    persistDictationShortcut: async () => {},
+    persistRuleSwitcherShortcut: async (chord) => {
+      persistedRuleSwitcher.push(chord);
+    },
+    shortcutApi,
+  });
+
+  await manager.installRuleSwitcherShortcut(alternateRuleSwitcherChord);
+
+  assert.deepEqual(stateStore.getState().shortcut.chord, defaultChord);
+  assert.deepEqual(stateStore.getState().ruleSwitcherShortcut.chord, alternateRuleSwitcherChord);
+  assert.deepEqual(persistedRuleSwitcher, [alternateRuleSwitcherChord]);
+  assert.deepEqual(shortcutApi.getRegistrations(), ['Control+Option+Space', 'Control+R']);
+  assert.equal(shortcutApi.getUnregisters(), 1);
+});
+
+test('production manager restores both shortcuts when one registration fails', async () => {
+  const stateStore = createStateStore();
+  const shortcutApi = createGlobalShortcutApi([true, false, true, true]);
+  const persistedRuleSwitcher: ShortcutChord[] = [];
+  const manager = createShortcutManager({
+    stateStore,
+    config: {
+      launcherScriptPath: '/tmp/toph-desktop.sh',
+      toggleCaptureFlag: '--toggle-capture',
+      ruleSwitcherFlag: '--rule-switcher',
+    },
+    onDictationTrigger: () => {},
+    onRuleSwitcherTrigger: () => {},
+    persistDictationShortcut: async () => {},
+    persistRuleSwitcherShortcut: async (chord) => {
+      persistedRuleSwitcher.push(chord);
+    },
+    shortcutApi,
+  });
+
+  await assert.rejects(() => manager.installRuleSwitcherShortcut(alternateRuleSwitcherChord));
+
+  assert.deepEqual(stateStore.getState().shortcut.chord, defaultChord);
+  assert.deepEqual(stateStore.getState().ruleSwitcherShortcut.chord, ruleSwitcherChord);
+  assert.deepEqual(persistedRuleSwitcher, []);
+  assert.deepEqual(shortcutApi.getRegistrations(), [
+    'Control+Option+Space',
+    'Control+R',
+    'Control+Option+Space',
+    'Control+Space',
+  ]);
+});
+
+test('production manager restores both shortcuts when persistence fails', async () => {
+  const stateStore = createStateStore();
+  const shortcutApi = createGlobalShortcutApi([true, true, true, true]);
+  const manager = createShortcutManager({
+    stateStore,
+    config: {
+      launcherScriptPath: '/tmp/toph-desktop.sh',
+      toggleCaptureFlag: '--toggle-capture',
+      ruleSwitcherFlag: '--rule-switcher',
+    },
+    onDictationTrigger: () => {},
+    onRuleSwitcherTrigger: () => {},
+    persistDictationShortcut: async () => {},
+    persistRuleSwitcherShortcut: async () => {
+      throw new Error('settings write failed');
+    },
+    shortcutApi,
+  });
+
+  await assert.rejects(() => manager.installRuleSwitcherShortcut(alternateRuleSwitcherChord));
+
+  assert.deepEqual(stateStore.getState().shortcut.chord, defaultChord);
+  assert.deepEqual(stateStore.getState().ruleSwitcherShortcut.chord, ruleSwitcherChord);
+  assert.deepEqual(shortcutApi.getRegistrations(), [
+    'Control+Option+Space',
+    'Control+R',
+    'Control+Option+Space',
+    'Control+Space',
+  ]);
 });

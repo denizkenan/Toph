@@ -44,10 +44,11 @@ export function createShortcutManagerCore(options: {
   const restorePreviousShortcut = async (previousChord: ShortcutChord) => {
     try {
       const support = await options.registerShortcut(previousChord);
-      options.stateStore.setShortcut(previousChord, support);
+      options.stateStore.setShortcut('dictation', previousChord, support);
     } catch (error) {
-      options.stateStore.setShortcut(
-        previousChord,
+        options.stateStore.setShortcut(
+          'dictation',
+          previousChord,
         toUnexpectedFailureSupport(previousChord, options.stateStore.getState().shortcut, error),
       );
     }
@@ -74,7 +75,7 @@ export function createShortcutManagerCore(options: {
         throw error;
       }
 
-      options.stateStore.setShortcut(chord, support);
+      options.stateStore.setShortcut('dictation', chord, support);
     } catch (error) {
       if (!restoredPrevious) {
         await restorePreviousShortcut(previousChord);
@@ -88,10 +89,11 @@ export function createShortcutManagerCore(options: {
     suspended = false;
     try {
       const support = await options.registerShortcut(chord);
-      options.stateStore.setShortcut(chord, support);
+      options.stateStore.setShortcut('dictation', chord, support);
     } catch (error) {
-      options.stateStore.setShortcut(
-        chord,
+        options.stateStore.setShortcut(
+          'dictation',
+          chord,
         toUnexpectedFailureSupport(chord, options.stateStore.getState().shortcut, error),
       );
     }

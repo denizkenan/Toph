@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { app, shell } from 'electron';
-import { DEFAULT_APP_SETTINGS, resolveDefaultShortcutChord } from '@toph/desktop-contracts';
+import { DEFAULT_APP_SETTINGS, resolveDefaultShortcutChord, resolveDefaultRuleSwitcherShortcutChord } from '@toph/desktop-contracts';
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
@@ -18,7 +18,7 @@ import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
 import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
-import { builtinPolishRulePresets } from './polish/builtin-rules';
+import { defaultPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createAppSettingsStore } from './settings/app-settings-store';
@@ -37,6 +37,9 @@ const defaultAppSettings = {
   shortcut: {
     chord: resolveDefaultShortcutChord(process.platform),
   },
+  ruleSwitcherShortcut: {
+    chord: resolveDefaultRuleSwitcherShortcutChord(process.platform),
+  },
 };
 
 function describeUnexpectedError(prefix: string, error: unknown) {
@@ -49,9 +52,10 @@ function toPolishState(rulePresets: PolishRulePreset[], dictionary: DictionaryEn
     rulePresets: rulePresets.map((rulePreset) => ({
       id: rulePreset.id,
       title: rulePreset.title,
+      description: rulePreset.description,
       body: rulePreset.body,
       bodyHash: rulePreset.bodyHash,
-      isBuiltin: rulePreset.isBuiltin,
+      sortOrder: rulePreset.sortOrder,
     })),
     dictionary: dictionary.map((entry) => ({
       id: entry.id,
@@ -66,7 +70,9 @@ function toPolishState(rulePresets: PolishRulePreset[], dictionary: DictionaryEn
 
 export async function bootstrap(options: {
   shouldToggleOnLaunch: boolean;
+  shouldOpenRuleSwitcherOnLaunch: boolean;
   toggleCaptureFlag: string;
+  ruleSwitcherFlag: string;
 }) {
   app.setName(appName);
 
@@ -78,6 +84,7 @@ export async function bootstrap(options: {
 
   let isQuitting = false;
   let pendingToggle = options.shouldToggleOnLaunch;
+  let pendingRuleSwitcher = options.shouldOpenRuleSwitcherOnLaunch;
 
   const stateStore = createDesktopStateStore();
   const windows = createWindowManager({
@@ -99,8 +106,8 @@ export async function bootstrap(options: {
     paths: dataPaths,
     migrationsFolder: join(__dirname, '../../drizzle'),
   });
-  for (const rulePreset of builtinPolishRulePresets) {
-    await sessionStore.syncBuiltinPolishRulePreset(rulePreset);
+  for (const [index, rulePreset] of defaultPolishRulePresets.entries()) {
+    await sessionStore.syncDefaultPolishRulePreset({ ...rulePreset, sortOrder: index });
   }
   const legacyPolishSettings = await sessionStore.getLegacyPolishSettings();
   const settingsStore = await createAppSettingsStore({
@@ -142,6 +149,13 @@ export async function bootstrap(options: {
     void publishSettings();
   });
   stateStore.setSettings(settingsStore.getSettings());
+  if (!settingsStore.getSettings().polish.rulePresetId) {
+    const firstRulePreset = (await sessionStore.listPolishRulePresets())[0];
+    if (firstRulePreset) {
+      await settingsStore.setPolishRulePreset(firstRulePreset.id);
+      stateStore.setSettings(settingsStore.getSettings());
+    }
+  }
   await refreshPolishState();
   stateStore.setRecentConversions(
     (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
@@ -220,17 +234,73 @@ export async function bootstrap(options: {
       (await ensureProvidersReady()) && (await ensurePermissionsReady()) && (await ensureWritingReady()),
     windows,
   });
+  let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearRuleSwitcherTimer = () => {
+    if (!ruleSwitcherTimer) {
+      return;
+    }
+    clearTimeout(ruleSwitcherTimer);
+    ruleSwitcherTimer = null;
+  };
+  const closeRuleSwitcherAfter = (delayMs: number) => {
+    clearRuleSwitcherTimer();
+    ruleSwitcherTimer = setTimeout(() => {
+      ruleSwitcherTimer = null;
+      stateStore.closeRuleSwitcher();
+    }, delayMs);
+  };
+  const openRuleSwitcher = async () => {
+    const state = stateStore.getState();
+    if (state.phase !== 'idle' || state.ruleSwitcher.mode !== 'idle') {
+      return;
+    }
+
+    windows.showOverlay();
+    if (!settingsStore.getSettings().polish.enabled) {
+      stateStore.showRuleSwitcherDisabled();
+      closeRuleSwitcherAfter(3_000);
+      return;
+    }
+
+    stateStore.openRuleSwitcher();
+    closeRuleSwitcherAfter(8_000);
+  };
+  const closeRuleSwitcher = async () => {
+    clearRuleSwitcherTimer();
+    stateStore.closeRuleSwitcher();
+  };
+  const selectRuleSwitcherPreset = async (rulePresetId: string) => {
+    if (stateStore.getState().ruleSwitcher.mode !== 'selecting') {
+      return;
+    }
+    const rulePreset = await sessionStore.getPolishRulePreset(rulePresetId);
+    if (!rulePreset) {
+      throw new Error(`Polish rule preset "${rulePresetId}" is not available.`);
+    }
+
+    clearRuleSwitcherTimer();
+    await settingsStore.setPolishRulePreset(rulePresetId);
+    stateStore.showRuleSwitcherSelected(rulePresetId, `${rulePreset.title} selected`);
+    closeRuleSwitcherAfter(1_100);
+  };
   const shortcuts = createShortcutManager({
     stateStore,
     config: {
       launcherScriptPath: join(__dirname, '../../../../scripts/toph-desktop.sh'),
       toggleCaptureFlag: options.toggleCaptureFlag,
+      ruleSwitcherFlag: options.ruleSwitcherFlag,
     },
-    onTrigger: () => {
+    onDictationTrigger: () => {
       void dictation.toggleCapture();
     },
-    persistShortcut: async (chord) => {
+    onRuleSwitcherTrigger: () => {
+      void openRuleSwitcher();
+    },
+    persistDictationShortcut: async (chord) => {
       await settingsStore.setShortcut(chord);
+    },
+    persistRuleSwitcherShortcut: async (chord) => {
+      await settingsStore.setRuleSwitcherShortcut(chord);
     },
   });
   const tray = createDesktopTrayController({
@@ -251,6 +321,16 @@ export async function bootstrap(options: {
       }
 
       void dictation.toggleCapture();
+      return;
+    }
+
+    if (argv.includes(options.ruleSwitcherFlag)) {
+      if (!app.isReady()) {
+        pendingRuleSwitcher = true;
+        return;
+      }
+
+      void openRuleSwitcher();
       return;
     }
 
@@ -276,9 +356,13 @@ export async function bootstrap(options: {
     resizeOverlay: windows.resizeOverlay,
     showSettings: windows.showSettings,
     hideSettings: windows.hideSettings,
-    installShortcut: shortcuts.installShortcut,
+    installShortcut: shortcuts.installDictationShortcut,
+    installRuleSwitcherShortcut: shortcuts.installRuleSwitcherShortcut,
     suspendShortcut: shortcuts.suspend,
     resumeShortcut: shortcuts.resume,
+    openRuleSwitcher,
+    closeRuleSwitcher,
+    selectRuleSwitcherPreset,
     connectProvider: async (providerId) => {
       stateStore.setProviders(await providerAuth.getState());
       try {
@@ -364,6 +448,20 @@ export async function bootstrap(options: {
         await sessionStore.deletePolishRulePreset(id);
       });
     },
+    duplicatePolishRulePreset: async (id) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        await sessionStore.duplicatePolishRulePreset(id);
+      });
+    },
+    reorderPolishRulePresets: async (ids) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await updateWritingData(async () => {
+        await sessionStore.reorderPolishRulePresets(ids);
+      });
+    },
     createDictionaryEntry: async (draft) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
@@ -416,8 +514,11 @@ export async function bootstrap(options: {
   tray.create();
   let quitCleanupComplete = false;
 
-  await shortcuts.registerSavedShortcut(settingsStore.getSettings().shortcut.chord);
-  if (!stateStore.getState().shortcut.registered) {
+  await shortcuts.registerSavedShortcuts({
+    dictation: settingsStore.getSettings().shortcut.chord,
+    ruleSwitcher: settingsStore.getSettings().ruleSwitcherShortcut.chord,
+  });
+  if (!stateStore.getState().shortcut.registered || !stateStore.getState().ruleSwitcherShortcut.registered) {
     windows.showSettings();
   }
 
@@ -434,6 +535,10 @@ export async function bootstrap(options: {
     pendingToggle = false;
     void dictation.toggleCapture();
   }
+  if (pendingRuleSwitcher) {
+    pendingRuleSwitcher = false;
+    void openRuleSwitcher();
+  }
 
   app.on('activate', windows.showSettings);
   app.on('will-quit', (event) => {
@@ -446,6 +551,7 @@ export async function bootstrap(options: {
     unregisterIpc();
     unsubscribeState();
     unsubscribeSettings();
+    clearRuleSwitcherTimer();
     shortcuts.unregister();
 
     void dictation.dispose().finally(async () => {

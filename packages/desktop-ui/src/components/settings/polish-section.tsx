@@ -1,4 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 import type {
   DesktopApi,
@@ -7,12 +24,66 @@ import type {
   PolishRulePresetDraft,
   PolishRulePresetSummary,
 } from '@toph/desktop-contracts';
+import { MAX_POLISH_RULE_PRESETS as maxPolishRulePresets } from '@toph/desktop-contracts';
 
 import { Button } from '../button';
 import { ModalShell } from '../modal';
 import { SettingsIcon, SettingsRow, SettingsSection, SettingsSwitch } from './settings-controls';
 
 const hiddenScrollbarClass = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+
+function SortableRuleButton({
+  preset,
+  index,
+  selected,
+  active,
+  onSelect,
+}: {
+  preset: PolishRulePresetSummary;
+  index: number;
+  selected: boolean;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: preset.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? 'relative z-10 opacity-80' : ''}
+    >
+      <button
+        type="button"
+        className={`grid w-full grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-2xl border px-3 py-3 text-left transition-colors duration-200 ${selected ? 'border-accent-blue/45 bg-accent-blue/10' : 'border-white/6 bg-white/3 hover:bg-white/6'}`}
+        onClick={onSelect}
+      >
+        <span
+          {...attributes}
+          {...listeners}
+          className="mt-0.5 inline-flex cursor-grab items-center gap-1 rounded-lg border border-white/8 bg-white/5 px-2 py-1 text-[11px] font-bold text-text-tertiary active:cursor-grabbing"
+          aria-label={`Reorder ${preset.title}`}
+        >
+          <span className="text-text-secondary">{index + 1}</span>
+          <span aria-hidden="true">⋮⋮</span>
+        </span>
+        <span className="min-w-0">
+          <span className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-semibold text-text-primary">{preset.title}</span>
+            {active && (
+              <span className="rounded-full bg-accent-green/12 px-2 py-0.5 text-[11px] font-semibold text-accent-green">
+                Active
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block overflow-hidden text-xs leading-snug text-text-tertiary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+            {preset.description}
+          </span>
+        </span>
+      </button>
+    </div>
+  );
+}
 
 function AutoGrowTextarea({
   className = '',
@@ -59,25 +130,26 @@ function RulesModal({
   const [selectedId, setSelectedId] = useState<string | null>(firstId);
   const selected = rulePresets.find((preset) => preset.id === selectedId) ?? null;
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
-    if (selected?.isBuiltin) {
-      setTitle(selected.title);
-      setBody(selected.body);
-      return;
-    }
-
     if (selected) {
       setTitle(selected.title);
+      setDescription(selected.description);
       setBody(selected.body);
       return;
     }
 
     if (!selected) {
       setTitle('');
+      setDescription('');
       setBody('');
     }
   }, [selected]);
@@ -99,47 +171,62 @@ function RulesModal({
       await client.createPolishRulePreset(draft);
     });
 
+  const draft = (): PolishRulePresetDraft => ({ title, description, body });
+  const canAddRule = rulePresets.length < maxPolishRulePresets;
+  const canDeleteSelected = selected && rulePresets.length > 1 && activeRulePresetId !== selected.id;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = rulePresets.findIndex((preset) => preset.id === active.id);
+    const newIndex = rulePresets.findIndex((preset) => preset.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    const ids = arrayMove(rulePresets, oldIndex, newIndex).map((preset) => preset.id);
+    void run(() => client.reorderPolishRulePresets(ids));
+  };
+
   return (
     <ModalShell
       eyebrow="Rules"
       title="Manage writing rules"
       titleId="rules-modal-title"
-      description="Choose how Toph cleans up dictation. Built-ins are read-only, but you can duplicate the vibe and make it yours."
+      description="Reorder rules to choose their number in the quick switcher. I promise not to make sorting a distributed systems problem."
       size="lg"
       onClose={onClose}
       footer={
         <>
-          {selected?.isBuiltin && (
+          {selected && (
             <Button
-              onClick={() =>
-                void createCustom({ title: `${selected.title} copy`, body: selected.body })
-              }
-              disabled={disabled || busy}
+              onClick={() => void run(() => client.duplicatePolishRulePreset(selected.id))}
+              disabled={disabled || busy || !canAddRule}
             >
               Duplicate
             </Button>
           )}
-          {selected && !selected.isBuiltin && (
+          {selected && (
             <Button
               variant="danger"
               onClick={() => void run(() => client.deletePolishRulePreset(selected.id))}
-              disabled={disabled || busy || activeRulePresetId === selected.id}
+              disabled={disabled || busy || !canDeleteSelected}
             >
               Delete
             </Button>
           )}
-          {selected && !selected.isBuiltin && (
+          {selected && (
             <Button
-              onClick={() =>
-                void run(() => client.updatePolishRulePreset(selected.id, { title, body }))
-              }
+              onClick={() => void run(() => client.updatePolishRulePreset(selected.id, draft()))}
               disabled={disabled || busy}
             >
               Save
             </Button>
           )}
           {!selected && (
-            <Button onClick={() => void createCustom({ title, body })} disabled={disabled || busy}>
+            <Button onClick={() => void createCustom(draft())} disabled={disabled || busy || !canAddRule}>
               Create
             </Button>
           )}
@@ -164,33 +251,34 @@ function RulesModal({
             onClick={() => {
               setSelectedId(null);
               setTitle('My rules');
+              setDescription('Personal house style for when the defaults start unionizing.');
               setBody('');
             }}
+            disabled={!canAddRule}
           >
-            + New custom rules
+            + New rule
           </Button>
-          <div className="grid gap-2">
-            {rulePresets.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className={`rounded-2xl border px-3 py-3 text-left transition-colors duration-200 ${selectedId === preset.id ? 'border-accent-blue/45 bg-accent-blue/10' : 'border-white/6 bg-white/3 hover:bg-white/6'}`}
-                onClick={() => setSelectedId(preset.id)}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-text-primary">{preset.title}</span>
-                  {activeRulePresetId === preset.id && (
-                    <span className="rounded-full bg-accent-green/12 px-2 py-0.5 text-[11px] font-semibold text-accent-green">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <span className="mt-1 block text-xs text-text-tertiary">
-                  {preset.isBuiltin ? 'Built-in preset' : 'Custom preset'}
-                </span>
-              </button>
-            ))}
-          </div>
+          {!canAddRule && (
+            <p className="mb-3 rounded-2xl border border-accent-amber/18 bg-accent-amber/10 p-3 text-xs leading-relaxed text-accent-amber">
+              Nine rules max. Delete a rule before adding another so every rule keeps a number shortcut.
+            </p>
+          )}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={rulePresets.map((preset) => preset.id)} strategy={verticalListSortingStrategy}>
+              <div className="grid gap-2">
+                {rulePresets.map((preset, index) => (
+                  <SortableRuleButton
+                    key={preset.id}
+                    preset={preset}
+                    index={index}
+                    selected={selectedId === preset.id}
+                    active={activeRulePresetId === preset.id}
+                    onSelect={() => setSelectedId(preset.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </aside>
         <div className={`min-h-0 overscroll-contain overflow-y-auto p-6 ${hiddenScrollbarClass}`}>
           <div className="grid gap-4">
@@ -199,8 +287,18 @@ function RulesModal({
               <input
                 className="rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-sm text-text-primary outline-hidden focus:border-accent-blue/70"
                 value={title}
-                disabled={!!selected?.isBuiltin || disabled || busy}
+                disabled={disabled || busy}
                 onChange={(event) => setTitle(event.currentTarget.value)}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-text-secondary">
+              Description
+              <input
+                className="rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-sm text-text-primary outline-hidden focus:border-accent-blue/70"
+                value={description}
+                disabled={disabled || busy}
+                onChange={(event) => setDescription(event.currentTarget.value)}
+                placeholder="Short switcher card summary"
               />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-text-secondary">
@@ -208,10 +306,15 @@ function RulesModal({
               <AutoGrowTextarea
                 className="min-h-56 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-sm leading-relaxed text-text-primary outline-hidden focus:border-accent-blue/70"
                 value={body}
-                disabled={!!selected?.isBuiltin || disabled || busy}
+                disabled={disabled || busy}
                 onChange={(event) => setBody(event.currentTarget.value)}
               />
             </label>
+            {selected && activeRulePresetId === selected.id && (
+              <p className="m-0 rounded-xl border border-white/6 bg-white/3 px-3 py-2 text-xs leading-relaxed text-text-tertiary">
+                Active rules cannot be deleted. Switch to another rule first; succession planning, but tiny.
+              </p>
+            )}
             {error && (
               <div className="rounded-xl border border-accent-red/20 bg-accent-red/10 px-3 py-2 text-sm text-accent-red">
                 {error}

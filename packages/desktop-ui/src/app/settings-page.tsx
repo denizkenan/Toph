@@ -155,13 +155,20 @@ export function SettingsPage({
 
         <ShortcutSection
           shortcut={state.shortcut.chord}
+          ruleSwitcherShortcut={state.ruleSwitcherShortcut.chord}
           platform={state.environment.platform}
           registered={state.shortcut.registered}
+          ruleSwitcherRegistered={state.ruleSwitcherShortcut.registered}
           backend={state.shortcut.backend}
+          ruleSwitcherBackend={state.ruleSwitcherShortcut.backend}
           detail={state.shortcut.detail}
+          ruleSwitcherDetail={state.ruleSwitcherShortcut.detail}
           installed={state.shortcut.installed}
+          ruleSwitcherInstalled={state.ruleSwitcherShortcut.installed}
           installable={state.shortcut.installable}
+          ruleSwitcherInstallable={state.ruleSwitcherShortcut.installable}
           onRegister={(chord) => client.installShortcut(chord)}
+          onRegisterRuleSwitcher={(chord) => client.installRuleSwitcherShortcut(chord)}
           onSuspend={client.suspendShortcut}
           onResume={client.resumeShortcut}
         />

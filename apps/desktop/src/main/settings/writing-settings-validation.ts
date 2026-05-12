@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import type { DictionaryEntry } from '../db/schema';
 
 const maxRulePresetTitleLength = 80;
+const maxRulePresetDescriptionLength = 180;
 const maxRulePresetBodyLength = 4_000;
 const maxDictionaryTermLength = 120;
 const maxDictionaryHintLength = 500;
@@ -15,9 +16,13 @@ function createRulePresetHash(body: string) {
 
 export function normalizeRulePresetDraft(draft: PolishRulePresetDraft) {
   const title = draft.title.trim();
+  const description = draft.description.trim();
   const body = draft.body.trim();
   if (!title) {
     throw new Error('Rule preset title is required.');
+  }
+  if (!description) {
+    throw new Error('Rule preset description is required.');
   }
   if (!body) {
     throw new Error('Rule preset body is required.');
@@ -28,8 +33,11 @@ export function normalizeRulePresetDraft(draft: PolishRulePresetDraft) {
   if (body.length > maxRulePresetBodyLength) {
     throw new Error(`Rule preset bodies must be ${maxRulePresetBodyLength} characters or fewer.`);
   }
+  if (description.length > maxRulePresetDescriptionLength) {
+    throw new Error(`Rule preset descriptions must be ${maxRulePresetDescriptionLength} characters or fewer.`);
+  }
 
-  return { title, body, bodyHash: createRulePresetHash(body) };
+  return { title, description, body, bodyHash: createRulePresetHash(body) };
 }
 
 export function normalizeDictionaryEntryDraft(draft: DictionaryEntryDraft) {

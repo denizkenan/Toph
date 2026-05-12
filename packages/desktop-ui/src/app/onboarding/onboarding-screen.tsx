@@ -257,11 +257,11 @@ export function OnboardingScreen({
                         disabled={!providerComplete || !permissionsComplete || busyRulePreset !== null}
                       >
                         <span className="mb-3 inline-flex w-fit rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em] text-text-tertiary uppercase">
-                          {selected ? 'Selected' : preset.isBuiltin ? 'Built-in' : 'Custom'}
+                          {selected ? 'Selected' : `Rule ${rulePresets.indexOf(preset) + 1}`}
                         </span>
                         <span className="font-display text-lg font-semibold tracking-[-0.03em] text-text-primary">{preset.title}</span>
                         <span className="mt-2 line-clamp-4 text-sm leading-relaxed text-text-secondary">
-                          {preset.body.replace(/^You are polishing dictation /, '').split('\n').find((line) => line.trim().length > 0) ?? 'Custom writing behavior.'}
+                          {preset.description}
                         </span>
                         <span className="mt-auto pt-4 text-xs font-semibold text-accent-blue">
                           {busyRulePreset === preset.id ? 'Selecting...' : selected ? 'Ready to dictate' : 'Use this style'}

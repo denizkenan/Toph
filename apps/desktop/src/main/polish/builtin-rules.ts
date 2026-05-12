@@ -4,22 +4,25 @@ import emailWritingRuleBody from './rules/email-writing.txt?raw';
 import engineerRuleBody from './rules/engineer.txt?raw';
 import generalRuleBody from './rules/general.txt?raw';
 
-export const builtinPolishRulePresets = [
+export const defaultPolishRulePresets = [
   {
     id: 'general',
     title: 'General',
+    description: 'Clean up grammar and flow without stealing your voice.',
     body: generalRuleBody,
     bodyHash: createRulePresetHash(generalRuleBody),
   },
   {
     id: 'engineer',
     title: 'Engineer',
+    description: 'Crisp, technical, and allergic to ambiguity.',
     body: engineerRuleBody,
     bodyHash: createRulePresetHash(engineerRuleBody),
   },
   {
     id: 'email-writing',
     title: 'Email & Writing',
+    description: 'Polished enough for humans with inboxes.',
     body: emailWritingRuleBody,
     bodyHash: createRulePresetHash(emailWritingRuleBody),
   },

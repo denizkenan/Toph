@@ -7,8 +7,12 @@ export const DESKTOP_IPC_CHANNELS = {
   showSettings: 'toph:show-settings',
   hideSettings: 'toph:hide-settings',
   installShortcut: 'toph:install-shortcut',
+  installRuleSwitcherShortcut: 'toph:install-rule-switcher-shortcut',
   suspendShortcut: 'toph:suspend-shortcut',
   resumeShortcut: 'toph:resume-shortcut',
+  openRuleSwitcher: 'toph:open-rule-switcher',
+  closeRuleSwitcher: 'toph:close-rule-switcher',
+  selectRuleSwitcherPreset: 'toph:select-rule-switcher-preset',
   connectProvider: 'toph:connect-provider',
   submitProviderAuthorization: 'toph:submit-provider-authorization',
   removeProvider: 'toph:remove-provider',
@@ -23,6 +27,8 @@ export const DESKTOP_IPC_CHANNELS = {
   createPolishRulePreset: 'toph:create-polish-rule-preset',
   updatePolishRulePreset: 'toph:update-polish-rule-preset',
   deletePolishRulePreset: 'toph:delete-polish-rule-preset',
+  duplicatePolishRulePreset: 'toph:duplicate-polish-rule-preset',
+  reorderPolishRulePresets: 'toph:reorder-polish-rule-presets',
   createDictionaryEntry: 'toph:create-dictionary-entry',
   updateDictionaryEntry: 'toph:update-dictionary-entry',
   deleteDictionaryEntry: 'toph:delete-dictionary-entry',
@@ -131,6 +137,13 @@ export function normalizeShortcutModifiers(modifiers: readonly ShortcutModifier[
 export function resolveDefaultShortcutChord(platform: NodeJS.Platform): ShortcutChord {
   return {
     modifiers: platform === 'darwin' ? ['control', 'option'] : ['control', 'alt'],
+    key: 'Space',
+  };
+}
+
+export function resolveDefaultRuleSwitcherShortcutChord(platform: NodeJS.Platform): ShortcutChord {
+  return {
+    modifiers: platform === 'darwin' ? ['option'] : ['control'],
     key: 'Space',
   };
 }
@@ -294,6 +307,7 @@ export type DictationPhase =
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
+export type RuleSwitcherMode = 'idle' | 'selecting' | 'selected' | 'disabled';
 export type PermissionRequirementId = 'microphone' | 'accessibility';
 export type ProviderId = 'openai-sub';
 export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub'];
@@ -302,8 +316,7 @@ export const DEFAULT_TRANSCRIPTION_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_TRANSCRIPTION_MODEL = 'chatgpt-backend-transcribe';
 export const DEFAULT_INFERENCE_MODEL = 'gpt-5.4-mini';
-export const BUILTIN_POLISH_RULE_PRESET_IDS = ['general', 'engineer', 'email-writing'] as const;
-export type BuiltinPolishRulePresetId = typeof BUILTIN_POLISH_RULE_PRESET_IDS[number];
+export const MAX_POLISH_RULE_PRESETS = 9;
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
   'microphone',
@@ -343,14 +356,27 @@ export interface ConversionRecord {
 export interface PolishRulePresetSummary {
   id: string;
   title: string;
+  description: string;
   body: string;
   bodyHash: string;
-  isBuiltin: boolean;
+  sortOrder: number;
 }
 
 export interface PolishRulePresetDraft {
   title: string;
+  description: string;
   body: string;
+}
+
+export interface ShortcutRegistrationState {
+  chord: ShortcutChord;
+  accelerator: string;
+  label: string;
+  registered: boolean;
+  backend: ShortcutBackend;
+  detail: string;
+  installable: boolean;
+  installed: boolean;
 }
 
 export interface DictionaryEntrySummary {
@@ -378,6 +404,9 @@ export interface AppSettings {
   shortcut: {
     chord: ShortcutChord;
   };
+  ruleSwitcherShortcut: {
+    chord: ShortcutChord;
+  };
   auth: {
     providerId: ProviderId;
   };
@@ -400,6 +429,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   shortcut: {
     chord: {
       modifiers: ['control', 'alt'],
+      key: 'Space',
+    },
+  },
+  ruleSwitcherShortcut: {
+    chord: {
+      modifiers: ['control'],
       key: 'Space',
     },
   },
@@ -452,15 +487,12 @@ export interface ProviderState {
 
 export interface AppState {
   phase: DictationPhase;
-  shortcut: {
-    chord: ShortcutChord;
-    accelerator: string;
-    label: string;
-    registered: boolean;
-    backend: ShortcutBackend;
-    detail: string;
-    installable: boolean;
-    installed: boolean;
+  shortcut: ShortcutRegistrationState;
+  ruleSwitcherShortcut: ShortcutRegistrationState;
+  ruleSwitcher: {
+    mode: RuleSwitcherMode;
+    selectedRulePresetId: string | null;
+    message: string | null;
   };
   environment: {
     platform: NodeJS.Platform;
@@ -490,8 +522,12 @@ export interface DesktopApi {
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
   installShortcut: (chord: ShortcutChord) => Promise<void>;
+  installRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
   suspendShortcut: () => Promise<void>;
   resumeShortcut: () => Promise<void>;
+  openRuleSwitcher: () => Promise<void>;
+  closeRuleSwitcher: () => Promise<void>;
+  selectRuleSwitcherPreset: (rulePresetId: string) => Promise<void>;
   connectProvider: (providerId: ProviderId) => Promise<void>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
@@ -506,6 +542,8 @@ export interface DesktopApi {
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
   deletePolishRulePreset: (id: string) => Promise<void>;
+  duplicatePolishRulePreset: (id: string) => Promise<void>;
+  reorderPolishRulePresets: (ids: string[]) => Promise<void>;
   createDictionaryEntry: (draft: DictionaryEntryDraft) => Promise<void>;
   updateDictionaryEntry: (id: string, draft: DictionaryEntryDraft) => Promise<void>;
   deleteDictionaryEntry: (id: string) => Promise<void>;

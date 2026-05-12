@@ -231,7 +231,13 @@ export function createWindowManager(options: {
     },
 
     sendState(state) {
-      overlayWindow?.setIgnoreMouseEvents(state.phase === 'idle');
+      const overlayInteractive = state.phase !== 'idle' || state.ruleSwitcher.mode !== 'idle';
+      overlayWindow?.setIgnoreMouseEvents(!overlayInteractive);
+      overlayWindow?.setFocusable(state.ruleSwitcher.mode === 'selecting');
+      if (state.ruleSwitcher.mode === 'selecting') {
+        ensureOverlayVisible();
+        overlayWindow?.focus();
+      }
       settingsWindow?.webContents.send(DESKTOP_IPC_CHANNELS.state, state);
       overlayWindow?.webContents.send(DESKTOP_IPC_CHANNELS.state, state);
     },

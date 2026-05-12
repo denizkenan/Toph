@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { app, globalShortcut } from 'electron';
+import electron from 'electron';
 
 import {
   formatShortcutChord,
@@ -11,32 +11,38 @@ import {
   type ShortcutChord,
 } from '@toph/desktop-contracts';
 
-import { createShortcutManagerCore, type ShortcutManager } from './shortcut-manager-core';
-import type { DesktopStateStore } from '../state';
+import type { DesktopStateStore, ShortcutStateSupport } from '../state';
 
 const execFileAsync = promisify(execFile);
+const { app, globalShortcut } = electron;
 const GNOME_MEDIA_KEYS_SCHEMA = 'org.gnome.settings-daemon.plugins.media-keys';
 const GNOME_CUSTOM_KEYBINDING_SCHEMA =
   'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding';
-const GNOME_TOPH_PATH = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph/';
-const GNOME_SHORTCUT_NAME = 'Toph Toggle Dictation';
-
-interface ShortcutSupport {
-  backend: ShortcutBackend;
-  registered: boolean;
-  installable: boolean;
-  installed: boolean;
-  detail: string;
-}
+const GNOME_TOPH_DICTATION_PATH = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph/';
+const GNOME_TOPH_RULE_SWITCHER_PATH = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph-rule-switcher/';
 
 export interface ShortcutManagerConfig {
   launcherScriptPath: string;
   toggleCaptureFlag: string;
+  ruleSwitcherFlag: string;
+}
+
+export interface ShortcutManager {
+  installDictationShortcut: (chord: ShortcutChord) => Promise<void>;
+  installRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
+  registerSavedShortcuts: (chords: { dictation: ShortcutChord; ruleSwitcher: ShortcutChord }) => Promise<void>;
+  suspend: () => Promise<void>;
+  resume: () => Promise<void>;
+  unregister: () => void;
 }
 
 interface GlobalShortcutApi {
   register: (accelerator: string, callback: () => void) => boolean;
   unregisterAll: () => void;
+}
+
+interface ShortcutSupport extends ShortcutStateSupport {
+  backend: ShortcutBackend;
 }
 
 const sessionType = (process.env.XDG_SESSION_TYPE ?? '').toLowerCase();
@@ -70,33 +76,12 @@ function parseQuotedStrings(value: string) {
   );
 }
 
-function describeShortcutRegistrationFailure(chord: ShortcutChord) {
-  const label = formatShortcutChord(chord, process.platform);
-
+function describeShortcutRegistrationFailure(label: string) {
   if (process.platform === 'darwin') {
     return `${label} could not be registered. macOS may reserve this shortcut for input source switching. Check System Settings > Keyboard > Keyboard Shortcuts > Input Sources, then try again.`;
   }
 
   return `${label} could not be registered. Another app or the operating system may already be using it.`;
-}
-
-function registerElectronShortcut(
-  shortcutApi: GlobalShortcutApi,
-  chord: ShortcutChord,
-  onTrigger: () => void,
-): ShortcutSupport {
-  shortcutApi.unregisterAll();
-  const registered = shortcutApi.register(shortcutChordToElectronAccelerator(chord, process.platform), onTrigger);
-
-  return {
-    backend: 'electron-global-shortcut',
-    registered,
-    installable: true,
-    installed: registered,
-    detail: registered
-      ? 'Electron global shortcut registration is active.'
-      : describeShortcutRegistrationFailure(chord),
-  };
 }
 
 async function gsettingsGet(schema: string, key: string, path?: string) {
@@ -142,124 +127,204 @@ async function shouldUseGnomeShortcutFallback() {
   return isWayland && isGnome && !portalSupported;
 }
 
-async function installGnomeShortcut(command: string, binding: string) {
+function getShortcutLauncherCommand(config: ShortcutManagerConfig, flag: string) {
+  if (app.isPackaged) {
+    return `${shellQuote(process.execPath)} ${flag}`;
+  }
+
+  return `sh ${shellQuote(config.launcherScriptPath)} ${flag}`;
+}
+
+async function installGnomeShortcut(options: {
+  path: string;
+  name: string;
+  command: string;
+  binding: string;
+}) {
   const keybindings = parseQuotedStrings(
     await gsettingsGet(GNOME_MEDIA_KEYS_SCHEMA, 'custom-keybindings'),
   );
-  const updatedKeybindings = keybindings.includes(GNOME_TOPH_PATH)
+  const updatedKeybindings = keybindings.includes(options.path)
     ? keybindings
-    : [...keybindings, GNOME_TOPH_PATH];
+    : [...keybindings, options.path];
 
-  await gsettingsSet(
-    GNOME_MEDIA_KEYS_SCHEMA,
-    'custom-keybindings',
-    serializeStringArray(updatedKeybindings),
-  );
-  await gsettingsSet(
-    GNOME_CUSTOM_KEYBINDING_SCHEMA,
-    'name',
-    quoteVariantString(GNOME_SHORTCUT_NAME),
-    GNOME_TOPH_PATH,
-  );
-  await gsettingsSet(
-    GNOME_CUSTOM_KEYBINDING_SCHEMA,
-    'command',
-    quoteVariantString(command),
-    GNOME_TOPH_PATH,
-  );
-  await gsettingsSet(
-    GNOME_CUSTOM_KEYBINDING_SCHEMA,
-    'binding',
-    quoteVariantString(binding),
-    GNOME_TOPH_PATH,
-  );
+  await gsettingsSet(GNOME_MEDIA_KEYS_SCHEMA, 'custom-keybindings', serializeStringArray(updatedKeybindings));
+  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'name', quoteVariantString(options.name), options.path);
+  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'command', quoteVariantString(options.command), options.path);
+  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'binding', quoteVariantString(options.binding), options.path);
 }
 
-async function suspendGnomeShortcut() {
-  await gsettingsSet(
-    GNOME_CUSTOM_KEYBINDING_SCHEMA,
-    'binding',
-    quoteVariantString(''),
-    GNOME_TOPH_PATH,
-  );
+async function suspendGnomeShortcut(path: string) {
+  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'binding', quoteVariantString(''), path);
 }
 
-function getShortcutLauncherCommand(config: ShortcutManagerConfig) {
-  if (app.isPackaged) {
-    return `${shellQuote(process.execPath)} ${config.toggleCaptureFlag}`;
-  }
-
-  return `sh ${shellQuote(config.launcherScriptPath)} ${config.toggleCaptureFlag}`;
-}
-
-async function registerLinuxShortcut(
-  config: ShortcutManagerConfig,
-  shortcutApi: GlobalShortcutApi,
-  chord: ShortcutChord,
-  onTrigger: () => void,
-): Promise<ShortcutSupport> {
-  if (!(await shouldUseGnomeShortcutFallback())) {
-    return registerElectronShortcut(shortcutApi, chord, onTrigger);
-  }
-
-  shortcutApi.unregisterAll();
-
-  try {
-    await installGnomeShortcut(getShortcutLauncherCommand(config), shortcutChordToGnomeBinding(chord));
-
-    return {
-      backend: 'gnome-custom-shortcut',
-      registered: true,
-      installable: true,
-      installed: true,
-      detail: `GNOME custom shortcut fallback is installed. ${formatShortcutChord(chord, process.platform)} should trigger Toph even when another app is focused.`,
-    };
-  } catch (error) {
-    return {
-      backend: 'gnome-custom-shortcut',
-      registered: false,
-      installable: true,
-      installed: false,
-      detail: `GNOME custom shortcut fallback could not be installed. ${describeError(error)}.`,
-    };
-  }
-}
-
-async function registerShortcut(
-  config: ShortcutManagerConfig,
-  shortcutApi: GlobalShortcutApi,
-  chord: ShortcutChord,
-  onTrigger: () => void,
-) {
-  if (process.platform === 'linux') {
-    return registerLinuxShortcut(config, shortcutApi, chord, onTrigger);
-  }
-
-  return registerElectronShortcut(shortcutApi, chord, onTrigger);
+function createSupport(chord: ShortcutChord, registered: boolean, backend: ShortcutBackend): ShortcutSupport {
+  const label = formatShortcutChord(chord, process.platform);
+  return {
+    backend,
+    registered,
+    installable: true,
+    installed: registered,
+    detail: registered
+      ? backend === 'gnome-custom-shortcut'
+        ? `GNOME custom shortcut fallback is installed. ${label} should trigger Toph even when another app is focused.`
+        : 'Electron global shortcut registration is active.'
+      : describeShortcutRegistrationFailure(label),
+  };
 }
 
 export function createShortcutManager(options: {
   stateStore: DesktopStateStore;
   config: ShortcutManagerConfig;
-  onTrigger: () => void;
-  persistShortcut: (chord: ShortcutChord) => Promise<void>;
+  onDictationTrigger: () => void;
+  onRuleSwitcherTrigger: () => void;
+  persistDictationShortcut: (chord: ShortcutChord) => Promise<void>;
+  persistRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
   shortcutApi?: GlobalShortcutApi;
 }): ShortcutManager {
   const shortcutApi = options.shortcutApi ?? globalShortcut;
-  return createShortcutManagerCore({
-    stateStore: options.stateStore,
-    persistShortcut: options.persistShortcut,
-    registerShortcut: (chord) => registerShortcut(options.config, shortcutApi, chord, options.onTrigger),
-    suspendShortcut: async () => {
-      shortcutApi.unregisterAll();
-      if (options.stateStore.getState().shortcut.backend === 'gnome-custom-shortcut') {
-        await suspendGnomeShortcut();
-      }
-    },
-    unregisterShortcut: () => {
-      shortcutApi.unregisterAll();
-    },
-  });
-}
+  let shortcutQueue: Promise<void> = Promise.resolve();
+  let suspended = false;
+  let savedChords = {
+    dictation: options.stateStore.getState().shortcut.chord,
+    ruleSwitcher: options.stateStore.getState().ruleSwitcherShortcut.chord,
+  };
 
-export type { ShortcutManager };
+  const enqueue = (operation: () => Promise<void>) => {
+    const task = shortcutQueue.then(operation);
+    shortcutQueue = task.catch(() => {});
+    return task;
+  };
+
+  const registerElectronShortcuts = (chords: typeof savedChords) => {
+    shortcutApi.unregisterAll();
+    const dictationRegistered = shortcutApi.register(
+      shortcutChordToElectronAccelerator(chords.dictation, process.platform),
+      options.onDictationTrigger,
+    );
+    const ruleSwitcherRegistered = shortcutApi.register(
+      shortcutChordToElectronAccelerator(chords.ruleSwitcher, process.platform),
+      options.onRuleSwitcherTrigger,
+    );
+
+    return {
+      dictation: createSupport(chords.dictation, dictationRegistered, 'electron-global-shortcut'),
+      ruleSwitcher: createSupport(chords.ruleSwitcher, ruleSwitcherRegistered, 'electron-global-shortcut'),
+    };
+  };
+
+  const registerGnomeShortcuts = async (chords: typeof savedChords) => {
+    shortcutApi.unregisterAll();
+    try {
+      await Promise.all([
+        installGnomeShortcut({
+          path: GNOME_TOPH_DICTATION_PATH,
+          name: 'Toph Toggle Dictation',
+          command: getShortcutLauncherCommand(options.config, options.config.toggleCaptureFlag),
+          binding: shortcutChordToGnomeBinding(chords.dictation),
+        }),
+        installGnomeShortcut({
+          path: GNOME_TOPH_RULE_SWITCHER_PATH,
+          name: 'Toph Rule Switcher',
+          command: getShortcutLauncherCommand(options.config, options.config.ruleSwitcherFlag),
+          binding: shortcutChordToGnomeBinding(chords.ruleSwitcher),
+        }),
+      ]);
+      return {
+        dictation: createSupport(chords.dictation, true, 'gnome-custom-shortcut'),
+        ruleSwitcher: createSupport(chords.ruleSwitcher, true, 'gnome-custom-shortcut'),
+      };
+    } catch (error) {
+      const detail = `GNOME custom shortcut fallback could not be installed. ${describeError(error)}.`;
+      return {
+        dictation: { ...createSupport(chords.dictation, false, 'gnome-custom-shortcut'), detail },
+        ruleSwitcher: { ...createSupport(chords.ruleSwitcher, false, 'gnome-custom-shortcut'), detail },
+      };
+    }
+  };
+
+  const registerShortcuts = async (chords: typeof savedChords) => {
+    return process.platform === 'linux' && (await shouldUseGnomeShortcutFallback())
+      ? registerGnomeShortcuts(chords)
+      : registerElectronShortcuts(chords);
+  };
+
+  const applyState = (chords: typeof savedChords, support: Awaited<ReturnType<typeof registerShortcuts>>) => {
+    options.stateStore.setShortcut('dictation', chords.dictation, support.dictation);
+    options.stateStore.setShortcut('ruleSwitcher', chords.ruleSwitcher, support.ruleSwitcher);
+  };
+
+  const registerSavedNow = async (chords: typeof savedChords) => {
+    suspended = false;
+    const support = await registerShortcuts(chords);
+    applyState(chords, support);
+    savedChords = chords;
+  };
+
+  const installNow = async (kind: 'dictation' | 'ruleSwitcher', chord: ShortcutChord) => {
+    const previous = savedChords;
+    const next = { ...savedChords, [kind]: chord };
+    suspended = false;
+
+    const support = await registerShortcuts(next);
+    if (!support.dictation.registered || !support.ruleSwitcher.registered) {
+      await registerSavedNow(previous);
+      const failed = kind === 'dictation' ? support.dictation : support.ruleSwitcher;
+      throw new Error(failed.detail);
+    }
+
+    try {
+      if (kind === 'dictation') {
+        await options.persistDictationShortcut(chord);
+      } else {
+        await options.persistRuleSwitcherShortcut(chord);
+      }
+    } catch (error) {
+      await registerSavedNow(previous);
+      throw error;
+    }
+    applyState(next, support);
+    savedChords = next;
+  };
+
+  return {
+    installDictationShortcut(chord) {
+      return enqueue(() => installNow('dictation', chord));
+    },
+
+    installRuleSwitcherShortcut(chord) {
+      return enqueue(() => installNow('ruleSwitcher', chord));
+    },
+
+    registerSavedShortcuts(chords) {
+      return enqueue(() => registerSavedNow(chords));
+    },
+
+    suspend() {
+      return enqueue(async () => {
+        suspended = true;
+        shortcutApi.unregisterAll();
+        if (options.stateStore.getState().shortcut.backend === 'gnome-custom-shortcut') {
+          await Promise.all([
+            suspendGnomeShortcut(GNOME_TOPH_DICTATION_PATH),
+            suspendGnomeShortcut(GNOME_TOPH_RULE_SWITCHER_PATH),
+          ]);
+        }
+      });
+    },
+
+    resume() {
+      return enqueue(async () => {
+        if (!suspended) {
+          return;
+        }
+
+        await registerSavedNow(savedChords);
+      });
+    },
+
+    unregister() {
+      shortcutApi.unregisterAll();
+    },
+  };
+}
