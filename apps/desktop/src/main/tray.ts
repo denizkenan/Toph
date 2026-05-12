@@ -11,6 +11,41 @@ import trayIconTemplate from '../../../../assets/tray-iconTemplate.png?asset';
 
 import type { AppState } from '@toph/desktop-contracts';
 
+function isTophReady(state: AppState) {
+  return state.providers.ready && state.permissions.ready && state.shortcut.registered;
+}
+
+function usesAttachedContextMenu() {
+  return process.platform === 'linux';
+}
+
+function configureTrayPlatformBehavior(options: {
+  tray: Tray;
+  getContextMenu: () => Menu | null;
+  openToph: () => void;
+}) {
+  const showContextMenu = () => {
+    const contextMenu = options.getContextMenu();
+    if (contextMenu) {
+      options.tray.popUpContextMenu(contextMenu);
+    }
+  };
+
+  if (process.platform === 'darwin') {
+    options.tray.on('click', showContextMenu);
+    options.tray.on('right-click', showContextMenu);
+    return;
+  }
+
+  if (usesAttachedContextMenu()) {
+    options.tray.on('click', options.openToph);
+    return;
+  }
+
+  options.tray.on('click', options.openToph);
+  options.tray.on('right-click', showContextMenu);
+}
+
 function getTrayIconPaths(): { icon1x: string; icon2x: string } {
   if (process.platform === 'darwin') {
     return { icon1x: trayIconTemplate, icon2x: trayIconTemplate2x };
@@ -56,10 +91,10 @@ export function createDesktopTrayController(options: {
   appName: string;
   getState: () => AppState;
   showSettings: () => void;
-  toggleCapture: () => Promise<void>;
   quit: () => void;
 }): DesktopTrayController {
   let tray: Tray | null = null;
+  let contextMenu: Menu | null = null;
 
   const refresh = () => {
     if (!tray) {
@@ -67,31 +102,26 @@ export function createDesktopTrayController(options: {
     }
 
     const state = options.getState();
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        {
-          label: state.phase === 'listening' ? 'Stop Listening' : 'Start Dictation',
-          click: () => {
-            void options.toggleCapture();
-          },
-        },
-        {
-          label: `Shortcut: ${state.shortcut.label}`,
-          enabled: false,
-        },
-        {
-          label: 'Show Settings',
-          click: options.showSettings,
-        },
-        {
-          type: 'separator',
-        },
-        {
-          label: 'Quit',
-          click: options.quit,
-        },
-      ]),
-    );
+    contextMenu = Menu.buildFromTemplate([
+      {
+        label: `Status: ${isTophReady(state) ? 'Ready' : 'Needs setup'}`,
+        enabled: false,
+      },
+      {
+        label: 'Open Toph',
+        click: options.showSettings,
+      },
+      {
+        type: 'separator',
+      },
+      {
+        label: 'Quit Toph',
+        click: options.quit,
+      },
+    ]);
+    if (usesAttachedContextMenu()) {
+      tray.setContextMenu(contextMenu);
+    }
   };
 
   return {
@@ -101,8 +131,12 @@ export function createDesktopTrayController(options: {
       }
 
       tray = new Tray(createTrayIcon());
-      tray.setToolTip(`${options.appName} dictation mock`);
-      tray.on('click', options.showSettings);
+      tray.setToolTip(options.appName);
+      configureTrayPlatformBehavior({
+        tray,
+        getContextMenu: () => contextMenu,
+        openToph: options.showSettings,
+      });
 
       if (process.platform !== 'darwin') {
         nativeTheme.on('updated', () => {
