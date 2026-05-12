@@ -23,7 +23,20 @@ CREATE TABLE `batch_transcripts` (
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `polish_prompts` (
+CREATE TABLE `dictionary_entries` (
+	`id` text PRIMARY KEY NOT NULL,
+	`term` text NOT NULL,
+	`hint` text,
+	`enabled` integer NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL
+);
+--> statement-breakpoint
+INSERT INTO `dictionary_entries` (`id`, `term`, `hint`, `enabled`, `created_at`, `updated_at`) VALUES
+	('dictionary_entry_toph', 'Toph', 'Proper noun. The dictation app being used. Sounds like "Toff".', 1, 0, 0),
+	('dictionary_entry_yourtechbud', 'YourTechBud', 'Proper noun. The creator of this program.', 1, 0, 0);
+--> statement-breakpoint
+CREATE TABLE `polish_rule_presets` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
 	`body` text NOT NULL,
@@ -53,8 +66,8 @@ CREATE TABLE `session_outputs` (
 	`source_output_id` text,
 	`provider` text,
 	`model` text,
-	`prompt_id` text,
-	`prompt_hash` text,
+	`rule_preset_id` text,
+	`rule_preset_hash` text,
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint

@@ -11,6 +11,7 @@ import {
 } from '@toph/desktop-contracts';
 
 import { Button } from '../button';
+import { ModalShell } from '../modal';
 import { SettingsRow, SettingsSection, StatusBadge } from './settings-controls';
 
 function candidateFromChord(chord: ShortcutChord): ShortcutCandidate {
@@ -20,7 +21,10 @@ function candidateFromChord(chord: ShortcutChord): ShortcutCandidate {
   };
 }
 
-function shortcutCandidateLabels(candidate: ShortcutCandidate, platform: NodeJS.Platform): string[] {
+function shortcutCandidateLabels(
+  candidate: ShortcutCandidate,
+  platform: NodeJS.Platform,
+): string[] {
   return [
     ...normalizeShortcutModifiers(candidate.modifiers).map((modifier) => {
       if (platform === 'darwin') {
@@ -68,7 +72,9 @@ function ShortcutRecorderModal({
   onCancel: () => void;
   onRegister: (chord: ShortcutChord) => Promise<void>;
 }) {
-  const [candidate, setCandidate] = useState<ShortcutCandidate>(() => candidateFromChord(currentShortcut));
+  const [candidate, setCandidate] = useState<ShortcutCandidate>(() =>
+    candidateFromChord(currentShortcut),
+  );
   const [heldKeys, setHeldKeys] = useState<Set<string>>(() => new Set());
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
@@ -79,7 +85,8 @@ function ShortcutRecorderModal({
 
   const validation = validateShortcutCandidate(candidate);
   const labels = shortcutCandidateLabels(candidate, platform);
-  const registerDisabled = submitting || heldKeys.size > 0 || !validation.valid || validationErrors.length > 0;
+  const registerDisabled =
+    submitting || heldKeys.size > 0 || !validation.valid || validationErrors.length > 0;
 
   useEffect(() => {
     candidateRef.current = candidate;
@@ -122,7 +129,8 @@ function ShortcutRecorderModal({
   }, [onCancel, onResume]);
 
   useEffect(() => {
-    const addUnique = <T,>(values: T[], value: T) => values.includes(value) ? values : [...values, value];
+    const addUnique = <T,>(values: T[], value: T) =>
+      values.includes(value) ? values : [...values, value];
 
     const finishSession = () => {
       const emptyHeldKeys = new Set<string>();
@@ -135,8 +143,21 @@ function ShortcutRecorderModal({
 
     const hasActiveModifier = (event: KeyboardEvent) =>
       event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
+    const isTabNavigation = (event: KeyboardEvent) =>
+      event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey;
+    const isFocusedModalControl = (event: KeyboardEvent) =>
+      event.target instanceof HTMLElement &&
+      !!event.target.closest('a[href], button, input, select, textarea, [role="button"]');
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isFocusedModalControl(event)) {
+        return;
+      }
+
+      if (isTabNavigation(event)) {
+        return;
+      }
+
       if (event.repeat) {
         event.preventDefault();
         event.stopPropagation();
@@ -171,6 +192,14 @@ function ShortcutRecorderModal({
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
+      if (isFocusedModalControl(event)) {
+        return;
+      }
+
+      if (isTabNavigation(event)) {
+        return;
+      }
+
       const modifier = normalizeDomShortcutModifier(event.key, event.code, platform);
       const key = modifier ? null : normalizeDomShortcutKey(event.key, event.code);
       if (!modifier && !key) {
@@ -236,56 +265,51 @@ function ShortcutRecorderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#11131f]/70 px-5 backdrop-blur-sm">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="shortcut-recorder-title"
-        className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-canvas-elevated shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
-      >
-        <div className="border-b border-white/6 px-6 pt-6 pb-5">
-          <p className="mb-2 text-xs font-bold tracking-[0.14em] text-accent-cyan uppercase">Shortcut</p>
-          <h2 id="shortcut-recorder-title" className="m-0 font-display text-2xl font-bold tracking-[-0.03em] text-text-primary">
-            Set shortcut
-          </h2>
-          <p className="mt-2 mb-0 text-sm leading-relaxed text-text-secondary">
-            Press and release the keys you want to use for dictation. Escape gets captured too; no trapdoors here.
-          </p>
-        </div>
-
-        <div className="px-6 py-5">
-          <div className="rounded-2xl border border-white/8 bg-canvas/60 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-[0.08em] text-text-tertiary uppercase">
-              {heldKeys.size > 0 ? 'Listening' : 'Candidate'}
-            </div>
-            {labels.length > 0 ? (
-              <ShortcutKeyChips labels={labels} large />
-            ) : (
-              <span className="text-sm text-text-tertiary">Press your shortcut keys...</span>
-            )}
-          </div>
-
-          {(validationErrors.length > 0 || registrationError) && (
-            <div className="mt-3 rounded-xl border border-accent-red/20 bg-accent-red/10 px-3 py-2 text-sm leading-relaxed text-accent-red">
-              {registrationError ?? validationErrors.join(' ')}
-            </div>
-          )}
-
-          <p className="mt-3 mb-0 text-xs leading-relaxed text-text-tertiary">
-            Use one main key. Regular keys need a modifier; function keys like F15 can fly solo.
-          </p>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-white/6 px-6 py-4">
+    <ModalShell
+      eyebrow="Shortcut"
+      title="Set shortcut"
+      titleId="shortcut-recorder-title"
+      description="Press and release the keys you want to use for dictation. Escape gets captured too; no trapdoors here."
+      onClose={onCancel}
+      closeDisabled={submitting}
+      footer={
+        <>
           <Button variant="secondary" onClick={onCancel} disabled={submitting}>
             Discard
           </Button>
-          <Button variant="primary" onClick={() => void registerShortcut()} disabled={registerDisabled}>
+          <Button
+            variant="primary"
+            onClick={() => void registerShortcut()}
+            disabled={registerDisabled}
+          >
             {submitting ? 'Registering...' : 'Register'}
           </Button>
+        </>
+      }
+    >
+      <div className="px-6 py-5">
+        <div className="rounded-2xl border border-white/8 bg-canvas/60 p-4">
+          <div className="mb-3 text-xs font-semibold tracking-[0.08em] text-text-tertiary uppercase">
+            {heldKeys.size > 0 ? 'Listening' : 'Candidate'}
+          </div>
+          {labels.length > 0 ? (
+            <ShortcutKeyChips labels={labels} large />
+          ) : (
+            <span className="text-sm text-text-tertiary">Press your shortcut keys...</span>
+          )}
         </div>
-      </section>
-    </div>
+
+        {(validationErrors.length > 0 || registrationError) && (
+          <div className="mt-3 rounded-xl border border-accent-red/20 bg-accent-red/10 px-3 py-2 text-sm leading-relaxed text-accent-red">
+            {registrationError ?? validationErrors.join(' ')}
+          </div>
+        )}
+
+        <p className="mt-3 mb-0 text-xs leading-relaxed text-text-tertiary">
+          Use one main key. Regular keys need a modifier; function keys like F15 can fly solo.
+        </p>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -334,7 +358,12 @@ export function ShortcutSection({
         footer={detail}
       >
         <SettingsRow label="Registration">
-          <StatusBadge active={registered} activeLabel="Active" inactiveLabel="Needs attention" inactiveTone="red" />
+          <StatusBadge
+            active={registered}
+            activeLabel="Active"
+            inactiveLabel="Needs attention"
+            inactiveTone="red"
+          />
         </SettingsRow>
 
         <SettingsRow label="Shortcut">
@@ -345,7 +374,9 @@ export function ShortcutSection({
             disabled={!installable || opening}
           >
             <ShortcutKeyChips labels={shortcutLabels} />
-            <span className="text-xs font-semibold text-accent-blue">{opening ? 'Opening...' : 'Change'}</span>
+            <span className="text-xs font-semibold text-accent-blue">
+              {opening ? 'Opening...' : 'Change'}
+            </span>
           </button>
         </SettingsRow>
 
@@ -354,7 +385,12 @@ export function ShortcutSection({
         </SettingsRow>
 
         <SettingsRow label="Installed">
-          <StatusBadge active={installed} activeLabel="Installed" inactiveLabel="Not installed" inactiveTone="amber" />
+          <StatusBadge
+            active={installed}
+            activeLabel="Installed"
+            inactiveLabel="Not installed"
+            inactiveTone="amber"
+          />
         </SettingsRow>
       </SettingsSection>
 

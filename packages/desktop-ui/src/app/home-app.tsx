@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { AppState, ConversionRecord, DesktopApi } from '@toph/desktop-contracts';
 
@@ -66,6 +66,9 @@ function deriveSystemStatus(state: AppState): { label: string; tone: string } {
   if (!state.permissions.ready) {
     return { label: 'Permissions needed', tone: 'text-accent-amber' };
   }
+  if (!hasActiveWritingPreset(state)) {
+    return { label: 'Writing setup needed', tone: 'text-accent-amber' };
+  }
   if (!state.shortcut.registered) {
     return { label: 'Shortcut not configured', tone: 'text-accent-amber' };
   }
@@ -73,6 +76,12 @@ function deriveSystemStatus(state: AppState): { label: string; tone: string } {
     return { label: 'Paste helper unavailable', tone: 'text-accent-amber' };
   }
   return { label: 'All systems go', tone: 'text-accent-green' };
+}
+
+function hasActiveWritingPreset(state: AppState): boolean {
+  // Onboarding requires an explicit writing style choice before first use, even
+  // when polish is disabled later, so the app never silently chooses a preset.
+  return !!state.settings.polish.rulePresetId && state.polish.rulePresets.some((preset) => preset.id === state.settings.polish.rulePresetId);
 }
 
 function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigateSettings: () => void }) {
@@ -190,6 +199,14 @@ function StatCard({ label, value }: { label: string; value: string }) {
 export function HomeApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const [view, setView] = useState<ActiveView>('home');
+  const [awaitingSetupContinue, setAwaitingSetupContinue] = useState(false);
+  const setupComplete = state ? state.providers.ready && state.permissions.ready && hasActiveWritingPreset(state) : false;
+
+  useEffect(() => {
+    if (!setupComplete) {
+      setAwaitingSetupContinue(false);
+    }
+  }, [setupComplete]);
 
   if (!state) {
     return (
@@ -203,14 +220,20 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     );
   }
 
-  if (!state.providers.ready || !state.permissions.ready) {
+  const showOnboarding = !setupComplete || awaitingSetupContinue;
+
+  if (showOnboarding) {
     return (
       <OnboardingScreen
         platform={state.environment.platform}
         providers={state.providers}
         permissionsReady={state.permissions.ready}
+        rulePresets={state.polish.rulePresets}
+        activeRulePresetId={state.settings.polish.rulePresetId}
         requirements={state.permissions.requirements}
         client={client}
+        onSetupAction={() => setAwaitingSetupContinue(true)}
+        onContinue={() => setAwaitingSetupContinue(false)}
       />
     );
   }

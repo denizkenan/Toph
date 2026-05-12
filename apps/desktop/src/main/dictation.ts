@@ -590,8 +590,8 @@ export function createDictationController(options: {
         id: polishedOutput.id,
         createdAt: polishedOutput.createdAt,
         kind: 'polished',
-        promptId: polishedOutput.promptId,
-        promptHash: polishedOutput.promptHash,
+        rulePresetId: polishedOutput.rulePresetId,
+        rulePresetHash: polishedOutput.rulePresetHash,
       });
       activeSession = null;
       lifecycle = 'idle';

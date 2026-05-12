@@ -19,7 +19,7 @@ export interface AppSettingsStore {
   setInferenceProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setInferenceModel: (model: string) => Promise<AppSettings>;
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
-  setPolishPrompt: (promptId: string) => Promise<AppSettings>;
+  setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
 }
 
 function cloneSettings(settings: AppSettings): AppSettings {
@@ -36,7 +36,7 @@ function invalidSettingsPath(settingsPath: string) {
 
 export async function createAppSettingsStore(options: {
   settingsPath: string;
-  listPromptIds: () => Promise<string[]>;
+  listRulePresetIds: () => Promise<string[]>;
   defaultSettings?: AppSettings;
 }): Promise<AppSettingsStore> {
   const listeners = new Set<(settings: AppSettings) => void>();
@@ -54,8 +54,8 @@ export async function createAppSettingsStore(options: {
     }
   };
 
-  const normalizeWithCurrentPrompts = async (value: unknown) => normalizeAppSettings(parseAppSettingsFile(value), {
-    promptIds: await options.listPromptIds(),
+  const normalizeWithCurrentRules = async (value: unknown) => normalizeAppSettings(parseAppSettingsFile(value), {
+    rulePresetIds: await options.listRulePresetIds(),
   });
 
   const loadFromDisk = async () => {
@@ -67,21 +67,21 @@ export async function createAppSettingsStore(options: {
         throw error;
       }
 
-      const defaults = normalizeAppSettings(fallbackSettings, { promptIds: await options.listPromptIds() });
+      const defaults = normalizeAppSettings(fallbackSettings, { rulePresetIds: await options.listRulePresetIds() });
       await writeSettings(defaults);
       return defaults;
     }
 
     try {
       const parsed = JSON.parse(raw) as unknown;
-      const normalized = await normalizeWithCurrentPrompts(parsed);
+      const normalized = await normalizeWithCurrentRules(parsed);
       if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
         await writeSettings(normalized);
       }
       return normalized;
     } catch {
       await rename(options.settingsPath, invalidSettingsPath(options.settingsPath));
-      const defaults = normalizeAppSettings(fallbackSettings, { promptIds: await options.listPromptIds() });
+      const defaults = normalizeAppSettings(fallbackSettings, { rulePresetIds: await options.listRulePresetIds() });
       await writeSettings(defaults);
       return defaults;
     }
@@ -91,7 +91,7 @@ export async function createAppSettingsStore(options: {
     const task = writeQueue.then(async () => {
       const draft = cloneSettings(settings);
       update(draft);
-      const normalized = normalizeAppSettings(draft, { promptIds: await options.listPromptIds() });
+      const normalized = normalizeAppSettings(draft, { rulePresetIds: await options.listRulePresetIds() });
       if (!settingsEqual(settings, normalized)) {
         await writeSettings(normalized);
         settings = normalized;
@@ -168,9 +168,9 @@ export async function createAppSettingsStore(options: {
       });
     },
 
-    setPolishPrompt(promptId) {
+    setPolishRulePreset(rulePresetId) {
       return commit((draft) => {
-        draft.polish.promptId = promptId;
+        draft.polish.rulePresetId = rulePresetId;
       });
     },
   };

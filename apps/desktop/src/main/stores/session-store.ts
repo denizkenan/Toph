@@ -10,13 +10,15 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import {
   batchTranscripts,
   batchSourceRanges,
+  dictionaryEntries,
   recordingSessions,
-  polishPrompts,
+  polishRulePresets,
   sessionOutputs,
   timelineRegions,
   transcriptionBatches,
   type BatchTranscript,
-  type PolishPrompt,
+  type DictionaryEntry,
+  type PolishRulePreset,
   type RecordingSession,
   type SessionOutput,
   type TranscriptionBatch,
@@ -85,15 +87,22 @@ export interface RecordingSessionStore {
   createSessionOutput: (output: SessionOutput) => Promise<void>;
   selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
   listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
-  syncBuiltinPolishPrompt: (prompt: {
+  syncBuiltinPolishRulePreset: (rulePreset: {
     id: string;
     title: string;
     body: string;
     bodyHash: string;
-  }) => Promise<PolishPrompt>;
-  listPolishPrompts: () => Promise<PolishPrompt[]>;
-  getPolishPrompt: (promptId: string) => Promise<PolishPrompt | null>;
-  getLegacyPolishSettings: () => Promise<{ enabled: boolean; activePromptId: string } | null>;
+  }) => Promise<PolishRulePreset>;
+  listPolishRulePresets: () => Promise<PolishRulePreset[]>;
+  getPolishRulePreset: (rulePresetId: string) => Promise<PolishRulePreset | null>;
+  createPolishRulePreset: (draft: { title: string; body: string; bodyHash: string }) => Promise<PolishRulePreset>;
+  updatePolishRulePreset: (id: string, draft: { title: string; body: string; bodyHash: string }) => Promise<PolishRulePreset>;
+  deletePolishRulePreset: (id: string) => Promise<void>;
+  listDictionaryEntries: () => Promise<DictionaryEntry[]>;
+  createDictionaryEntry: (draft: { term: string; hint: string | null; enabled: boolean }) => Promise<DictionaryEntry>;
+  updateDictionaryEntry: (id: string, draft: { term: string; hint: string | null; enabled: boolean }) => Promise<DictionaryEntry>;
+  deleteDictionaryEntry: (id: string) => Promise<void>;
+  getLegacyPolishSettings: () => Promise<{ enabled: boolean; activeRulePresetId: string | null } | null>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
@@ -110,6 +119,10 @@ const retainableSessionStatuses = [
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;
+}
+
+function createRowId(prefix: string) {
+  return `${prefix}_${Date.now()}_${randomUUID()}`;
 }
 
 function createSessionStoreDatabase(options: { databasePath: string; migrationsFolder: string }): {
@@ -498,8 +511,8 @@ export async function createRecordingSessionStore(options: {
           sourceOutputId: sessionOutputs.sourceOutputId,
           provider: sessionOutputs.provider,
           model: sessionOutputs.model,
-          promptId: sessionOutputs.promptId,
-          promptHash: sessionOutputs.promptHash,
+          rulePresetId: sessionOutputs.rulePresetId,
+          rulePresetHash: sessionOutputs.rulePresetHash,
           createdAt: sessionOutputs.createdAt,
         })
         .from(sessionOutputs)
@@ -510,43 +523,43 @@ export async function createRecordingSessionStore(options: {
         .all();
     },
 
-    async syncBuiltinPolishPrompt(prompt) {
+    async syncBuiltinPolishRulePreset(rulePreset) {
       const now = Date.now();
-      const existing = db.select().from(polishPrompts).where(eq(polishPrompts.id, prompt.id)).get();
+      const existing = db.select().from(polishRulePresets).where(eq(polishRulePresets.id, rulePreset.id)).get();
       if (!existing) {
         const inserted = {
-          id: prompt.id,
-          title: prompt.title,
-          body: prompt.body,
-          bodyHash: prompt.bodyHash,
+          id: rulePreset.id,
+          title: rulePreset.title,
+          body: rulePreset.body,
+          bodyHash: rulePreset.bodyHash,
           isBuiltin: true,
           createdAt: now,
           updatedAt: now,
         };
-        db.insert(polishPrompts).values(inserted).run();
+        db.insert(polishRulePresets).values(inserted).run();
         return inserted;
       }
 
       if (
-        existing.bodyHash !== prompt.bodyHash ||
-        existing.title !== prompt.title ||
+        existing.bodyHash !== rulePreset.bodyHash ||
+        existing.title !== rulePreset.title ||
         !existing.isBuiltin
       ) {
-        db.update(polishPrompts)
+        db.update(polishRulePresets)
           .set({
-            title: prompt.title,
-            body: prompt.body,
-            bodyHash: prompt.bodyHash,
+            title: rulePreset.title,
+            body: rulePreset.body,
+            bodyHash: rulePreset.bodyHash,
             isBuiltin: true,
             updatedAt: now,
           })
-          .where(eq(polishPrompts.id, prompt.id))
+          .where(eq(polishRulePresets.id, rulePreset.id))
           .run();
         return {
           ...existing,
-          title: prompt.title,
-          body: prompt.body,
-          bodyHash: prompt.bodyHash,
+          title: rulePreset.title,
+          body: rulePreset.body,
+          bodyHash: rulePreset.bodyHash,
           isBuiltin: true,
           updatedAt: now,
         };
@@ -555,16 +568,115 @@ export async function createRecordingSessionStore(options: {
       return existing;
     },
 
-    async listPolishPrompts() {
+    async listPolishRulePresets() {
       return db
         .select()
-        .from(polishPrompts)
-        .orderBy(desc(polishPrompts.isBuiltin), asc(polishPrompts.title))
+        .from(polishRulePresets)
+        .orderBy(desc(polishRulePresets.isBuiltin), asc(polishRulePresets.title))
         .all();
     },
 
-    async getPolishPrompt(promptId) {
-      return db.select().from(polishPrompts).where(eq(polishPrompts.id, promptId)).get() ?? null;
+    async getPolishRulePreset(rulePresetId) {
+      return db.select().from(polishRulePresets).where(eq(polishRulePresets.id, rulePresetId)).get() ?? null;
+    },
+
+    async createPolishRulePreset(draft) {
+      const now = Date.now();
+      const preset = {
+        id: createRowId('rule_preset'),
+        title: draft.title,
+        body: draft.body,
+        bodyHash: draft.bodyHash,
+        isBuiltin: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.insert(polishRulePresets).values(preset).run();
+      return preset;
+    },
+
+    async updatePolishRulePreset(id, draft) {
+      const existing = db.select().from(polishRulePresets).where(eq(polishRulePresets.id, id)).get();
+      if (!existing) {
+        throw new Error(`Polish rule preset "${id}" is not available.`);
+      }
+      if (existing.isBuiltin) {
+        throw new Error('Built-in rule presets cannot be edited.');
+      }
+
+      const updated = {
+        ...existing,
+        title: draft.title,
+        body: draft.body,
+        bodyHash: draft.bodyHash,
+        updatedAt: Date.now(),
+      };
+      db.update(polishRulePresets)
+        .set({
+          title: updated.title,
+          body: updated.body,
+          bodyHash: updated.bodyHash,
+          updatedAt: updated.updatedAt,
+        })
+        .where(eq(polishRulePresets.id, id))
+        .run();
+      return updated;
+    },
+
+    async deletePolishRulePreset(id) {
+      const existing = db.select().from(polishRulePresets).where(eq(polishRulePresets.id, id)).get();
+      if (existing?.isBuiltin) {
+        throw new Error('Built-in rule presets cannot be deleted.');
+      }
+
+      db.delete(polishRulePresets).where(eq(polishRulePresets.id, id)).run();
+    },
+
+    async listDictionaryEntries() {
+      return db.select().from(dictionaryEntries).orderBy(asc(dictionaryEntries.term)).all();
+    },
+
+    async createDictionaryEntry(draft) {
+      const now = Date.now();
+      const entry = {
+        id: createRowId('dictionary_entry'),
+        term: draft.term,
+        hint: draft.hint,
+        enabled: draft.enabled,
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.insert(dictionaryEntries).values(entry).run();
+      return entry;
+    },
+
+    async updateDictionaryEntry(id, draft) {
+      const existing = db.select().from(dictionaryEntries).where(eq(dictionaryEntries.id, id)).get();
+      if (!existing) {
+        throw new Error(`Dictionary entry "${id}" is not available.`);
+      }
+
+      const updated = {
+        ...existing,
+        term: draft.term,
+        hint: draft.hint,
+        enabled: draft.enabled,
+        updatedAt: Date.now(),
+      };
+      db.update(dictionaryEntries)
+        .set({
+          term: updated.term,
+          hint: updated.hint,
+          enabled: updated.enabled,
+          updatedAt: updated.updatedAt,
+        })
+        .where(eq(dictionaryEntries.id, id))
+        .run();
+      return updated;
+    },
+
+    async deleteDictionaryEntry(id) {
+      db.delete(dictionaryEntries).where(eq(dictionaryEntries.id, id)).run();
     },
 
     async getLegacyPolishSettings() {
@@ -584,7 +696,7 @@ export async function createRecordingSessionStore(options: {
 
       return {
         enabled: Boolean(row.enabled),
-        activePromptId: row.active_prompt_id,
+        activeRulePresetId: row.active_prompt_id,
       };
     },
 

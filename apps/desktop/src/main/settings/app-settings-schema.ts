@@ -32,7 +32,8 @@ const appSettingsFileSchema = z.object({
   }),
   polish: z.object({
     enabled: z.boolean(),
-    promptId: z.string(),
+    rulePresetId: z.string().nullable().optional(),
+    promptId: z.string().optional(),
   }),
 });
 
@@ -62,10 +63,11 @@ export function parseAppSettingsFile(value: unknown): AppSettingsFile {
   return appSettingsFileSchema.parse(value);
 }
 
-export function normalizeAppSettings(value: AppSettingsFile, options: { promptIds: string[] }): AppSettings {
-  const promptId = options.promptIds.includes(value.polish.promptId)
-    ? value.polish.promptId
-    : defaultAppSettings.polish.promptId;
+export function normalizeAppSettings(value: AppSettingsFile, options: { rulePresetIds: string[] }): AppSettings {
+  const selectedRulePresetId = value.polish.rulePresetId ?? value.polish.promptId ?? null;
+  const rulePresetId = selectedRulePresetId && options.rulePresetIds.includes(selectedRulePresetId)
+    ? selectedRulePresetId
+    : null;
   const shortcutValidation = value.shortcut
     ? validateShortcutChord(value.shortcut.chord)
     : null;
@@ -88,7 +90,7 @@ export function normalizeAppSettings(value: AppSettingsFile, options: { promptId
     },
     polish: {
       enabled: value.polish.enabled,
-      promptId,
+      rulePresetId,
     },
   };
 }

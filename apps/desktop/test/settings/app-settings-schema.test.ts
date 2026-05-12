@@ -5,7 +5,7 @@ import { resolveDefaultShortcutChord } from '@toph/desktop-contracts';
 
 import { normalizeAppSettings, parseAppSettingsFile } from '../../src/main/settings/app-settings-schema.ts';
 
-test('normalizes unknown providers, empty models, and unknown prompts to defaults', () => {
+test('normalizes unknown providers, empty models, and unknown rule presets to unresolved setup', () => {
   const settings = normalizeAppSettings(
     parseAppSettingsFile({
       version: 1,
@@ -13,9 +13,9 @@ test('normalizes unknown providers, empty models, and unknown prompts to default
       auth: { providerId: 'unknown-auth' },
       transcription: { providerId: 'unknown-transcription', model: '   ' },
       inference: { providerId: 'unknown-inference', model: '' },
-      polish: { enabled: true, promptId: 'missing-prompt' },
+      polish: { enabled: true, rulePresetId: 'missing-rule' },
     }),
-    { promptIds: ['default'] },
+    { rulePresetIds: ['general'] },
   );
 
   assert.deepEqual(settings, {
@@ -24,7 +24,7 @@ test('normalizes unknown providers, empty models, and unknown prompts to default
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
-    polish: { enabled: true, promptId: 'default' },
+    polish: { enabled: true, rulePresetId: null },
   });
 });
 
@@ -35,13 +35,28 @@ test('normalizes existing v1 settings without a shortcut to the platform default
       auth: { providerId: 'openai-sub' },
       transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
       inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
-      polish: { enabled: false, promptId: 'default' },
+      polish: { enabled: false, rulePresetId: 'general' },
     }),
-    { promptIds: ['default'] },
+    { rulePresetIds: ['general'] },
   );
 
   assert.deepEqual(settings.shortcut.chord, resolveDefaultShortcutChord(process.platform));
   assert.equal(settings.polish.enabled, false);
+});
+
+test('preserves legacy active prompt IDs as rule preset IDs when available', () => {
+  const settings = normalizeAppSettings(
+    parseAppSettingsFile({
+      version: 1,
+      auth: { providerId: 'openai-sub' },
+      transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
+      inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+      polish: { enabled: true, promptId: 'default' },
+    }),
+    { rulePresetIds: ['default', 'general'] },
+  );
+
+  assert.equal(settings.polish.rulePresetId, 'default');
 });
 
 test('rejects invalid settings structure', () => {
@@ -52,7 +67,7 @@ test('rejects invalid settings structure', () => {
       auth: { providerId: 'openai-sub' },
       transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
       inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
-      polish: { enabled: 'yes', promptId: 'default' },
+      polish: { enabled: 'yes', rulePresetId: 'general' },
     }),
   );
 });

@@ -19,7 +19,13 @@ export const DESKTOP_IPC_CHANNELS = {
   setInferenceProvider: 'toph:set-inference-provider',
   setInferenceModel: 'toph:set-inference-model',
   setPolishEnabled: 'toph:set-polish-enabled',
-  setActivePolishPrompt: 'toph:set-active-polish-prompt',
+  setActivePolishRulePreset: 'toph:set-active-polish-rule-preset',
+  createPolishRulePreset: 'toph:create-polish-rule-preset',
+  updatePolishRulePreset: 'toph:update-polish-rule-preset',
+  deletePolishRulePreset: 'toph:delete-polish-rule-preset',
+  createDictionaryEntry: 'toph:create-dictionary-entry',
+  updateDictionaryEntry: 'toph:update-dictionary-entry',
+  deleteDictionaryEntry: 'toph:delete-dictionary-entry',
   performPermissionAction: 'toph:perform-permission-action',
   refreshPermissions: 'toph:refresh-permissions',
   sound: 'toph:sound',
@@ -296,7 +302,8 @@ export const DEFAULT_TRANSCRIPTION_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_TRANSCRIPTION_MODEL = 'chatgpt-backend-transcribe';
 export const DEFAULT_INFERENCE_MODEL = 'gpt-5.4-mini';
-export const DEFAULT_POLISH_PROMPT_ID = 'default';
+export const BUILTIN_POLISH_RULE_PRESET_IDS = ['general', 'engineer', 'email-writing'] as const;
+export type BuiltinPolishRulePresetId = typeof BUILTIN_POLISH_RULE_PRESET_IDS[number];
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
   'microphone',
@@ -326,22 +333,44 @@ export interface ConversionRecord {
   id: string;
   text: string;
   kind: 'raw_concat' | 'polished';
-  promptId: string | null;
-  promptHash: string | null;
+  rulePresetId: string | null;
+  rulePresetHash: string | null;
   createdAt: number;
   pasteStatus: PasteAttemptStatus;
   pasteDetail: string;
 }
 
-export interface PolishPromptSummary {
+export interface PolishRulePresetSummary {
   id: string;
   title: string;
+  body: string;
   bodyHash: string;
   isBuiltin: boolean;
 }
 
+export interface PolishRulePresetDraft {
+  title: string;
+  body: string;
+}
+
+export interface DictionaryEntrySummary {
+  id: string;
+  term: string;
+  hint: string | null;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DictionaryEntryDraft {
+  term: string;
+  hint: string | null;
+  enabled: boolean;
+}
+
 export interface PolishState {
-  prompts: PolishPromptSummary[];
+  rulePresets: PolishRulePresetSummary[];
+  dictionary: DictionaryEntrySummary[];
 }
 
 export interface AppSettings {
@@ -362,7 +391,7 @@ export interface AppSettings {
   };
   polish: {
     enabled: boolean;
-    promptId: string;
+    rulePresetId: string | null;
   };
 }
 
@@ -387,7 +416,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   polish: {
     enabled: true,
-    promptId: DEFAULT_POLISH_PROMPT_ID,
+    rulePresetId: null,
   },
 };
 
@@ -473,7 +502,13 @@ export interface DesktopApi {
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
   setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
-  setActivePolishPrompt: (promptId: string) => Promise<void>;
+  setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
+  createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
+  updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
+  deletePolishRulePreset: (id: string) => Promise<void>;
+  createDictionaryEntry: (draft: DictionaryEntryDraft) => Promise<void>;
+  updateDictionaryEntry: (id: string, draft: DictionaryEntryDraft) => Promise<void>;
+  deleteDictionaryEntry: (id: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
