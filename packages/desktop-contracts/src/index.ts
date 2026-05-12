@@ -2,6 +2,8 @@ export const DESKTOP_IPC_CHANNELS = {
   subscribeState: 'toph:subscribe-state',
   state: 'toph:state',
   toggleCapture: 'toph:toggle-capture',
+  cancelCapture: 'toph:cancel-capture',
+  resizeOverlay: 'toph:resize-overlay',
   showSettings: 'toph:show-settings',
   hideSettings: 'toph:hide-settings',
   installShortcut: 'toph:install-shortcut',
@@ -32,7 +34,7 @@ export const DESKTOP_CAPTURE_IPC_CHANNELS = {
 } as const;
 
 // Shared because the main process owns the transparent Electron window while
-// the renderer must keep the visible overlay within this fixed runtime surface.
+// the renderer owns the visible overlay geometry and requests runtime resizes.
 export const OVERLAY_WINDOW_GEOMETRY = {
   width: 400,
   height: 80,
@@ -96,7 +98,13 @@ export function resolveShortcutPresetForPlatform(
   };
 }
 
-export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'polishing' | 'no_speech' | 'failed';
+export type DictationPhase =
+  | 'idle'
+  | 'listening'
+  | 'transcribing'
+  | 'polishing'
+  | 'no_speech'
+  | 'failed';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
@@ -259,6 +267,8 @@ export interface DesktopApi {
    */
   subscribeState: (listener: (state: AppState) => void) => () => void;
   toggleCapture: () => Promise<void>;
+  cancelCapture: () => Promise<void>;
+  resizeOverlay: (size: OverlaySize) => Promise<void>;
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
   installShortcut: (presetId: ShortcutPresetId) => Promise<void>;
@@ -277,6 +287,11 @@ export interface DesktopApi {
   refreshPermissions: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
+}
+
+export interface OverlaySize {
+  width: number;
+  height: number;
 }
 
 export interface CaptureStartRequest {

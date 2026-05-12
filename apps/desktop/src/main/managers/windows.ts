@@ -7,6 +7,7 @@ import {
   DESKTOP_IPC_CHANNELS,
   OVERLAY_WINDOW_GEOMETRY,
   type AppState,
+  type OverlaySize,
   type SoundEventKind,
 } from '@toph/desktop-contracts';
 
@@ -15,6 +16,7 @@ export interface WindowManager {
   showSettings: () => void;
   hideSettings: () => void;
   showOverlay: () => void;
+  resizeOverlay: (size: OverlaySize) => void;
   sendState: (state: AppState) => void;
   emitSound: (kind: SoundEventKind) => void;
   trackOverlayPlacement: () => () => void;
@@ -88,6 +90,24 @@ export function createWindowManager(options: {
     }
 
     overlayWindow.setBounds({ x, y, width: bounds.width, height: bounds.height });
+  };
+
+  const resizeOverlayToContent = (size: OverlaySize) => {
+    if (!overlayWindow) {
+      return;
+    }
+
+    const cursorPoint = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursorPoint);
+    const { workArea } = display;
+    const width = Math.max(1, Math.min(Math.ceil(size.width), workArea.width));
+    const height = Math.max(1, Math.min(Math.ceil(size.height), workArea.height));
+    overlayWindow.setBounds({
+      x: Math.round(workArea.x + (workArea.width - width) / 2),
+      y: Math.round(workArea.y + workArea.height - height),
+      width,
+      height,
+    });
   };
 
   const ensureOverlayVisible = () => {
@@ -206,7 +226,12 @@ export function createWindowManager(options: {
       ensureOverlayVisible();
     },
 
+    resizeOverlay(size) {
+      resizeOverlayToContent(size);
+    },
+
     sendState(state) {
+      overlayWindow?.setIgnoreMouseEvents(state.phase === 'idle');
       settingsWindow?.webContents.send(DESKTOP_IPC_CHANNELS.state, state);
       overlayWindow?.webContents.send(DESKTOP_IPC_CHANNELS.state, state);
     },
