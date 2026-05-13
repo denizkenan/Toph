@@ -2,7 +2,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { app, shell } from 'electron';
-import { DEFAULT_APP_SETTINGS, resolveDefaultShortcutChord, resolveDefaultRuleSwitcherShortcutChord } from '@toph/desktop-contracts';
+
+import {
+  DEFAULT_APP_SETTINGS,
+  resolveDefaultShortcutChord,
+  resolveDefaultRuleSwitcherShortcutChord,
+} from '@toph/desktop-contracts';
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
@@ -22,7 +27,11 @@ import { defaultPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createAppSettingsStore } from './settings/app-settings-store';
-import { ensureDictionaryEnabledLimit, normalizeDictionaryEntryDraft, normalizeRulePresetDraft } from './settings/writing-settings-validation';
+import {
+  ensureDictionaryEnabledLimit,
+  normalizeDictionaryEntryDraft,
+  normalizeRulePresetDraft,
+} from './settings/writing-settings-validation';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
@@ -112,7 +121,8 @@ export async function bootstrap(options: {
   const legacyPolishSettings = await sessionStore.getLegacyPolishSettings();
   const settingsStore = await createAppSettingsStore({
     settingsPath: dataPaths.settingsPath,
-    listRulePresetIds: async () => (await sessionStore.listPolishRulePresets()).map((rulePreset) => rulePreset.id),
+    listRulePresetIds: async () =>
+      (await sessionStore.listPolishRulePresets()).map((rulePreset) => rulePreset.id),
     defaultSettings: legacyPolishSettings
       ? {
           ...defaultAppSettings,
@@ -124,10 +134,12 @@ export async function bootstrap(options: {
       : defaultAppSettings,
   });
   const refreshPolishState = async () => {
-    stateStore.setPolish(toPolishState(
-      await sessionStore.listPolishRulePresets(),
-      await sessionStore.listDictionaryEntries(),
-    ));
+    stateStore.setPolish(
+      toPolishState(
+        await sessionStore.listPolishRulePresets(),
+        await sessionStore.listDictionaryEntries(),
+      ),
+    );
   };
   let writingDataQueue: Promise<unknown> = Promise.resolve();
   const updateWritingData = async (operation: () => Promise<void>) => {
@@ -231,10 +243,18 @@ export async function bootstrap(options: {
     audioRecorder,
     clipboard,
     ensurePermissionsReady: async () =>
-      (await ensureProvidersReady()) && (await ensurePermissionsReady()) && (await ensureWritingReady()),
+      (await ensureProvidersReady()) &&
+      (await ensurePermissionsReady()) &&
+      (await ensureWritingReady()),
     windows,
   });
   let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
+  let ruleSwitcherSelectionGeneration = 0;
+  const ruleSwitcherPendingSelectionMs = 450;
+  const ruleSwitcherAcknowledgementMs = 1_100;
+  const invalidateRuleSwitcherSelection = () => {
+    ruleSwitcherSelectionGeneration += 1;
+  };
   const clearRuleSwitcherTimer = () => {
     if (!ruleSwitcherTimer) {
       return;
@@ -246,6 +266,7 @@ export async function bootstrap(options: {
     clearRuleSwitcherTimer();
     ruleSwitcherTimer = setTimeout(() => {
       ruleSwitcherTimer = null;
+      invalidateRuleSwitcherSelection();
       stateStore.closeRuleSwitcher();
     }, delayMs);
   };
@@ -255,6 +276,7 @@ export async function bootstrap(options: {
       return;
     }
 
+    invalidateRuleSwitcherSelection();
     windows.showOverlay();
     if (!settingsStore.getSettings().polish.enabled) {
       stateStore.showRuleSwitcherDisabled();
@@ -266,6 +288,7 @@ export async function bootstrap(options: {
     closeRuleSwitcherAfter(8_000);
   };
   const closeRuleSwitcher = async () => {
+    invalidateRuleSwitcherSelection();
     clearRuleSwitcherTimer();
     stateStore.closeRuleSwitcher();
   };
@@ -273,15 +296,45 @@ export async function bootstrap(options: {
     if (stateStore.getState().ruleSwitcher.mode !== 'selecting') {
       return;
     }
-    const rulePreset = await sessionStore.getPolishRulePreset(rulePresetId);
-    if (!rulePreset) {
-      throw new Error(`Polish rule preset "${rulePresetId}" is not available.`);
-    }
+    const selectionGeneration = ruleSwitcherSelectionGeneration + 1;
+    ruleSwitcherSelectionGeneration = selectionGeneration;
+    const selectionIsCurrent = () =>
+      ruleSwitcherSelectionGeneration === selectionGeneration &&
+      stateStore.getState().ruleSwitcher.mode === 'selecting';
 
-    clearRuleSwitcherTimer();
-    await settingsStore.setPolishRulePreset(rulePresetId);
-    stateStore.showRuleSwitcherSelected(rulePresetId, `${rulePreset.title} selected`);
-    closeRuleSwitcherAfter(1_100);
+    try {
+      const rulePreset = await sessionStore.getPolishRulePreset(rulePresetId);
+      if (!selectionIsCurrent()) {
+        return;
+      }
+
+      if (!rulePreset) {
+        throw new Error(`Polish rule preset "${rulePresetId}" is not available.`);
+      }
+
+      await settingsStore.setPolishRulePreset(rulePresetId);
+      if (!selectionIsCurrent()) {
+        return;
+      }
+
+      clearRuleSwitcherTimer();
+      ruleSwitcherTimer = setTimeout(() => {
+        ruleSwitcherTimer = null;
+        if (!selectionIsCurrent()) {
+          return;
+        }
+
+        stateStore.showRuleSwitcherSelected(rulePresetId, `${rulePreset.title} selected`);
+        closeRuleSwitcherAfter(ruleSwitcherAcknowledgementMs);
+      }, ruleSwitcherPendingSelectionMs);
+    } catch (error) {
+      if (!selectionIsCurrent()) {
+        return;
+      }
+
+      await closeRuleSwitcher();
+      throw error;
+    }
   };
   const shortcuts = createShortcutManager({
     stateStore,
@@ -518,7 +571,10 @@ export async function bootstrap(options: {
     dictation: settingsStore.getSettings().shortcut.chord,
     ruleSwitcher: settingsStore.getSettings().ruleSwitcherShortcut.chord,
   });
-  if (!stateStore.getState().shortcut.registered || !stateStore.getState().ruleSwitcherShortcut.registered) {
+  if (
+    !stateStore.getState().shortcut.registered ||
+    !stateStore.getState().ruleSwitcherShortcut.registered
+  ) {
     windows.showSettings();
   }
 
