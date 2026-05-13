@@ -90,7 +90,7 @@ const baseState: AppState = {
   lastTranscript: null,
   recentConversions: [],
   dashboardStats: {
-    rollingWindowDays: 7,
+    rollingWindowDays: 28,
     words: 0,
     averageSpokenWpm: null,
     timeSavedMinutes: 0,

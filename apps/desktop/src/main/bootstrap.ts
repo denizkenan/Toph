@@ -139,7 +139,7 @@ export async function bootstrap(options: {
     stateStore.setDashboardStats(
       await sessionStore.getDashboardStats({
         now: Date.now(),
-        rollingWindowDays: 7,
+        rollingWindowDays: 28,
         typingWpm: settingsStore.getSettings().dashboard.typingWpm,
       }),
     );

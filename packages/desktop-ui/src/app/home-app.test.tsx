@@ -107,7 +107,7 @@ const baseState: AppState = {
   lastTranscript: null,
   recentConversions: [],
   dashboardStats: {
-    rollingWindowDays: 7,
+    rollingWindowDays: 28,
     words: 0,
     averageSpokenWpm: null,
     timeSavedMinutes: 0,
@@ -171,6 +171,9 @@ describe('HomeApp', () => {
     await screen.findByRole('heading', { name: 'Toph' });
     expect(screen.getByText('Nothing here yet.')).toBeTruthy();
     expect(screen.getByText('All systems go')).toBeTruthy();
+    expect(screen.getByText('Your last 28 days. Tiny wins, conveniently quantified.')).toBeTruthy();
+    expect(screen.getByText('28 days')).toBeTruthy();
+    expect(screen.getByText('time saved')).toBeTruthy();
   });
 
   it('rounds positive cost up to the nearest cent', async () => {
@@ -209,6 +212,8 @@ describe('HomeApp', () => {
 
     await screen.findByRole('heading', { name: 'Toph' });
     expect(screen.getAllByLabelText('Command + Shift + K')).toHaveLength(2);
+    expect(screen.getByLabelText('Control + Space')).toBeTruthy();
+    expect(screen.getByText(/to switch rules/)).toBeTruthy();
     expect(screen.queryByText('Ctrl+Alt+Space')).toBeNull();
   });
 
@@ -220,7 +225,7 @@ describe('HomeApp', () => {
           id: 'conv-1',
           text: 'This is a test dictation result from the mock flow.',
           kind: 'polished',
-          rulePresetId: 'general',
+          rulePresetId: 'engineer',
           rulePresetHash: 'hash',
           createdAt: Date.now() - 120_000,
           pasteStatus: 'success',
@@ -242,9 +247,18 @@ describe('HomeApp', () => {
     render(<HomeApp client={createClient(stateWithConversions)} />);
 
     await screen.findByText('This is a test dictation result from the mock flow.');
-    expect(screen.getByText('Pasted')).toBeTruthy();
-    expect(screen.getByText('Rules: general')).toBeTruthy();
-    expect(screen.getByText('Paste failed')).toBeTruthy();
+    expect(screen.queryByText('Pasted')).toBeNull();
+    expect(screen.queryByText('Rules: general')).toBeNull();
+    expect(screen.queryByText('Paste failed')).toBeNull();
+    expect(screen.getByText('Needs rerun')).toBeTruthy();
+    expect(screen.queryByText('Pasted via ydotool.')).toBeNull();
+    expect(screen.queryByText('ydotool timed out.')).toBeNull();
+
+    fireEvent.click(screen.getByText('This is a test dictation result from the mock flow.'));
+
+    expect(screen.getByText(/Polished with the/)).toBeTruthy();
+    expect(screen.getByText('Engineer')).toBeTruthy();
+    expect(screen.queryByText(/hash/)).toBeNull();
   });
 
   it('renders onboarding when required permissions are missing', async () => {

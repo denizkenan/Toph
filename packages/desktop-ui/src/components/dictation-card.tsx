@@ -1,24 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Collapsible } from '@base-ui/react/collapsible';
-import type { ConversionRecord, DesktopApi } from '@toph/desktop-contracts';
+import type { ConversionRecord, DesktopApi, PolishRulePresetSummary } from '@toph/desktop-contracts';
 import { Check, Copy, RefreshCcw, Trash2, X } from 'lucide-react';
 
 import { useRelativeTime } from '../hooks/use-desktop-state';
-
-const pasteStatusLabel: Record<string, string> = {
-  success: 'Pasted',
-  failed: 'Paste failed',
-  'clipboard-only': 'Copied to clipboard',
-  idle: 'Idle',
-};
-
-const pasteStatusTone: Record<string, string> = {
-  success: 'text-accent-green',
-  failed: 'text-accent-red',
-  'clipboard-only': 'text-text-secondary',
-  idle: 'text-text-tertiary',
-};
 
 const actionButtonClass =
   'inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-45';
@@ -27,12 +13,15 @@ const deleteButtonClass =
 
 export function DictationCard({
   conversion,
+  rulePresets,
   client,
 }: {
   conversion: ConversionRecord;
+  rulePresets: PolishRulePresetSummary[];
   client: DesktopApi;
 }) {
   const relativeTime = useRelativeTime(conversion.createdAt);
+  const rulePresetTitle = rulePresets.find((preset) => preset.id === conversion.rulePresetId)?.title;
   const [justCopied, setJustCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [pendingAction, setPendingAction] = useState<'rerun' | 'delete' | null>(null);
@@ -90,8 +79,6 @@ export function DictationCard({
   }, [client, conversion.id]);
 
   const isFailed = conversion.pasteStatus === 'failed';
-  const statusLabel = pasteStatusLabel[conversion.pasteStatus] ?? conversion.pasteStatus;
-  const statusTone = pasteStatusTone[conversion.pasteStatus] ?? 'text-text-tertiary';
 
   return (
     <Collapsible.Root defaultOpen={false}>
@@ -104,12 +91,9 @@ export function DictationCard({
         >
           <div className="mb-1.5 flex items-center gap-3">
             <span className="text-sm text-text-tertiary">{relativeTime}</span>
-            <span className={`text-sm font-medium ${statusTone}`}>
-              {statusLabel}
-            </span>
-            {conversion.kind === 'polished' && conversion.rulePresetId && (
-              <span className="rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-xs font-medium text-text-tertiary">
-                Rules: {conversion.rulePresetId}
+            {isFailed && (
+              <span className="rounded-full border border-accent-red/18 bg-accent-red/12 px-2 py-0.5 text-xs font-semibold text-accent-red">
+                Needs rerun
               </span>
             )}
           </div>
@@ -120,19 +104,14 @@ export function DictationCard({
         </Collapsible.Trigger>
 
         <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-all duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
-          <div className="pt-3">
-            {conversion.pasteDetail && (
-              <p className="m-0 text-sm text-text-secondary">
-                {conversion.pasteDetail}
-              </p>
-            )}
-            {conversion.kind === 'polished' && conversion.rulePresetId && (
+          {conversion.kind === 'polished' && conversion.rulePresetId && (
+            <div className="pt-3">
               <p className="mt-2 mb-0 text-xs text-text-tertiary">
-                Polished with rules <span className="font-semibold text-text-secondary">{conversion.rulePresetId}</span>
-                {conversion.rulePresetHash ? ` (${conversion.rulePresetHash.slice(0, 12)})` : ''}
+                Polished with the{' '}
+                <span className="font-semibold text-text-secondary">{rulePresetTitle ?? 'selected'}</span> rule
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </Collapsible.Panel>
 
         {/* Hover Action Dock */}

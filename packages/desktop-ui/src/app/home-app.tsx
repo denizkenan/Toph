@@ -126,11 +126,19 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
         <header className="mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
-            <p className="mt-1.5 mb-0 text-text-secondary">
-              Press{' '}
-              <ShortcutKeyChips chord={state.shortcut.chord} platform={state.environment.platform} />{' '}
-              to dictate
-            </p>
+            <div className="mt-2 flex max-w-full items-center gap-2 overflow-x-auto text-sm text-text-secondary whitespace-nowrap">
+              <ShortcutHint
+                chord={state.shortcut.chord}
+                platform={state.environment.platform}
+                action="dictate"
+              />
+              <span className="text-text-tertiary">/</span>
+              <ShortcutHint
+                chord={state.ruleSwitcherShortcut.chord}
+                platform={state.environment.platform}
+                action="switch rules"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -166,13 +174,19 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
           </div>
         </header>
 
+        <div className="mb-3 flex items-end justify-between gap-4">
+          <h2 className="m-0 font-display text-lg tracking-[-0.02em] text-text-secondary">
+            Your last 28 days. Tiny wins, conveniently quantified.
+          </h2>
+        </div>
+
         <div className="mb-8 grid grid-cols-4 gap-3 max-[640px]:grid-cols-2">
           <StatCard
             label={`${dashboardStats.rollingWindowDays} days`}
             value={formatWordCount(dashboardStats.words)}
           />
           <StatCard label="pace" value={formatSpokenWpm(dashboardStats.averageSpokenWpm)} />
-          <StatCard label="saved" value={formatDuration(dashboardStats.timeSavedMinutes)} />
+          <StatCard label="time saved" value={formatDuration(dashboardStats.timeSavedMinutes)} />
           <StatCard label="cost" value={formatCost(dashboardStats.costUsdMicros)} />
         </div>
 
@@ -184,7 +198,12 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
           {state.recentConversions.length > 0 ? (
             <div className="flex flex-col overflow-hidden rounded-3xl border border-white/6 bg-white/3 divide-y divide-white/6">
               {state.recentConversions.map((conversion) => (
-                <DictationCard key={conversion.id} conversion={conversion} client={client} />
+                <DictationCard
+                  key={conversion.id}
+                  conversion={conversion}
+                  rulePresets={state.polish.rulePresets}
+                  client={client}
+                />
               ))}
             </div>
           ) : (
@@ -217,6 +236,14 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
         </footer>
       </section>
     </main>
+  );
+}
+
+function ShortcutHint({ chord, platform, action }: { chord: ShortcutChord; platform: NodeJS.Platform; action: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1">
+      Press <ShortcutKeyChips chord={chord} platform={platform} compact /> to {action}
+    </span>
   );
 }
 
