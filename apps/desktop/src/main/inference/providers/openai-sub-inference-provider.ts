@@ -188,6 +188,7 @@ export function createOpenAiSubInferenceProvider(options: {
           headers,
           body: JSON.stringify({
             model,
+            reasoning: { effort: 'none' },
             instructions: input.instructions,
             input: [{ role: 'user', content: [{ type: 'input_text', text: input.inputText }] }],
             stream: true,
