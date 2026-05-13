@@ -74,7 +74,7 @@ The design system uses the **Catppuccin Macchiato** flavor as its canonical colo
 
 Both are loaded via `@expo-google-fonts` packages. Font tokens are defined in `global.css` (e.g., `--font-display`, `--font-body`) and used via NativeWind `className` utilities (`font-display`, `font-body`, etc.).
 
-## Voice & Copywriting (Isagi tone)
+## Voice & Copywriting (Toph tone)
 
 Default voice for UI copy is **witty, playful, and nerdy** with a light through-line of:
 
