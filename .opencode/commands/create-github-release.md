@@ -10,15 +10,15 @@ Read the `version` field from the root `package.json` and compute the tag as `v<
 
 - Root `package.json` exists and has a valid semver `version`.
 - The computed tag doesn't already exist: `git tag --list "<tag>"` is empty and `gh release view "<tag>"` fails.
-- Current branch is `main`: `git rev-parse --abbrev-ref HEAD` returns `main`.
+- Current branch is `master`: `git rev-parse --abbrev-ref HEAD` returns `master`.
 - Working tree is clean: `git status --porcelain` is empty.
-- Local `main` is up to date with `origin/main`: `git fetch origin main` then verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
+- Local `master` is up to date with `origin/master`: `git fetch origin master` then verify `git rev-parse HEAD` equals `git rev-parse origin/master`.
 
 ## Confirm with the user before drafting
 
 Once prerequisites pass, ask the user to confirm — explicitly — before doing any more work:
 
-> About to draft release `<tag>` from `main` at commit `<short-sha>` — `<commit subject>`. Continue?
+> About to draft release `<tag>` from `master` at commit `<short-sha>` — `<commit subject>`. Continue?
 
 Wait for an explicit yes. Don't proceed on silence.
 
@@ -55,18 +55,23 @@ Skeleton (the title uses `<version>` without the `v` prefix):
 <One-line opener in Toph voice.>
 
 ## New
+
 - <feature, one line each>
 
 ## Fixed
+
 - <bug → behavior now, one line each>
 
 ## Improved
+
 - <refactor / perf / polish>
 
 ## Under the hood
+
 - <internals, single tight list>
 
 ## Contributors
+
 Thanks to <@author1>, <@author2> for shipping this one.
 
 **Full changelog:** https://github.com/<owner>/<repo>/compare/<prev-tag>...<tag>
