@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the core concepts for Toph's real dictation pipeline. Use this vocabulary consistently in code, docs, database tables, and developer discussions.
+This document defines the core concepts for Toph's dictation pipeline. Use this vocabulary consistently in code, docs, database tables, and developer discussions.
 
 This is the canonical vocabulary document for the dictation pipeline. Other docs should link here rather than redefining these concepts in full.
 
@@ -27,11 +27,11 @@ All other data derives from the raw audio:
 - timeline regions,
 - transcription batches,
 - batch source ranges,
-- debug batch WAVs,
+- derived batch WAVs,
 - raw batch transcripts,
 - final session outputs.
 
-Silence shortening, batch generation, transcription, and post-processing must not mutate the raw audio.
+Silence shortening, batch generation, transcription, and polishing must not mutate the raw audio.
 
 ## Timeline Regions Describe The Raw Audio
 
@@ -72,14 +72,14 @@ session abc
   batch 3: shorter final provider request flushed when the user stopped
 ```
 
-The batch exists because provider work has its own lifecycle:
+The batch exists because provider work has its own lifecycle. Current batch statuses are:
 
 - planned,
-- queued,
 - transcribing,
 - transcribed,
-- failed,
-- retried.
+- failed.
+
+Retry attempts are tracked on the batch; retry is not a separate batch status.
 
 ## Batch Source Ranges Are The Assembly Plan
 
@@ -105,7 +105,7 @@ The raw silence was not mutated. The derived clip simply did not include most of
 
 Batch source ranges make it possible to:
 
-- regenerate a debug WAV later,
+- regenerate or inspect derived audio,
 - verify that no speech was clipped,
 - map derived audio time back to raw audio time,
 - re-run provider requests without re-planning the whole session.
@@ -116,23 +116,22 @@ Raw transcription results belong to batches because actual transcription happens
 
 The system should store each provider's raw text and useful metadata at the batch level. After the session ends and all batches are transcribed, the app can assemble the batch transcripts in sequence.
 
-Raw batch transcripts should remain available even if a later post-processing step creates cleaner final text.
+Raw batch transcripts should remain available even if a later polishing step creates cleaner final text.
 
 ## Session Outputs Are User-Level Text Results
 
 A session output is the text result the user sees or pastes.
 
-Important output kinds include:
+Current output kinds are:
 
 - `raw_concat`: direct assembly of raw batch transcripts.
-- `llm_post_processed`: output from a post-processing model after all batch transcripts are available.
-- `manual_regenerated`: a future output kind for manually re-created results.
+- `polished`: output from the polish engine after raw text has been assembled.
 
-Output provenance matters. The app should know whether text came from raw concatenation, LLM post-processing, or a future regeneration path.
+Output provenance matters. The app should know whether text came from raw concatenation or polishing, and which polish rule version produced a polished output.
 
 ## Live Mode Versus Offline Mode
 
-Offline mode processes a complete raw recording. It can run VAD over the entire file, plan all batches, and generate debug clips after the session is already complete.
+Offline mode processes a complete raw recording. It can run VAD over the entire file, plan all batches, and generate derived batch audio after the session is already complete.
 
 Live mode processes the same concepts incrementally while recording is active. It appends timeline regions, detects finalized boundaries, emits batches, and queues transcription while the user may still be speaking.
 
@@ -148,7 +147,7 @@ raw audio -> timeline regions -> batches -> batch source ranges -> transcripts -
 - Use `batch` only for internal provider transcription units.
 - Use `timeline region` for VAD speech/silence spans over raw audio.
 - Use `batch source range` for the raw audio slices included in a provider clip.
-- Use `post-processing`, not `normalization`, for the final LLM cleanup layer.
+- Use `polish` or `polishing` for the final LLM cleanup layer.
 
 ## Common Misunderstandings
 
@@ -156,6 +155,6 @@ Batches are not user-visible recordings. The user should see sessions and output
 
 Silence shortening does not mutate raw audio. It only changes which source ranges are included in derived provider audio.
 
-The system should not force-cut continuous speech in the MVP. Prefer natural pause boundaries, even if a batch becomes longer than the target duration.
+The system should not force-cut continuous speech. Prefer natural pause boundaries, even if a batch becomes longer than the target duration.
 
-Derived WAVs are debug artifacts, not durable product data by default. The durable data is the raw audio plus the database mappings needed to regenerate derived clips.
+Raw audio remains the source of truth. Derived WAVs are generated from raw audio and batch source ranges; they should not be treated as the canonical recording.
