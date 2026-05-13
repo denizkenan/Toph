@@ -52,6 +52,11 @@ const baseState: AppState = {
       },
     ],
   },
+  vad: {
+    kind: 'ready',
+    activeAnalyzer: 'silero',
+    detail: 'Voice activity detection is ready.',
+  },
   settings: {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },

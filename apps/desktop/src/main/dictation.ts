@@ -5,6 +5,7 @@ import type { SessionOutputService } from './outputs/session-output-service';
 import type { PolishService } from './polish/polish-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
+import { isStreamingVadBusyError } from './segmentation/streaming-vad-runtime';
 import type { AppSettingsStore } from './settings/app-settings-store';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
@@ -26,6 +27,10 @@ type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping' | 'canc
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
   return `${prefix} ${detail}.`;
+}
+
+function describeBusyVadError() {
+  return 'Another dictation operation is already using voice detection. Please wait for it to finish.';
 }
 
 export function createDictationController(options: {
@@ -148,7 +153,7 @@ export function createDictationController(options: {
   };
 
   const failActiveSession = async (detail: string, error: unknown) => {
-    const message = describeUnexpectedError(detail, error);
+    const message = isStreamingVadBusyError(error) ? detail : describeUnexpectedError(detail, error);
     const failedSession = activeSession;
     const failedPipeline = activeLivePipeline;
     const pendingLiveProcessing = liveProcessingQueue;
@@ -335,7 +340,9 @@ export function createDictationController(options: {
       }
       activeSession = null;
       lifecycle = 'idle';
-      const errorMessage = describeUnexpectedError('Rerun failed unexpectedly.', error);
+      const errorMessage = isStreamingVadBusyError(error)
+        ? describeBusyVadError()
+        : describeUnexpectedError('Rerun failed unexpectedly.', error);
       if (sessionId) {
         await options.transcription.cancelSession(sessionId);
         await options.sessionStore.clearSegmentationData(sessionId, {
@@ -444,6 +451,10 @@ export function createDictationController(options: {
 
         activeLivePipeline = pipeline;
       } catch (error) {
+        if (isStreamingVadBusyError(error)) {
+          throw error;
+        }
+
         liveProcessingErrorMessage = describeUnexpectedError(
           'Live segmentation could not start unexpectedly.',
           error,
@@ -554,6 +565,11 @@ export function createDictationController(options: {
         }
 
         lifecycle = 'idle';
+        return;
+      }
+
+      if (isStreamingVadBusyError(error)) {
+        await failActiveSession(describeBusyVadError(), error);
         return;
       }
 

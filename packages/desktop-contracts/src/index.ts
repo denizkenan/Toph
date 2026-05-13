@@ -533,6 +533,18 @@ export interface ProviderState {
   providers: ProviderConnection[];
 }
 
+export type VadRuntimeStatus =
+  | {
+    kind: 'ready';
+    activeAnalyzer: 'silero';
+    detail: string;
+  }
+  | {
+    kind: 'degraded';
+    activeAnalyzer: 'energy';
+    detail: string;
+  };
+
 export interface AppState {
   phase: DictationPhase;
   shortcut: ShortcutRegistrationState;
@@ -548,6 +560,7 @@ export interface AppState {
     currentDesktop: string;
   };
   providers: ProviderState;
+  vad: VadRuntimeStatus;
   settings: AppSettings;
   polish: PolishState;
   permissions: PermissionState;

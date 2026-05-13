@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { createSileroStreamingSpeechActivityAnalyzer } from '../../src/main/segmentation/analyzers/silero-streaming-speech-activity-analyzer.ts';
+import {
+  createSileroStreamingSpeechActivityAnalyzer,
+  createSileroStreamingVadBackend,
+  SileroStreamingVadBusyError,
+} from '../../src/main/segmentation/analyzers/silero-streaming-speech-activity-analyzer.ts';
 
 describe('Silero v5 streaming analyzer', () => {
   it('loads the packaged v5 model and scores a frame', async () => {
@@ -15,6 +19,22 @@ describe('Silero v5 streaming analyzer', () => {
       assert.ok(probability >= 0 && probability <= 1);
     } finally {
       await session.dispose();
+    }
+  });
+
+  it('reuses one prepared model while enforcing one active session', async () => {
+    const backend = createSileroStreamingVadBackend();
+    await backend.prepare();
+    const session = await backend.createSession();
+
+    try {
+      await assert.rejects(() => backend.createSession(), SileroStreamingVadBusyError);
+      await session.dispose();
+      const nextSession = await backend.createSession();
+      await nextSession.dispose();
+    } finally {
+      await session.dispose();
+      await backend.dispose();
     }
   });
 });

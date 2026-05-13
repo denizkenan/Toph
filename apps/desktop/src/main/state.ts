@@ -17,6 +17,7 @@ import {
   type ProviderState,
   type ShortcutChord,
   type ShortcutRegistrationState,
+  type VadRuntimeStatus,
 } from '@toph/desktop-contracts';
 
 export interface ShortcutStateSupport {
@@ -43,6 +44,7 @@ export interface DesktopStateStore {
   setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
   setPermissions: (permissions: PermissionState) => void;
+  setVadRuntimeStatus: (status: VadRuntimeStatus) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
   setRecentConversions: (conversions: ConversionRecord[]) => void;
   setDashboardStats: (dashboardStats: DashboardStats) => void;
@@ -114,6 +116,11 @@ function createInitialState(): AppState {
           error: null,
         },
       ],
+    },
+    vad: {
+      kind: 'ready',
+      activeAnalyzer: 'silero',
+      detail: 'Voice activity detection is ready.',
     },
     settings: DEFAULT_APP_SETTINGS,
     polish: {
@@ -242,6 +249,12 @@ export function createDesktopStateStore(): DesktopStateStore {
     setPermissions(permissions) {
       commit((draft) => {
         draft.permissions = permissions;
+      });
+    },
+
+    setVadRuntimeStatus(status) {
+      commit((draft) => {
+        draft.vad = status;
       });
     },
 
