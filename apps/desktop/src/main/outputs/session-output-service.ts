@@ -6,9 +6,11 @@ import type { RecordingSessionStore } from '../stores/session-store';
 export interface SessionOutputService {
   createRawConcatOutput: (
     sessionId: string,
+    options?: { outputId?: string },
   ) => Promise<{ id: string; text: string; createdAt: number }>;
   createPolishedOutput: (options: {
     sessionId: string;
+    outputId?: string;
     sourceOutputId: string;
     text: string;
     provider: string;
@@ -52,7 +54,7 @@ export function createSessionOutputService(options: {
   >;
 }): SessionOutputService {
   return {
-    async createRawConcatOutput(sessionId) {
+    async createRawConcatOutput(sessionId, createOptions) {
       const text = assembleRawText(
         await options.sessionStore.listOrderedBatchTranscriptTexts(sessionId),
       );
@@ -61,7 +63,7 @@ export function createSessionOutputService(options: {
       }
 
       const output = {
-        id: createSessionOutputId(),
+        id: createOptions?.outputId ?? createSessionOutputId(),
         sessionId,
         kind: 'raw_concat' as const,
         text,
@@ -91,7 +93,7 @@ export function createSessionOutputService(options: {
       }
 
       const output = {
-        id: createSessionOutputId(),
+        id: input.outputId ?? createSessionOutputId(),
         sessionId: input.sessionId,
         kind: 'polished' as const,
         text,

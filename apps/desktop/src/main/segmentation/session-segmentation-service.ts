@@ -20,6 +20,7 @@ export interface SessionSegmentationService {
   segmentRecordedSession: (options: {
     sessionId: string;
     generateBatchAudio: boolean;
+    preserveSelectedOutput?: boolean;
   }) => Promise<SegmentationOutcome>;
 }
 
@@ -65,7 +66,7 @@ export function createSessionSegmentationService(options: {
       });
     },
 
-    async segmentRecordedSession({ sessionId, generateBatchAudio }) {
+    async segmentRecordedSession({ sessionId, generateBatchAudio, preserveSelectedOutput }) {
       try {
         const session = await options.sessionStore.getSession(sessionId);
         if (!session) {
@@ -76,7 +77,7 @@ export function createSessionSegmentationService(options: {
         }
 
         await options.sessionStore.markSegmenting(sessionId);
-        await options.sessionStore.clearSegmentationData(sessionId);
+        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput });
 
         const pipeline = await createSegmentationPipelineSession({
           sessionId,
@@ -108,7 +109,7 @@ export function createSessionSegmentationService(options: {
           await pipeline.dispose();
         }
       } catch (error) {
-        await options.sessionStore.clearSegmentationData(sessionId);
+        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput });
         await options.sessionStore.markRecordedWithProcessingError({
           sessionId,
           errorMessage: describeSegmentationError(error),

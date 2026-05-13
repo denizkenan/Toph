@@ -156,6 +156,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     deleteDictionaryEntry: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
+    rerunConversion: async () => {},
+    deleteConversion: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
     ...overrides,
@@ -185,6 +187,29 @@ describe('HomeApp', () => {
     );
 
     await screen.findByText('$0.01');
+  });
+
+  it('renders the home shortcut from the configured chord as spaced keys', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          environment: {
+            ...baseState.environment,
+            platform: 'darwin',
+          },
+          shortcut: {
+            ...baseState.shortcut,
+            chord: { modifiers: ['command', 'shift'], key: 'K' },
+            label: 'Ctrl+Alt+Space',
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getAllByLabelText('Command + Shift + K')).toHaveLength(2);
+    expect(screen.queryByText('Ctrl+Alt+Space')).toBeNull();
   });
 
   it('renders recent conversions when present', async () => {

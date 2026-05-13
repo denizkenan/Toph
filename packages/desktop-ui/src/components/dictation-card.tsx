@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Collapsible } from '@base-ui/react/collapsible';
-import type { ConversionRecord } from '@toph/desktop-contracts';
-import { Check, Copy, Sparkles, X } from 'lucide-react';
+import type { ConversionRecord, DesktopApi } from '@toph/desktop-contracts';
+import { Check, Copy, RefreshCcw, Trash2, X } from 'lucide-react';
 
-import { DropdownMenu } from './dropdown';
 import { useRelativeTime } from '../hooks/use-desktop-state';
 
 const pasteStatusLabel: Record<string, string> = {
@@ -22,16 +21,21 @@ const pasteStatusTone: Record<string, string> = {
 };
 
 const actionButtonClass =
-  'inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden';
+  'inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-45';
+const deleteButtonClass =
+  'inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-accent-red/12 text-accent-red transition-all duration-200 ease-out hover:bg-accent-red/18 hover:text-accent-red focus:bg-accent-red/18 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-45';
 
 export function DictationCard({
   conversion,
+  client,
 }: {
   conversion: ConversionRecord;
+  client: DesktopApi;
 }) {
   const relativeTime = useRelativeTime(conversion.createdAt);
   const [justCopied, setJustCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'rerun' | 'delete' | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -68,21 +72,22 @@ export function DictationCard({
       });
   }, [conversion.text]);
 
-  const handleTransform = useCallback(() => {
-    console.log("[Toph] Transform:", conversion.id);
-  }, [conversion.id]);
-
   const handleRerun = useCallback(() => {
-    console.log("[Toph] Rerun workflow:", conversion.id);
-  }, [conversion.id]);
-
-  const handlePasteAgain = useCallback(() => {
-    console.log("[Toph] Paste again:", conversion.id);
-  }, [conversion.id]);
+    setPendingAction('rerun');
+    void client.rerunConversion(conversion.id).catch((error: unknown) => {
+      console.error('Toph could not rerun the conversion.', error);
+    }).finally(() => {
+      setPendingAction(null);
+    });
+  }, [client, conversion.id]);
 
   const handleDelete = useCallback(() => {
-    console.log("[Toph] Delete:", conversion.id);
-  }, [conversion.id]);
+    setPendingAction('delete');
+    void client.deleteConversion(conversion.id).catch((error: unknown) => {
+      console.error('Toph could not delete the conversion.', error);
+      setPendingAction(null);
+    });
+  }, [client, conversion.id]);
 
   const isFailed = conversion.pasteStatus === 'failed';
   const statusLabel = pasteStatusLabel[conversion.pasteStatus] ?? conversion.pasteStatus;
@@ -137,6 +142,8 @@ export function DictationCard({
             className={actionButtonClass}
             onClick={handleCopy}
             title="Copy"
+            aria-label="Copy transcript"
+            disabled={pendingAction !== null}
           >
             {justCopied ? (
               copyFailed ? (
@@ -152,28 +159,24 @@ export function DictationCard({
           <button
             type="button"
             className={actionButtonClass}
-            onClick={handleTransform}
-            title="Transform"
+            onClick={handleRerun}
+            title="Rerun workflow"
+            aria-label="Rerun workflow"
+            disabled={pendingAction !== null}
           >
-            <Sparkles size={15} />
+            <RefreshCcw size={15} className={pendingAction === 'rerun' ? 'animate-spin' : undefined} />
           </button>
 
-          <DropdownMenu
-            ariaLabel="More dictation actions"
-            trigger={
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <circle cx="3" cy="8" r="1.5" />
-                <circle cx="8" cy="8" r="1.5" />
-                <circle cx="13" cy="8" r="1.5" />
-              </svg>
-            }
-            items={[
-              { id: 'rerun', label: 'Rerun workflow', onClick: handleRerun },
-              { id: 'paste-again', label: 'Paste again', onClick: handlePasteAgain },
-              { type: 'separator' },
-              { id: 'delete', label: 'Delete', onClick: handleDelete, tone: 'danger' },
-            ]}
-          />
+          <button
+            type="button"
+            className={deleteButtonClass}
+            onClick={handleDelete}
+            title="Delete"
+            aria-label="Delete conversion"
+            disabled={pendingAction !== null}
+          >
+            {pendingAction === 'delete' ? <X size={15} /> : <Trash2 size={15} />}
+          </button>
         </div>
       </article>
     </Collapsible.Root>

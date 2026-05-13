@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import type { AppState, DesktopApi } from '@toph/desktop-contracts';
+import {
+  formatShortcutChordKeys,
+  normalizeShortcutModifiers,
+  type AppState,
+  type DesktopApi,
+  type ShortcutChord,
+  type ShortcutModifier,
+} from '@toph/desktop-contracts';
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { DictationCard } from '../components/dictation-card';
@@ -74,13 +81,39 @@ function hasActiveWritingPreset(state: AppState): boolean {
   );
 }
 
-function HomeScreen({
-  state,
-  onNavigateSettings,
-}: {
-  state: AppState;
-  onNavigateSettings: () => void;
-}) {
+function formatShortcutModifierForAssistiveLabel(modifier: ShortcutModifier): string {
+  if (modifier === 'command') return 'Command';
+  if (modifier === 'control') return 'Control';
+  if (modifier === 'option' || modifier === 'alt') return 'Alt';
+  return 'Shift';
+}
+
+function formatShortcutChordAssistiveLabel(chord: ShortcutChord): string {
+  return [
+    ...normalizeShortcutModifiers(chord.modifiers).map(formatShortcutModifierForAssistiveLabel),
+    chord.key,
+  ].join(' + ');
+}
+
+function ShortcutKeyChips({ chord, platform, compact = false }: { chord: ShortcutChord; platform: NodeJS.Platform; compact?: boolean }) {
+  const keys = formatShortcutChordKeys(chord, platform);
+
+  return (
+    <kbd
+      className={`${compact ? 'rounded-md px-1.5 py-0.5 text-xs' : 'rounded-lg px-2 py-0.5 text-[0.85rem]'} inline-flex items-center border border-white/12 bg-white/5 text-text-primary align-middle`}
+      aria-label={formatShortcutChordAssistiveLabel(chord)}
+    >
+      {keys.map((key, index) => (
+        <span key={`${key}-${index}`} className="inline-flex items-center">
+          {index > 0 && <span className="px-1.5 text-text-tertiary">+</span>}
+          <span>{key}</span>
+        </span>
+      ))}
+    </kbd>
+  );
+}
+
+function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; client: DesktopApi; onNavigateSettings: () => void }) {
   const systemStatus = deriveSystemStatus(state);
   const dashboardStats = state.dashboardStats;
 
@@ -95,9 +128,7 @@ function HomeScreen({
             <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
             <p className="mt-1.5 mb-0 text-text-secondary">
               Press{' '}
-              <kbd className="rounded-lg border border-white/12 bg-white/5 px-2 py-0.5 text-[0.85rem] text-text-primary">
-                {state.shortcut.label}
-              </kbd>{' '}
+              <ShortcutKeyChips chord={state.shortcut.chord} platform={state.environment.platform} />{' '}
               to dictate
             </p>
           </div>
@@ -153,7 +184,7 @@ function HomeScreen({
           {state.recentConversions.length > 0 ? (
             <div className="flex flex-col overflow-hidden rounded-3xl border border-white/6 bg-white/3 divide-y divide-white/6">
               {state.recentConversions.map((conversion) => (
-                <DictationCard key={conversion.id} conversion={conversion} />
+                <DictationCard key={conversion.id} conversion={conversion} client={client} />
               ))}
             </div>
           ) : (
@@ -161,9 +192,7 @@ function HomeScreen({
               <p className="m-0 font-display text-base text-text-primary">Nothing here yet.</p>
               <span className="text-sm text-text-secondary">
                 Press{' '}
-                <kbd className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5 text-xs text-text-primary">
-                  {state.shortcut.label}
-                </kbd>{' '}
+                <ShortcutKeyChips chord={state.shortcut.chord} platform={state.environment.platform} compact />{' '}
                 and say something brilliant. Or mediocre. I don't judge.
               </span>
             </div>
@@ -250,5 +279,5 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     return <SettingsPage state={state} client={client} onBack={() => setView('home')} />;
   }
 
-  return <HomeScreen state={state} onNavigateSettings={() => setView('settings')} />;
+  return <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />;
 }

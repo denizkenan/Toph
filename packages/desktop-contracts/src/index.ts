@@ -35,6 +35,8 @@ export const DESKTOP_IPC_CHANNELS = {
   deleteDictionaryEntry: 'toph:delete-dictionary-entry',
   performPermissionAction: 'toph:perform-permission-action',
   refreshPermissions: 'toph:refresh-permissions',
+  rerunConversion: 'toph:rerun-conversion',
+  deleteConversion: 'toph:delete-conversion',
   sound: 'toph:sound',
   quit: 'toph:quit',
 } as const;
@@ -589,6 +591,8 @@ export interface DesktopApi {
   deleteDictionaryEntry: (id: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
+  rerunConversion: (outputId: string) => Promise<void>;
+  deleteConversion: (outputId: string) => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
 }

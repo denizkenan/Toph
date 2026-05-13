@@ -3,7 +3,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
@@ -59,7 +59,7 @@ export interface RecordingSessionStore {
   discardSessionArtifacts: (sessionId: string) => Promise<void>;
   setProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
   clearProcessingError: (sessionId: string) => Promise<void>;
-  clearSegmentationData: (sessionId: string) => Promise<void>;
+  clearSegmentationData: (sessionId: string, options?: { preserveSelectedOutput?: boolean }) => Promise<void>;
   insertTimelineRegions: (options: {
     sessionId: string;
     regions: TimelineRegionDraft[];
@@ -94,6 +94,8 @@ export interface RecordingSessionStore {
     rollingWindowDays: number;
     typingWpm: number;
   }) => Promise<DashboardStats>;
+  prepareSessionForOutputRerun: (outputId: string) => Promise<{ session: RecordingSession; outputId: string }>;
+  removeSessionForOutput: (outputId: string) => Promise<void>;
   syncDefaultPolishRulePreset: (rulePreset: {
     id: string;
     title: string;
@@ -227,7 +229,7 @@ export async function createRecordingSessionStore(options: {
     migrationsFolder: options.migrationsFolder,
   });
 
-  const clearSessionGeneratedData = (sessionId: string) => {
+  const clearSessionGeneratedData = (sessionId: string, clearOptions: { keepOutputId?: string } = {}) => {
     db.transaction(() => {
       const batches = db
         .select({ id: transcriptionBatches.id })
@@ -243,8 +245,19 @@ export async function createRecordingSessionStore(options: {
 
       db.delete(transcriptionBatches).where(eq(transcriptionBatches.sessionId, sessionId)).run();
       db.delete(timelineRegions).where(eq(timelineRegions.sessionId, sessionId)).run();
-      db.delete(sessionOutputs).where(eq(sessionOutputs.sessionId, sessionId)).run();
+      db.delete(sessionOutputs)
+        .where(
+          clearOptions.keepOutputId
+            ? and(eq(sessionOutputs.sessionId, sessionId), ne(sessionOutputs.id, clearOptions.keepOutputId))
+            : eq(sessionOutputs.sessionId, sessionId),
+        )
+        .run();
     });
+  };
+
+  const clearSessionGeneratedArtifacts = async (session: RecordingSession, clearOptions: { keepOutputId?: string } = {}) => {
+    clearSessionGeneratedData(session.id, clearOptions);
+    await rm(join(dirname(session.rawAudioPath), 'batches'), { recursive: true, force: true });
   };
 
   return {
@@ -411,8 +424,19 @@ export async function createRecordingSessionStore(options: {
         .run();
     },
 
-    async clearSegmentationData(sessionId) {
-      clearSessionGeneratedData(sessionId);
+    async clearSegmentationData(sessionId, clearOptions) {
+      const session = db
+        .select()
+        .from(recordingSessions)
+        .where(eq(recordingSessions.id, sessionId))
+        .get();
+      if (!session) {
+        return;
+      }
+
+      await clearSessionGeneratedArtifacts(session, {
+        keepOutputId: clearOptions?.preserveSelectedOutput ? (session.selectedOutputId ?? undefined) : undefined,
+      });
     },
 
     async insertTimelineRegions({ sessionId, regions }) {
@@ -562,7 +586,30 @@ export async function createRecordingSessionStore(options: {
     },
 
     async createSessionOutput(output) {
-      db.insert(sessionOutputs).values(output).run();
+      db.insert(sessionOutputs)
+        .values(output)
+        .onConflictDoUpdate({
+          target: sessionOutputs.id,
+          set: {
+            sessionId: output.sessionId,
+            kind: output.kind,
+            text: output.text,
+            sourceOutputId: output.sourceOutputId,
+            provider: output.provider,
+            model: output.model,
+            rulePresetId: output.rulePresetId,
+            rulePresetHash: output.rulePresetHash,
+            inputTokens: output.inputTokens,
+            cachedInputTokens: output.cachedInputTokens,
+            outputTokens: output.outputTokens,
+            costUsdMicros: output.costUsdMicros,
+            costSource: output.costSource,
+            pricingCatalogProviderId: output.pricingCatalogProviderId,
+            pricingCatalogModelId: output.pricingCatalogModelId,
+            createdAt: output.createdAt,
+          },
+        })
+        .run();
     },
 
     async selectSessionOutput({ sessionId, outputId }) {
@@ -662,6 +709,60 @@ export async function createRecordingSessionStore(options: {
           transcriptCostUsdMicros +
           selectedOutputs.reduce((total, output) => total + (output.outputCostUsdMicros ?? 0), 0),
       };
+    },
+
+    async prepareSessionForOutputRerun(outputId) {
+      const row = db
+        .select({ session: recordingSessions, output: sessionOutputs })
+        .from(sessionOutputs)
+        .innerJoin(recordingSessions, eq(recordingSessions.id, sessionOutputs.sessionId))
+        .where(eq(sessionOutputs.id, outputId))
+        .get();
+      if (!row) {
+        throw new Error(`Conversion ${outputId} is not available.`);
+      }
+      if (row.session.status === 'removed' || row.session.status === 'cancelled') {
+        throw new Error(`Conversion ${outputId} no longer has retained audio.`);
+      }
+
+      await clearSessionGeneratedArtifacts(row.session, { keepOutputId: outputId });
+      db.update(recordingSessions)
+        .set({
+          status: 'recorded',
+          selectedOutputId: outputId,
+          errorMessage: null,
+        })
+        .where(eq(recordingSessions.id, row.session.id))
+        .run();
+
+      return {
+        session: {
+          ...row.session,
+          status: 'recorded',
+          selectedOutputId: outputId,
+          errorMessage: null,
+        },
+        outputId,
+      };
+    },
+
+    async removeSessionForOutput(outputId) {
+      const row = db
+        .select({ session: recordingSessions })
+        .from(sessionOutputs)
+        .innerJoin(recordingSessions, eq(recordingSessions.id, sessionOutputs.sessionId))
+        .where(eq(sessionOutputs.id, outputId))
+        .get();
+      if (!row) {
+        return;
+      }
+
+      clearSessionGeneratedData(row.session.id);
+      await rm(dirname(row.session.rawAudioPath), { recursive: true, force: true });
+      db.update(recordingSessions)
+        .set({ status: 'removed', selectedOutputId: null, errorMessage: null })
+        .where(eq(recordingSessions.id, row.session.id))
+        .run();
     },
 
     async syncDefaultPolishRulePreset(rulePreset) {

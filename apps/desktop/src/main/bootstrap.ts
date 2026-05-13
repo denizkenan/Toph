@@ -182,8 +182,8 @@ export async function bootstrap(options: {
   }
   await refreshPolishState();
   await refreshDashboardStats();
-  stateStore.setRecentConversions(
-    (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
+  const refreshRecentConversions = async (detailsByOutputId: Record<string, string> = {}) => {
+    stateStore.setRecentConversions((await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
       id: output.id,
       text: output.text,
       kind: output.kind,
@@ -191,9 +191,10 @@ export async function bootstrap(options: {
       rulePresetHash: output.rulePresetHash,
       createdAt: output.createdAt,
       pasteStatus: 'idle',
-      pasteDetail: 'Loaded from local history.',
-    })),
-  );
+      pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
+    })));
+  };
+  await refreshRecentConversions();
   const audioRecorder = createElectronCaptureAudioRecorder();
   const segmentation = createSessionSegmentationService({ sessionStore });
   const outputs = createSessionOutputService({ sessionStore });
@@ -576,6 +577,23 @@ export async function bootstrap(options: {
     },
     refreshPermissions: async () => {
       await ensurePermissionsReady();
+    },
+    rerunConversion: async (outputId) => {
+      try {
+        await dictation.rerunConversion(outputId);
+      } finally {
+        await refreshDashboardStats();
+        await refreshRecentConversions({ [outputId]: 'Rerun from retained raw audio.' });
+      }
+    },
+    deleteConversion: async (outputId) => {
+      if (stateStore.getState().phase !== 'idle') {
+        throw new Error('History cannot be changed while dictation is active.');
+      }
+
+      await sessionStore.removeSessionForOutput(outputId);
+      await refreshDashboardStats();
+      await refreshRecentConversions();
     },
     quit: () => {
       isQuitting = true;

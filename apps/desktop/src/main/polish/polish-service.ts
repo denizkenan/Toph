@@ -8,6 +8,7 @@ export interface PolishService {
   polishOutput: (input: {
     sessionId: string;
     rawOutput: { id: string; text: string };
+    outputId?: string;
     signal?: AbortSignal;
   }) => Promise<{
     id: string;
@@ -130,8 +131,13 @@ export function createPolishService(options: {
             inputText: wrapTranscriptForPolish(input.rawOutput.text),
             signal: input.signal,
           });
+          if (input.signal?.aborted) {
+            throw new Error('Polish was aborted.');
+          }
+
           return options.outputs.createPolishedOutput({
             sessionId: input.sessionId,
+            outputId: input.outputId,
             sourceOutputId: input.rawOutput.id,
             text: result.text,
             provider: result.provider,

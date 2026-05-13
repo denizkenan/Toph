@@ -156,6 +156,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     deleteDictionaryEntry: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
+    rerunConversion: async () => {},
+    deleteConversion: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
     ...overrides,
