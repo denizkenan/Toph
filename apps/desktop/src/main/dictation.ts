@@ -13,6 +13,7 @@ import type { SessionTranscriptionCoordinator } from './transcription/session-tr
 export interface DictationController {
   toggleCapture: () => Promise<void>;
   cancelCapture: () => Promise<void>;
+  rerunConversion: (outputId: string) => Promise<void>;
   dispose: () => Promise<void>;
 }
 
@@ -43,7 +44,9 @@ export function createDictationController(options: {
     | 'setProcessingError'
     | 'clearSegmentationData'
     | 'discardSessionArtifacts'
+    | 'prepareSessionForOutputRerun'
     | 'pruneRetainedSessions'
+    | 'listTranscriptionBatchesForSession'
   >;
   segmentation: SessionSegmentationService;
   transcription: SessionTranscriptionCoordinator;
@@ -58,7 +61,7 @@ export function createDictationController(options: {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
-  let activeSession: { id: string; rawAudioPath: string } | null = null;
+  let activeSession: { id: string; rawAudioPath: string; preserveArtifactsOnCancel?: boolean; rerunOutputId?: string } | null = null;
   let activeLivePipeline: SegmentationPipelineSession | null = null;
   let liveProcessingErrorMessage: string | null = null;
   let liveProcessingQueue: Promise<void> = Promise.resolve();
@@ -181,6 +184,156 @@ export function createDictationController(options: {
     options.windows.showOverlay();
     options.windows.emitSound('done');
     returnToIdleAfterNoSpeech();
+  };
+
+  const rerunRecordedWorkflow = async (outputId: string) => {
+    const { phase, ruleSwitcher } = options.stateStore.getState();
+    if (lifecycle !== 'idle' || phase !== 'idle' || ruleSwitcher.mode !== 'idle') {
+      return;
+    }
+    if (!(await options.ensurePermissionsReady())) {
+      return;
+    }
+
+    clearFailureTimer();
+    clearNoSpeechTimer();
+    activeOperationGeneration += 1;
+    const operationGeneration = activeOperationGeneration;
+    lifecycle = 'stopping';
+    options.stateStore.startTranscribing();
+    options.windows.showOverlay();
+
+    let sessionId: string | null = null;
+
+    try {
+      const prepared = await options.sessionStore.prepareSessionForOutputRerun(outputId);
+      sessionId = prepared.session.id;
+      activeSession = {
+        id: prepared.session.id,
+        rawAudioPath: prepared.session.rawAudioPath,
+        preserveArtifactsOnCancel: true,
+        rerunOutputId: outputId,
+      };
+      if (!isCurrentOperation(operationGeneration)) {
+        activeSession = null;
+        lifecycle = 'idle';
+        await options.outputs.selectOutput({ sessionId, outputId });
+        return;
+      }
+
+      const segmentationOutcome = await options.segmentation.segmentRecordedSession({
+        sessionId,
+        generateBatchAudio: true,
+        preserveSelectedOutput: true,
+      });
+      if (!isCurrentOperation(operationGeneration)) {
+        activeSession = null;
+        lifecycle = 'idle';
+        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput: true });
+        await options.outputs.selectOutput({ sessionId, outputId });
+        return;
+      }
+
+      if (segmentationOutcome === 'no_speech') {
+        await options.outputs.selectOutput({ sessionId, outputId });
+        activeSession = null;
+        lifecycle = 'idle';
+        await completeNoSpeechRecording();
+        return;
+      }
+
+      const batches = await options.sessionStore.listTranscriptionBatchesForSession(sessionId);
+      await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
+      const transcriptionOutcome = await options.transcription.waitForSession(sessionId);
+      if (!isCurrentOperation(operationGeneration)) {
+        activeSession = null;
+        lifecycle = 'idle';
+        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput: true });
+        await options.outputs.selectOutput({ sessionId, outputId });
+        return;
+      }
+
+      if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
+        throw new Error(`${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`);
+      }
+
+      const polishSettings = options.settingsStore.getSettings().polish;
+      if (!polishSettings.enabled) {
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
+        const rawOutput = await options.outputs.createRawConcatOutput(sessionId, { outputId });
+        if (!isCurrentOperation(operationGeneration)) {
+          activeSession = null;
+          lifecycle = 'idle';
+          await options.outputs.selectOutput({ sessionId, outputId });
+          return;
+        }
+
+        await options.outputs.selectOutput({ sessionId, outputId: rawOutput.id });
+        activeSession = null;
+        lifecycle = 'idle';
+        options.stateStore.setPhase('idle');
+        options.windows.emitSound('done');
+        return;
+      }
+
+      const rawOutput = await options.outputs.createRawConcatOutput(sessionId);
+      if (!isCurrentOperation(operationGeneration)) {
+        activeSession = null;
+        lifecycle = 'idle';
+        await options.outputs.selectOutput({ sessionId, outputId });
+        return;
+      }
+
+      await options.sessionStore.markPolishing(sessionId);
+      options.stateStore.startPolishing();
+      if (!isCurrentOperation(operationGeneration)) {
+        activeSession = null;
+        lifecycle = 'idle';
+        await options.outputs.selectOutput({ sessionId, outputId });
+        return;
+      }
+
+      activePolishAbortController = new AbortController();
+      const polishedOutput = await options.polish.polishOutput({
+        sessionId,
+        rawOutput,
+        signal: activePolishAbortController.signal,
+        outputId,
+      });
+      activePolishAbortController = null;
+      if (!isCurrentOperation(operationGeneration)) {
+        activeSession = null;
+        lifecycle = 'idle';
+        await options.outputs.selectOutput({ sessionId, outputId });
+        return;
+      }
+
+      await options.outputs.selectOutput({ sessionId, outputId: polishedOutput.id });
+      activeSession = null;
+      lifecycle = 'idle';
+      options.stateStore.setPhase('idle');
+      options.windows.emitSound('done');
+    } catch (error) {
+      activePolishAbortController = null;
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+      activeSession = null;
+      lifecycle = 'idle';
+      const errorMessage = describeUnexpectedError('Rerun failed unexpectedly.', error);
+      if (sessionId) {
+        await options.transcription.cancelSession(sessionId);
+        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput: true });
+        await options.outputs.selectOutput({ sessionId, outputId });
+      }
+      options.stateStore.failDictation(errorMessage);
+      options.windows.showOverlay();
+      returnToIdleAfterFailure();
+      throw error;
+    }
   };
 
   const isCurrentOperation = (generation: number) => generation === activeOperationGeneration;
@@ -697,16 +850,27 @@ export function createDictationController(options: {
         });
         await options.transcription.cancelSession(session.id);
         await pipeline?.dispose();
-        await options.sessionStore.markCancelled({
-          sessionId: session.id,
-          durationMs: stoppedRecordingDurationMs,
-        });
-        await options.sessionStore.discardSessionArtifacts(session.id);
+        if (session.preserveArtifactsOnCancel) {
+          await options.sessionStore.clearSegmentationData(session.id, { preserveSelectedOutput: true });
+          if (session.rerunOutputId) {
+            await options.outputs.selectOutput({ sessionId: session.id, outputId: session.rerunOutputId });
+          }
+        } else {
+          await options.sessionStore.markCancelled({
+            sessionId: session.id,
+            durationMs: stoppedRecordingDurationMs,
+          });
+          await options.sessionStore.discardSessionArtifacts(session.id);
+        }
       } catch (error) {
         console.error('Toph could not persist the cancelled recording session.', error);
       } finally {
         lifecycle = 'idle';
       }
+    },
+
+    async rerunConversion(outputId) {
+      await rerunRecordedWorkflow(outputId);
     },
 
     async dispose() {

@@ -83,6 +83,8 @@ export function registerDesktopIpc(options: {
   deleteDictionaryEntry: (id: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
+  rerunConversion: (outputId: string) => Promise<void>;
+  deleteConversion: (outputId: string) => Promise<void>;
   quit: () => void;
 }) {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.subscribeState, (event) => {
@@ -298,6 +300,20 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.refreshPermissions, async () => {
     await options.refreshPermissions();
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.rerunConversion, async (_event, outputId: unknown) => {
+    if (typeof outputId !== 'string' || outputId.trim().length === 0) {
+      throw new Error('Invalid conversion.');
+    }
+
+    await options.rerunConversion(outputId);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.deleteConversion, async (_event, outputId: unknown) => {
+    if (typeof outputId !== 'string' || outputId.trim().length === 0) {
+      throw new Error('Invalid conversion.');
+    }
+
+    await options.deleteConversion(outputId);
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.quit, async () => {
     options.quit();
   });
@@ -337,6 +353,8 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.performPermissionAction);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshPermissions);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.rerunConversion);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteConversion);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.quit);
   };
 }

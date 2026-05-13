@@ -124,7 +124,7 @@ function ShortcutKeyChips({ chord, platform, compact = false }: { chord: Shortcu
   );
 }
 
-function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigateSettings: () => void }) {
+function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; client: DesktopApi; onNavigateSettings: () => void }) {
   const totalWords = countWordsInConversions(state.recentConversions);
   const todayCount = countTodayConversions(state.recentConversions);
   const timeSaved = formatTimeSaved(totalWords);
@@ -183,7 +183,7 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           {state.recentConversions.length > 0 ? (
             <div className="flex flex-col overflow-hidden rounded-3xl border border-white/6 bg-white/3 divide-y divide-white/6">
               {state.recentConversions.map((conversion) => (
-                <DictationCard key={conversion.id} conversion={conversion} />
+                <DictationCard key={conversion.id} conversion={conversion} client={client} />
               ))}
             </div>
           ) : (
@@ -278,5 +278,5 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     return <SettingsPage state={state} client={client} onBack={() => setView('home')} />;
   }
 
-  return <HomeScreen state={state} onNavigateSettings={() => setView('settings')} />;
+  return <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />;
 }

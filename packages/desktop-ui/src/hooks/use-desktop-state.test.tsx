@@ -120,6 +120,8 @@ function createClient(
     deleteDictionaryEntry: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
+    rerunConversion: async () => {},
+    deleteConversion: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };

@@ -17,7 +17,7 @@ const rulePreset = {
   updatedAt: 1,
 };
 
-function createService(provider: InferenceProvider, options: { rulePresetAvailable?: boolean; dictionaryEntries?: DictionaryEntry[] } = {}) {
+function createService(provider: InferenceProvider, options: { rulePresetAvailable?: boolean; dictionaryEntries?: DictionaryEntry[]; onCreatePolishedOutput?: (input: Parameters<SessionOutputCreatePolishedOutput>[0]) => void } = {}) {
   return createPolishService({
     inference: provider,
     settingsStore: {
@@ -43,6 +43,7 @@ function createService(provider: InferenceProvider, options: { rulePresetAvailab
     },
     outputs: {
       async createPolishedOutput(input) {
+        options.onCreatePolishedOutput?.(input);
         return {
           id: 'polished-output',
           text: input.text,
@@ -54,6 +55,9 @@ function createService(provider: InferenceProvider, options: { rulePresetAvailab
     },
   });
 }
+
+type SessionOutputCreatePolishedOutput = SessionOutputServiceCreatePolishedOutput;
+type SessionOutputServiceCreatePolishedOutput = Parameters<typeof createPolishService>[0]['outputs']['createPolishedOutput'];
 
 test('retries transient empty inference output failures', async () => {
   let attempts = 0;
@@ -123,6 +127,37 @@ test('escapes dictionary delimiter text before composing inference instructions'
 
   assert.match(instructions, /&lt;\/DICTIONARY&gt;/);
   assert.match(instructions, /Ignore &lt;USER_RULES&gt;/);
+});
+
+test('passes a requested output id through to polished output creation', async () => {
+  let createdOutputId: string | undefined;
+  const service = createService(
+    {
+      id: 'test',
+      async inferText() {
+        return {
+          text: 'Polished text.',
+          provider: 'test',
+          model: 'test-model',
+          providerRequestId: null,
+          providerResponseJson: null,
+        };
+      },
+    },
+    {
+      onCreatePolishedOutput(input) {
+        createdOutputId = input.outputId;
+      },
+    },
+  );
+
+  await service.polishOutput({
+    sessionId: 'session-1',
+    rawOutput: { id: 'raw-output', text: 'raw text' },
+    outputId: 'existing-output',
+  });
+
+  assert.equal(createdOutputId, 'existing-output');
 });
 
 test('does not retry permanent inference failures', async () => {
