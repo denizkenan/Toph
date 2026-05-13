@@ -1,6 +1,7 @@
 {
   "name": "toph",
   "private": true,
+  "version": "0.0.1",
   "scripts": {
     "build": "pnpm --filter @toph/desktop build",
     "dev": "pnpm --filter @toph/desktop dev",
@@ -18,7 +19,8 @@
     "start": "sh ./scripts/toph-desktop.sh",
     "test:segmentation": "pnpm --filter @toph/desktop test:segmentation",
     "test:ui": "pnpm --filter @toph/desktop-ui test",
-    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck"
+    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck",
+    "versions:sync": "node scripts/sync-package-versions.cjs"
   },
   "devDependencies": {
     "oxfmt": "^0.46.0",
