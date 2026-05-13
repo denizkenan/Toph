@@ -1,23 +1,29 @@
-import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
+import { PROVIDER_BILLING_MODES } from "@toph/desktop-contracts";
 
-import type { ProviderAuthService } from '../../auth/provider-auth-service';
-import type { PricingService } from '../../pricing/pricing-service';
-import type { AppSettingsStore } from '../../settings/app-settings-store';
+import type { ProviderAuthService } from "../../auth/provider-auth-service";
+import type { PricingService } from "../../pricing/pricing-service";
+import type { AppSettingsStore } from "../../settings/app-settings-store";
 import {
   TransientInferenceProviderError,
   type InferenceProvider,
   type InferenceProviderResult,
-} from '../inference-provider';
+} from "../inference-provider";
 
-const providerId = 'openai-sub';
-const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
+const providerId = "openai-sub";
+const endpoint = "https://chatgpt.com/backend-api/codex/responses";
 
 function isRetryableFailure(status: number, body: string) {
   if (status === 403 && /<html|<meta\s+http-equiv=/i.test(body)) {
     return true;
   }
 
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return (
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
 }
 
 function parseSseEvents(text: string) {
@@ -25,14 +31,14 @@ function parseSseEvents(text: string) {
   for (const block of text.split(/\n\n+/)) {
     const dataLines = block
       .split(/\r?\n/)
-      .filter((line) => line.startsWith('data:'))
-      .map((line) => line.slice('data:'.length).trimStart());
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trimStart());
     if (dataLines.length === 0) {
       continue;
     }
 
-    const data = dataLines.join('\n');
-    if (data === '[DONE]') {
+    const data = dataLines.join("\n");
+    if (data === "[DONE]") {
       continue;
     }
 
@@ -52,15 +58,19 @@ function extractTextFromContent(content: unknown): string[] {
 
   const parts: string[] = [];
   for (const item of content) {
-    if (typeof item !== 'object' || item === null) {
+    if (typeof item !== "object" || item === null) {
       continue;
     }
 
-    const candidate = item as { type?: unknown; text?: unknown; output_text?: unknown };
-    if (typeof candidate.text === 'string') {
+    const candidate = item as {
+      type?: unknown;
+      text?: unknown;
+      output_text?: unknown;
+    };
+    if (typeof candidate.text === "string") {
       parts.push(candidate.text);
     }
-    if (typeof candidate.output_text === 'string') {
+    if (typeof candidate.output_text === "string") {
       parts.push(candidate.output_text);
     }
   }
@@ -68,30 +78,32 @@ function extractTextFromContent(content: unknown): string[] {
 }
 
 function extractTextFromCompletedResponse(event: unknown) {
-  if (typeof event !== 'object' || event === null) {
-    return '';
+  if (typeof event !== "object" || event === null) {
+    return "";
   }
 
   const response = (event as { response?: unknown }).response;
-  if (typeof response !== 'object' || response === null) {
-    return '';
+  if (typeof response !== "object" || response === null) {
+    return "";
   }
 
   const output = (response as { output?: unknown }).output;
   if (!Array.isArray(output)) {
-    return '';
+    return "";
   }
 
   return output
-    .flatMap((item) => extractTextFromContent((item as { content?: unknown })?.content))
-    .join('');
+    .flatMap((item) =>
+      extractTextFromContent((item as { content?: unknown })?.content),
+    )
+    .join("");
 }
 
 function extractText(events: unknown[]) {
   const deltaParts: string[] = [];
   const completedTextParts: string[] = [];
   for (const event of events) {
-    if (typeof event !== 'object' || event === null) {
+    if (typeof event !== "object" || event === null) {
       continue;
     }
 
@@ -101,18 +113,27 @@ function extractText(events: unknown[]) {
       output_text?: unknown;
       type?: unknown;
     };
-    if (candidate.type === 'response.output_text.delta' && typeof candidate.delta === 'string') {
+    if (
+      candidate.type === "response.output_text.delta" &&
+      typeof candidate.delta === "string"
+    ) {
       deltaParts.push(candidate.delta);
     }
-    if (candidate.type === 'response.output_text.done' && typeof candidate.text === 'string') {
+    if (
+      candidate.type === "response.output_text.done" &&
+      typeof candidate.text === "string"
+    ) {
       completedTextParts.push(candidate.text);
     }
-    if (candidate.type === 'response.completed' && typeof candidate.output_text === 'string') {
+    if (
+      candidate.type === "response.completed" &&
+      typeof candidate.output_text === "string"
+    ) {
       completedTextParts.push(candidate.output_text);
     }
   }
 
-  const streamed = deltaParts.join('') || completedTextParts.join('');
+  const streamed = deltaParts.join("") || completedTextParts.join("");
   if (streamed) {
     return streamed;
   }
@@ -124,20 +145,20 @@ function extractText(events: unknown[]) {
     }
   }
 
-  return '';
+  return "";
 }
 
 function extractTokenUsage(events: unknown[]) {
   for (const event of [...events].reverse()) {
-    if (typeof event !== 'object' || event === null) {
+    if (typeof event !== "object" || event === null) {
       continue;
     }
     const response = (event as { response?: unknown }).response;
-    if (typeof response !== 'object' || response === null) {
+    if (typeof response !== "object" || response === null) {
       continue;
     }
     const usage = (response as { usage?: unknown }).usage;
-    if (typeof usage !== 'object' || usage === null) {
+    if (typeof usage !== "object" || usage === null) {
       continue;
     }
 
@@ -147,12 +168,16 @@ function extractTokenUsage(events: unknown[]) {
       output_tokens?: unknown;
     };
     return {
-      inputTokens: typeof candidate.input_tokens === 'number' ? candidate.input_tokens : 0,
+      inputTokens:
+        typeof candidate.input_tokens === "number" ? candidate.input_tokens : 0,
       cachedInputTokens:
-        typeof candidate.input_tokens_details?.cached_tokens === 'number'
+        typeof candidate.input_tokens_details?.cached_tokens === "number"
           ? candidate.input_tokens_details.cached_tokens
           : 0,
-      outputTokens: typeof candidate.output_tokens === 'number' ? candidate.output_tokens : 0,
+      outputTokens:
+        typeof candidate.output_tokens === "number"
+          ? candidate.output_tokens
+          : 0,
     };
   }
 
@@ -160,9 +185,9 @@ function extractTokenUsage(events: unknown[]) {
 }
 
 export function createOpenAiSubInferenceProvider(options: {
-  auth: Pick<ProviderAuthService, 'resolveCredentials'>;
-  pricing: Pick<PricingService, 'estimateCost'>;
-  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
+  auth: Pick<ProviderAuthService, "resolveCredentials">;
+  pricing: Pick<PricingService, "estimateCost">;
+  settingsStore: Pick<AppSettingsStore, "getSettings">;
 }): InferenceProvider {
   return {
     id: providerId,
@@ -172,25 +197,30 @@ export function createOpenAiSubInferenceProvider(options: {
       const model = options.settingsStore.getSettings().inference.model;
       const headers: Record<string, string> = {
         Authorization: `Bearer ${credentials.accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        originator: 'opencode',
-        'User-Agent': 'Toph (openai-sub inference)',
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        originator: "opencode",
+        "User-Agent": "Toph (openai-sub inference)",
       };
       if (credentials.accountId) {
-        headers['ChatGPT-Account-ID'] = credentials.accountId;
+        headers["ChatGPT-Account-ID"] = credentials.accountId;
       }
 
       let response: Response;
       try {
         response = await fetch(endpoint, {
-          method: 'POST',
+          method: "POST",
           headers,
           body: JSON.stringify({
             model,
-            reasoning: { effort: 'none' },
+            reasoning: { effort: "low" },
             instructions: input.instructions,
-            input: [{ role: 'user', content: [{ type: 'input_text', text: input.inputText }] }],
+            input: [
+              {
+                role: "user",
+                content: [{ type: "input_text", text: input.inputText }],
+              },
+            ],
             stream: true,
             store: false,
           }),
@@ -205,7 +235,9 @@ export function createOpenAiSubInferenceProvider(options: {
         );
       }
 
-      const requestId = response.headers.get('x-request-id') ?? response.headers.get('request-id');
+      const requestId =
+        response.headers.get("x-request-id") ??
+        response.headers.get("request-id");
       const body = await response.text();
       if (!response.ok) {
         const message = `OpenAI-sub inference failed: HTTP ${response.status} ${body.slice(0, 2000)}`;
@@ -218,7 +250,9 @@ export function createOpenAiSubInferenceProvider(options: {
       const events = parseSseEvents(body);
       const text = extractText(events).trim();
       if (!text) {
-        throw new TransientInferenceProviderError('OpenAI-sub inference returned an empty output.');
+        throw new TransientInferenceProviderError(
+          "OpenAI-sub inference returned an empty output.",
+        );
       }
 
       const usage = extractTokenUsage(events);
@@ -227,13 +261,13 @@ export function createOpenAiSubInferenceProvider(options: {
             providerId,
             model,
             usage: {
-              kind: 'tokens',
+              kind: "tokens",
               ...usage,
             },
           })
         : {
             costUsdMicros: 0,
-            costSource: 'none' as const,
+            costSource: "none" as const,
             pricingCatalogProviderId: null,
             pricingCatalogModelId: null,
           };
