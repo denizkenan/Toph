@@ -4,9 +4,18 @@ description: Draft GitHub release notes from commits since the last release
 
 You are drafting GitHub release notes for the **Toph** project. Follow the workflow below exactly. Do not skip steps. Do not start writing prose until you have actually gathered the commit data.
 
-## Step 1 — Load the tone reference
+The release tag was passed as the only argument: **`$1`**.
 
-Load the `frontend-design` skill so you have the **Toph voice / copywriting** rules in context. You only need its "Voice & Copywriting (Toph tone)" section as the tone guide for the notes — ignore the visual/design portions. The release notes themselves are plain Markdown for GitHub, not a UI.
+## Step 1 — Validate the tag argument
+
+The user invokes this command as `/create-github-release <tag>`. Before doing anything else, validate `$1`:
+
+1. **Argument is required.** If `$1` is empty or missing, stop and ask the user to re-run with a tag (e.g. `/create-github-release v0.4.0`). Do not proceed.
+2. **Must start with `v`.** The tag must match `^v\d+\.\d+\.\d+(-[\w.]+)?$` (standard `v`-prefixed semver, with an optional pre-release suffix like `v1.2.0-rc.1`). If it doesn't start with `v` or isn't valid semver, stop and tell the user the expected format. Do not silently "fix" it.
+3. **Must match the package version.** Read the root `package.json` (and, if the root doesn't carry the app version, `apps/desktop/package.json`) and confirm that stripping the leading `v` from `$1` yields exactly the `version` field. If they don't match, stop and surface the mismatch — show both values and ask the user to either bump `package.json` or re-run with the correct tag. Do not proceed.
+4. **Must not already exist.** Check `git tag --list "$1"` and `gh release view "$1"`. If either finds it, stop — the user almost certainly didn't mean to overwrite an existing release. Surface the conflict.
+
+Only proceed past this step when all four checks pass. From here on, treat `$1` as `<next-tag>` everywhere in this workflow.
 
 ## Step 2 — Find the previous release
 
@@ -15,8 +24,6 @@ Determine the previous release using, in order of preference:
 1. `gh release view --json tagName,publishedAt,name` for the latest published release.
 2. If `gh` is unavailable or there are no releases yet, fall back to `git describe --tags --abbrev=0`.
 3. If there are no tags at all, use the first commit (`git rev-list --max-parents=0 HEAD | tail -1`) and tell the user this is the project's first release.
-
-Also figure out the **next version**. Inspect `package.json` files (root and the apps/packages) and any recent tags to guess the appropriate next version. Don't decide unilaterally — propose it to the user at the end.
 
 ## Step 3 — Collect commits since the previous release
 
@@ -52,10 +59,10 @@ Rules for interpretation:
 
 ## Step 5 — Write the draft in Toph tone
 
-Output the draft as a single Markdown block, ready to paste into GitHub. Use this skeleton — keep it lean, don't pad it:
+Output the draft as a single Markdown block, ready to paste into GitHub. Use this skeleton — keep it lean, don't pad it. The version in the title is `<next-tag>` with the leading `v` stripped:
 
 ```markdown
-# Toph <next-version> — <short evocative title>
+# Toph <next-tag-without-v> — <short evocative title>
 
 <One-line opener in Toph voice. Witty, nerdy, comedic-villain-but-friendly. One punchline, not three.>
 
@@ -93,7 +100,9 @@ Use GitHub @-handles for contributors when you can map them confidently from `gi
 
 Print the draft to the chat. Then ask the user:
 
-> Want me to tweak anything — tone, grouping, what's emphasized, version number? Once you're happy, I can push this to GitHub as a **draft** release.
+> Want me to tweak anything — tone, grouping, what's emphasized? Once you're happy, I can push this to GitHub as a **draft** release tagged `<next-tag>`.
+
+(The version itself is locked in by the `$1` argument and was validated in Step 1, so don't invite the user to change it here — if they want a different version, they should re-run the command.)
 
 Do **not** create the GitHub release yet. Wait for the user's feedback or explicit go-ahead.
 
