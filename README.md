@@ -11,3 +11,11 @@ Run `pnpm --filter @toph/desktop run rebuild:native` manually after changing Ele
 After changing `apps/desktop/src/main/db/schema.ts`, generate a migration with `pnpm --filter @toph/desktop exec drizzle-kit generate`.
 
 Never edit files in `apps/desktop/drizzle`; they are generated migrations.
+
+## License
+
+Toph source code is licensed under the Apache License, Version 2.0. See
+`LICENSE` and `NOTICE` for details.
+
+The Toph name, logo, icon, wordmark, and related brand assets are not licensed
+under Apache-2.0. See `TRADEMARKS.md` for brand usage rules.

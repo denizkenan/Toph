@@ -1,5 +1,9 @@
 # Assets
 
+The Toph logo, icon, wordmark, and related brand assets are not licensed under
+the repository's Apache-2.0 code license. See `../TRADEMARKS.md` for brand usage
+rules.
+
 `logo.png` is the source for the packaged app icons. Generated outputs live in
 `app-icons/` and are used by Electron Builder for macOS, Windows, and Linux.
 The generated macOS `.icns` and `icon-mac.png` center the logo inside an
