@@ -6,3 +6,4 @@ out/
 .toph/
 assets/app-icons/
 TODO.md
+.env
