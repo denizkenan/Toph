@@ -1,4 +1,4 @@
-appId: com.toph.desktop
+appId: studio.yourtechbud.toph
 productName: Toph
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
@@ -17,16 +17,17 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
+  hardenedRuntime: true
   icon: icon.icns
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  notarize: true
+  extendInfo:
+    NSMicrophoneUsageDescription: Toph needs microphone access to capture dictation audio.
+    NSAppleEventsUsageDescription: Toph uses Apple Events to paste completed dictation into the focused app.
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
+    - dmg
+    - zip
 
 win:
   icon: icon.ico
