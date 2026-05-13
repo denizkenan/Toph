@@ -141,6 +141,29 @@ describe('HomeApp', () => {
     expect(screen.getByText('All systems go')).toBeTruthy();
   });
 
+  it('renders the home shortcut from the configured chord as spaced keys', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          environment: {
+            ...baseState.environment,
+            platform: 'darwin',
+          },
+          shortcut: {
+            ...baseState.shortcut,
+            chord: { modifiers: ['command', 'shift'], key: 'K' },
+            label: 'Ctrl+Alt+Space',
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getAllByLabelText('Command + Shift + K')).toHaveLength(2);
+    expect(screen.queryByText('Ctrl+Alt+Space')).toBeNull();
+  });
+
   it('renders recent conversions when present', async () => {
     const stateWithConversions: AppState = {
       ...baseState,
