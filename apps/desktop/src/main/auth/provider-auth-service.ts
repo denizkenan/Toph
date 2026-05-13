@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderState } from '@toph/desktop-contracts';
+import { PROVIDER_BILLING_MODES, type ProviderId, type ProviderState } from '@toph/desktop-contracts';
 
 import {
   readProviderAuthStorage,
@@ -64,6 +64,7 @@ function createProviderState(options: {
         id: providerId,
         label: providerLabel,
         description: providerDescription,
+        billingMode: PROVIDER_BILLING_MODES[providerId],
         status,
         accountId: options.credential?.accountId ?? null,
         expires: options.credential?.expires ?? null,

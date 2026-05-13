@@ -43,6 +43,7 @@ The target schema includes these tables, but implementation should introduce onl
 - `batch_source_ranges`
 - `batch_transcripts`
 - `session_outputs`
+- `provider_usage_events`
 
 ## `recording_sessions`
 
@@ -186,20 +187,15 @@ Columns:
 - `provider`
 - `model`
 - `text`
-- `response_json` nullable
-- `actual_audio_ms`
-- `billable_audio_ms`
 - `created_at`
 
 Responsibility:
 
 - Store raw transcript text per provider request.
 - Preserve provider and model provenance.
-- Keep optional provider response metadata for debugging.
-- Track actual versus estimated billable audio duration.
 - Provide inputs for raw session transcript assembly and post-processing.
 
-The initial implementation can store `response_json` only when useful during provider development.
+Provider request metadata, measured usage, billing mode, and estimated cost belong in `provider_usage_events`, linked by `related_entity_kind = batch_transcript` and `related_entity_id`.
 
 ## `session_outputs`
 
@@ -228,6 +224,42 @@ Suggested `kind` values:
 - `manual_regenerated`
 
 For `raw_concat`, `provider` and `model` may be null because the output is assembled from batch transcript rows. For `llm_post_processed`, `provider` and `model` should identify the post-processing model.
+
+## `provider_usage_events`
+
+Provider usage events store one immutable ledger row per provider call whose usage or estimated cost should be inspectable.
+
+Columns:
+
+- `id`
+- `session_id`
+- `operation_kind`
+- `related_entity_kind`
+- `related_entity_id`
+- `provider`
+- `model`
+- `billing_mode`
+- `audio_duration_ms` nullable for non-audio usage
+- `billable_duration_ms` nullable when unknown or non-audio
+- `input_tokens` nullable for audio-only usage
+- `cached_input_tokens` nullable for audio-only usage
+- `output_tokens` nullable for audio-only usage
+- `estimated_cost_usd_micros`
+- `cost_source`
+- `pricing_catalog_provider_id` nullable
+- `pricing_catalog_model_id` nullable
+- `provider_request_id` nullable
+- `provider_response_json` nullable
+- `created_at`
+
+Responsibility:
+
+- Keep provider usage, billing classification, and pricing estimates in one queryable ledger.
+- Preserve analytics inputs without spreading cost fields across domain tables.
+- Let user-facing cost include only `billing_mode = metered` usage while retaining subscription usage for analytics.
+- Link each usage row back to the transcript or output produced by the provider call.
+
+`estimated_cost_usd_micros` is an estimated/catalog value, not necessarily user spend. Dashboard spend is derived from usage events by summing only metered billing mode rows.
 
 ## Why Both Timeline Regions And Batch Source Ranges Exist
 

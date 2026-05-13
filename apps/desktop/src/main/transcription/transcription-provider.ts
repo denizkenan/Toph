@@ -1,18 +1,10 @@
-import type { CostSource } from '../pricing/pricing-service';
+import type { ProviderUsageDetails } from '../provider-usage';
 
 export interface TranscriptionProviderResult {
   text: string;
   provider: string;
   model: string | null;
-  estimatedBillableDurationMs: number;
-  billableDurationMs: number | null;
-  inputTokens: number | null;
-  cachedInputTokens: number | null;
-  outputTokens: number | null;
-  costUsdMicros: number;
-  costSource: CostSource;
-  pricingCatalogProviderId: string | null;
-  pricingCatalogModelId: string | null;
+  usage: ProviderUsageDetails;
   providerRequestId: string | null;
   providerResponseJson: unknown;
 }

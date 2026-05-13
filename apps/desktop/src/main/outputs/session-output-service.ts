@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import type { CostSource } from '../pricing/pricing-service';
+import type { ProviderUsageEvent } from '../db/schema';
+import type { ProviderUsageDetails } from '../provider-usage';
 import type { RecordingSessionStore } from '../stores/session-store';
 
 export interface SessionOutputService {
@@ -15,13 +16,9 @@ export interface SessionOutputService {
     text: string;
     provider: string;
     model: string | null;
-    inputTokens: number | null;
-    cachedInputTokens: number | null;
-    outputTokens: number | null;
-    costUsdMicros: number;
-    costSource: CostSource;
-    pricingCatalogProviderId: string | null;
-    pricingCatalogModelId: string | null;
+    usage: ProviderUsageDetails;
+    providerRequestId: string | null;
+    providerResponseJson: unknown;
     rulePresetId: string;
     rulePresetHash: string;
   }) => Promise<{
@@ -36,6 +33,10 @@ export interface SessionOutputService {
 
 function createSessionOutputId() {
   return `session_output_${Date.now()}_${randomUUID()}`;
+}
+
+function createUsageEventId() {
+  return `provider_usage_${Date.now()}_${randomUUID()}`;
 }
 
 function assembleRawText(texts: string[]) {
@@ -72,17 +73,10 @@ export function createSessionOutputService(options: {
         model: null,
         rulePresetId: null,
         rulePresetHash: null,
-        inputTokens: null,
-        cachedInputTokens: null,
-        outputTokens: null,
-        costUsdMicros: 0,
-        costSource: 'none' as const,
-        pricingCatalogProviderId: null,
-        pricingCatalogModelId: null,
         createdAt: Date.now(),
       };
 
-      await options.sessionStore.createSessionOutput(output);
+      await options.sessionStore.createSessionOutput({ output });
       return { id: output.id, text: output.text, createdAt: output.createdAt };
     },
 
@@ -92,8 +86,10 @@ export function createSessionOutputService(options: {
         throw new Error(`Session ${input.sessionId} produced an empty polished output.`);
       }
 
+      const outputId = input.outputId ?? createSessionOutputId();
+      const createdAt = Date.now();
       const output = {
-        id: input.outputId ?? createSessionOutputId(),
+        id: outputId,
         sessionId: input.sessionId,
         kind: 'polished' as const,
         text,
@@ -102,17 +98,32 @@ export function createSessionOutputService(options: {
         model: input.model,
         rulePresetId: input.rulePresetId,
         rulePresetHash: input.rulePresetHash,
-        inputTokens: input.inputTokens,
-        cachedInputTokens: input.cachedInputTokens,
-        outputTokens: input.outputTokens,
-        costUsdMicros: input.costUsdMicros,
-        costSource: input.costSource,
-        pricingCatalogProviderId: input.pricingCatalogProviderId,
-        pricingCatalogModelId: input.pricingCatalogModelId,
-        createdAt: Date.now(),
+        createdAt,
+      };
+      const usageEvent: ProviderUsageEvent = {
+        id: createUsageEventId(),
+        sessionId: input.sessionId,
+        operationKind: 'inference',
+        relatedEntityKind: 'session_output',
+        relatedEntityId: outputId,
+        provider: input.provider,
+        model: input.model,
+        billingMode: input.usage.billingMode,
+        audioDurationMs: input.usage.audioDurationMs,
+        billableDurationMs: input.usage.billableDurationMs,
+        inputTokens: input.usage.inputTokens,
+        cachedInputTokens: input.usage.cachedInputTokens,
+        outputTokens: input.usage.outputTokens,
+        estimatedCostUsdMicros: input.usage.estimatedCostUsdMicros,
+        costSource: input.usage.costSource,
+        pricingCatalogProviderId: input.usage.pricingCatalogProviderId,
+        pricingCatalogModelId: input.usage.pricingCatalogModelId,
+        providerRequestId: input.providerRequestId,
+        providerResponseJson: JSON.stringify(input.providerResponseJson) ?? null,
+        createdAt,
       };
 
-      await options.sessionStore.createSessionOutput(output);
+      await options.sessionStore.createSessionOutput({ output, usageEvent });
       return {
         id: output.id,
         text: output.text,

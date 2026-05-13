@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { BatchTranscript, TranscriptionBatch } from '../db/schema';
+import type { BatchTranscript, ProviderUsageEvent, TranscriptionBatch } from '../db/schema';
 import type { RecordingSessionStore } from '../stores/session-store';
 import {
   isTransientTranscriptionProviderError,
@@ -26,6 +26,10 @@ function createTranscriptId() {
   return `batch_transcript_${Date.now()}_${randomUUID()}`;
 }
 
+function createUsageEventId() {
+  return `provider_usage_${Date.now()}_${randomUUID()}`;
+}
+
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown transcription error.';
 }
@@ -49,30 +53,44 @@ function sleep(ms: number, signal?: AbortSignal) {
   });
 }
 
-function toTranscriptRow(options: {
+function toTranscriptRows(options: {
+  sessionId: string;
   batchId: string;
   result: TranscriptionProviderResult;
   createdAt: number;
-}): BatchTranscript {
+}): { transcript: BatchTranscript; usageEvent: ProviderUsageEvent } {
+  const transcriptId = createTranscriptId();
   return {
-    id: createTranscriptId(),
-    batchId: options.batchId,
-    provider: options.result.provider,
-    model: options.result.model,
-    text: options.result.text,
-    estimatedBillableDurationMs: options.result.estimatedBillableDurationMs,
-    estimatedCostUsd: null,
-    billableDurationMs: options.result.billableDurationMs,
-    inputTokens: options.result.inputTokens,
-    cachedInputTokens: options.result.cachedInputTokens,
-    outputTokens: options.result.outputTokens,
-    costUsdMicros: options.result.costUsdMicros,
-    costSource: options.result.costSource,
-    pricingCatalogProviderId: options.result.pricingCatalogProviderId,
-    pricingCatalogModelId: options.result.pricingCatalogModelId,
-    providerRequestId: options.result.providerRequestId,
-    providerResponseJson: JSON.stringify(options.result.providerResponseJson) ?? null,
-    createdAt: options.createdAt,
+    transcript: {
+      id: transcriptId,
+      batchId: options.batchId,
+      provider: options.result.provider,
+      model: options.result.model,
+      text: options.result.text,
+      createdAt: options.createdAt,
+    },
+    usageEvent: {
+      id: createUsageEventId(),
+      sessionId: options.sessionId,
+      operationKind: 'transcription',
+      relatedEntityKind: 'batch_transcript',
+      relatedEntityId: transcriptId,
+      provider: options.result.provider,
+      model: options.result.model,
+      billingMode: options.result.usage.billingMode,
+      audioDurationMs: options.result.usage.audioDurationMs,
+      billableDurationMs: options.result.usage.billableDurationMs,
+      inputTokens: options.result.usage.inputTokens,
+      cachedInputTokens: options.result.usage.cachedInputTokens,
+      outputTokens: options.result.usage.outputTokens,
+      estimatedCostUsdMicros: options.result.usage.estimatedCostUsdMicros,
+      costSource: options.result.usage.costSource,
+      pricingCatalogProviderId: options.result.usage.pricingCatalogProviderId,
+      pricingCatalogModelId: options.result.usage.pricingCatalogModelId,
+      providerRequestId: options.result.providerRequestId,
+      providerResponseJson: JSON.stringify(options.result.providerResponseJson) ?? null,
+      createdAt: options.createdAt,
+    },
   };
 }
 
@@ -84,7 +102,7 @@ export function createSessionTranscriptionCoordinator(options: {
     | 'markBatchTranscribing'
     | 'markBatchTranscribed'
     | 'markBatchFailed'
-    | 'insertBatchTranscript'
+    | 'createBatchTranscript'
   >;
   provider: TranscriptionProvider;
 }): SessionTranscriptionCoordinator {
@@ -164,8 +182,8 @@ export function createSessionTranscriptionCoordinator(options: {
           signal: abortController.signal,
         });
         const createdAt = Date.now();
-        await options.sessionStore.insertBatchTranscript(
-          toTranscriptRow({ batchId: batch.id, result, createdAt }),
+        await options.sessionStore.createBatchTranscript(
+          toTranscriptRows({ sessionId: batch.sessionId, batchId: batch.id, result, createdAt }),
         );
         await options.sessionStore.markBatchTranscribed({
           batchId: batch.id,

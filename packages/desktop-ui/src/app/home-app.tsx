@@ -45,12 +45,9 @@ function formatSpokenWpm(averageSpokenWpm: number | null): string {
   return averageSpokenWpm ? `${Math.round(averageSpokenWpm)} WPM` : '—';
 }
 
-function formatCost(costUsdMicros: number): string {
-  if (costUsdMicros <= 0) {
-    return '—';
-  }
-
-  return `$${(Math.ceil((costUsdMicros / 1_000_000) * 100) / 100).toFixed(2)}`;
+function formatUsageCost(costUsdMicros: number, incomplete: boolean): string {
+  const value = `$${(Math.ceil((costUsdMicros / 1_000_000) * 100) / 100).toFixed(2)}`;
+  return incomplete ? `${value}+` : value;
 }
 
 function deriveSystemStatus(state: AppState): { label: string; tone: string } {
@@ -186,7 +183,13 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
           />
           <StatCard label="pace" value={formatSpokenWpm(dashboardStats.averageSpokenWpm)} />
           <StatCard label="time saved" value={formatDuration(dashboardStats.timeSavedMinutes)} />
-          <StatCard label="cost" value={formatCost(dashboardStats.costUsdMicros)} />
+          <StatCard
+            label="usage cost"
+            value={formatUsageCost(
+              dashboardStats.meteredSpendUsdMicros,
+              dashboardStats.costEstimateIncomplete,
+            )}
+          />
         </div>
 
         <section>

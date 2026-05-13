@@ -17,6 +17,8 @@ export type TimelineRegionKind = 'speech' | 'silence';
 export type TranscriptionBatchStatus = 'planned' | 'transcribing' | 'transcribed' | 'failed';
 export type BatchSourceRangeReason = 'speech' | 'pause_buffer' | 'normal_pause';
 export type SessionOutputKind = 'raw_concat' | 'polished';
+export type ProviderUsageOperationKind = 'transcription' | 'inference';
+export type ProviderUsageRelatedEntityKind = 'batch_transcript' | 'session_output';
 
 export const recordingSessions = sqliteTable('recording_sessions', {
   id: text('id').primaryKey(),
@@ -77,22 +79,6 @@ export const batchTranscripts = sqliteTable('batch_transcripts', {
   provider: text('provider').notNull(),
   model: text('model'),
   text: text('text').notNull(),
-  estimatedBillableDurationMs: integer('estimated_billable_duration_ms').notNull(),
-  estimatedCostUsd: integer('estimated_cost_usd'),
-  billableDurationMs: integer('billable_duration_ms'),
-  inputTokens: integer('input_tokens'),
-  cachedInputTokens: integer('cached_input_tokens'),
-  outputTokens: integer('output_tokens'),
-  costUsdMicros: integer('cost_usd_micros').notNull().default(0),
-  costSource: text('cost_source', {
-    enum: ['provider_reported', 'models_dev', 'static_fallback', 'none'],
-  })
-    .notNull()
-    .default('none'),
-  pricingCatalogProviderId: text('pricing_catalog_provider_id'),
-  pricingCatalogModelId: text('pricing_catalog_model_id'),
-  providerRequestId: text('provider_request_id'),
-  providerResponseJson: text('provider_response_json'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -106,10 +92,28 @@ export const sessionOutputs = sqliteTable('session_outputs', {
   model: text('model'),
   rulePresetId: text('rule_preset_id'),
   rulePresetHash: text('rule_preset_hash'),
+  createdAt: integer('created_at').notNull(),
+});
+
+export const providerUsageEvents = sqliteTable('provider_usage_events', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  operationKind: text('operation_kind', { enum: ['transcription', 'inference'] }).notNull(),
+  relatedEntityKind: text('related_entity_kind', {
+    enum: ['batch_transcript', 'session_output'],
+  }).notNull(),
+  relatedEntityId: text('related_entity_id').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model'),
+  billingMode: text('billing_mode', {
+    enum: ['subscription', 'metered', 'local', 'unknown'],
+  }).notNull(),
+  audioDurationMs: integer('audio_duration_ms'),
+  billableDurationMs: integer('billable_duration_ms'),
   inputTokens: integer('input_tokens'),
   cachedInputTokens: integer('cached_input_tokens'),
   outputTokens: integer('output_tokens'),
-  costUsdMicros: integer('cost_usd_micros').notNull().default(0),
+  estimatedCostUsdMicros: integer('estimated_cost_usd_micros').notNull().default(0),
   costSource: text('cost_source', {
     enum: ['provider_reported', 'models_dev', 'static_fallback', 'none'],
   })
@@ -117,6 +121,8 @@ export const sessionOutputs = sqliteTable('session_outputs', {
     .default('none'),
   pricingCatalogProviderId: text('pricing_catalog_provider_id'),
   pricingCatalogModelId: text('pricing_catalog_model_id'),
+  providerRequestId: text('provider_request_id'),
+  providerResponseJson: text('provider_response_json'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -159,5 +165,6 @@ export type TranscriptionBatch = typeof transcriptionBatches.$inferSelect;
 export type BatchTranscript = typeof batchTranscripts.$inferSelect;
 export type BatchSourceRange = typeof batchSourceRanges.$inferSelect;
 export type SessionOutput = typeof sessionOutputs.$inferSelect;
+export type ProviderUsageEvent = typeof providerUsageEvents.$inferSelect;
 export type PolishRulePreset = typeof polishRulePresets.$inferSelect;
 export type DictionaryEntry = typeof dictionaryEntries.$inferSelect;

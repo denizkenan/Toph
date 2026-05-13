@@ -1,3 +1,5 @@
+import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
+
 import type { ProviderAuthService } from '../../auth/provider-auth-service';
 import type { PricingService } from '../../pricing/pricing-service';
 import type { AppSettingsStore } from '../../settings/app-settings-store';
@@ -239,10 +241,18 @@ export function createOpenAiSubInferenceProvider(options: {
         text,
         provider: providerId,
         model,
-        inputTokens: usage?.inputTokens ?? null,
-        cachedInputTokens: usage?.cachedInputTokens ?? null,
-        outputTokens: usage?.outputTokens ?? null,
-        ...cost,
+        usage: {
+          billingMode: PROVIDER_BILLING_MODES[providerId],
+          audioDurationMs: null,
+          billableDurationMs: null,
+          inputTokens: usage?.inputTokens ?? null,
+          cachedInputTokens: usage?.cachedInputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+          estimatedCostUsdMicros: cost.costUsdMicros,
+          costSource: cost.costSource,
+          pricingCatalogProviderId: cost.pricingCatalogProviderId,
+          pricingCatalogModelId: cost.pricingCatalogModelId,
+        },
         providerRequestId: requestId,
         providerResponseJson: events,
       };

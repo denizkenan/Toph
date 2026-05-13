@@ -45,6 +45,7 @@ const baseState: AppState = {
         id: 'openai-sub',
         label: 'OpenAI (ChatGPT Plus/Pro subscription)',
         description: 'Use your ChatGPT subscription to transcribe recordings.',
+        billingMode: 'subscription',
         status: 'connected',
         accountId: 'account-id',
         expires: Date.now() + 3_600_000,
@@ -111,7 +112,10 @@ const baseState: AppState = {
     words: 0,
     averageSpokenWpm: null,
     timeSavedMinutes: 0,
-    costUsdMicros: 0,
+    meteredSpendUsdMicros: 0,
+    subscriptionEstimatedCostUsdMicros: 0,
+    totalEstimatedCostUsdMicros: 0,
+    costEstimateIncomplete: false,
   },
   updatedAt: 1,
 };
@@ -176,20 +180,27 @@ describe('HomeApp', () => {
     expect(screen.getByText('time saved')).toBeTruthy();
   });
 
-  it('rounds positive cost up to the nearest cent', async () => {
+  it('rounds positive usage cost up to the nearest cent', async () => {
     render(
       <HomeApp
         client={createClient({
           ...baseState,
           dashboardStats: {
             ...baseState.dashboardStats,
-            costUsdMicros: 1,
+            meteredSpendUsdMicros: 1,
           },
         })}
       />,
     );
 
     await screen.findByText('$0.01');
+  });
+
+  it('shows zero usage cost for subscription-only usage', async () => {
+    render(<HomeApp client={createClient(baseState)} />);
+
+    await screen.findByText('$0.00');
+    expect(screen.getByText('usage cost')).toBeTruthy();
   });
 
   it('renders the home shortcut from the configured chord as spaced keys', async () => {

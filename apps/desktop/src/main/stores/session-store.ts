@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
@@ -15,12 +16,14 @@ import {
   dictionaryEntries,
   recordingSessions,
   polishRulePresets,
+  providerUsageEvents,
   sessionOutputs,
   timelineRegions,
   transcriptionBatches,
   type BatchTranscript,
   type DictionaryEntry,
   type PolishRulePreset,
+  type ProviderUsageEvent,
   type RecordingSession,
   type SessionOutput,
   type TranscriptionBatch,
@@ -84,9 +87,15 @@ export interface RecordingSessionStore {
     attempts: number;
     errorMessage: string;
   }) => Promise<void>;
-  insertBatchTranscript: (transcript: BatchTranscript) => Promise<void>;
+  createBatchTranscript: (options: {
+    transcript: BatchTranscript;
+    usageEvent: ProviderUsageEvent;
+  }) => Promise<void>;
   listOrderedBatchTranscriptTexts: (sessionId: string) => Promise<string[]>;
-  createSessionOutput: (output: SessionOutput) => Promise<void>;
+  createSessionOutput: (options: {
+    output: SessionOutput;
+    usageEvent?: ProviderUsageEvent;
+  }) => Promise<void>;
   selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
   listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
   getDashboardStats: (options: {
@@ -164,7 +173,9 @@ function createSessionStoreDatabase(options: { databasePath: string; migrationsF
   sqlite.pragma('journal_mode = WAL');
 
   const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: options.migrationsFolder });
+  if (existsSync(join(options.migrationsFolder, 'meta', '_journal.json'))) {
+    migrate(db, { migrationsFolder: options.migrationsFolder });
+  }
   ensureCurrentWritableSchema(sqlite);
 
   return { sqlite, db };
@@ -179,41 +190,155 @@ function columnExists(sqlite: Database.Database, table: string, column: string) 
     });
 }
 
+function hasIncompatibleGeneratedHistorySchema(sqlite: Database.Database) {
+  return (
+    columnExists(sqlite, 'batch_transcripts', 'estimated_billable_duration_ms') ||
+    columnExists(sqlite, 'batch_transcripts', 'cost_usd_micros') ||
+    columnExists(sqlite, 'session_outputs', 'cost_usd_micros')
+  );
+}
+
+function resetGeneratedHistoryTables(sqlite: Database.Database) {
+  sqlite.exec(`
+    drop table if exists provider_usage_events;
+    drop table if exists batch_source_ranges;
+    drop table if exists batch_transcripts;
+    drop table if exists transcription_batches;
+    drop table if exists timeline_regions;
+    drop table if exists session_outputs;
+    drop table if exists recording_sessions;
+  `);
+}
+
 function ensureCurrentWritableSchema(sqlite: Database.Database) {
+  if (hasIncompatibleGeneratedHistorySchema(sqlite)) {
+    resetGeneratedHistoryTables(sqlite);
+  }
+
+  sqlite.exec(`
+    create table if not exists recording_sessions (
+      id text primary key,
+      created_at integer not null,
+      started_at integer not null,
+      ended_at integer,
+      duration_ms integer,
+      raw_audio_path text not null,
+      status text not null,
+      selected_output_id text,
+      error_message text
+    );
+
+    create table if not exists timeline_regions (
+      id text primary key,
+      session_id text not null,
+      sequence integer not null,
+      kind text not null,
+      start_ms integer not null,
+      end_ms integer not null,
+      confidence integer,
+      created_live integer not null
+    );
+
+    create table if not exists transcription_batches (
+      id text primary key,
+      session_id text not null,
+      sequence integer not null,
+      status text not null,
+      source_duration_ms integer not null,
+      derived_audio_duration_ms integer not null,
+      created_live integer not null,
+      derived_audio_path text,
+      created_at integer not null,
+      transcription_attempts integer not null,
+      transcription_started_at integer,
+      transcribed_at integer,
+      error_message text
+    );
+
+    create table if not exists batch_transcripts (
+      id text primary key,
+      batch_id text not null,
+      provider text not null,
+      model text,
+      text text not null,
+      created_at integer not null
+    );
+
+    create table if not exists session_outputs (
+      id text primary key,
+      session_id text not null,
+      kind text not null,
+      text text not null,
+      source_output_id text,
+      provider text,
+      model text,
+      rule_preset_id text,
+      rule_preset_hash text,
+      created_at integer not null
+    );
+
+    create table if not exists provider_usage_events (
+      id text primary key,
+      session_id text not null,
+      operation_kind text not null,
+      related_entity_kind text not null,
+      related_entity_id text not null,
+      provider text not null,
+      model text,
+      billing_mode text not null,
+      audio_duration_ms integer,
+      billable_duration_ms integer,
+      input_tokens integer,
+      cached_input_tokens integer,
+      output_tokens integer,
+      estimated_cost_usd_micros integer not null default 0,
+      cost_source text not null default 'none',
+      pricing_catalog_provider_id text,
+      pricing_catalog_model_id text,
+      provider_request_id text,
+      provider_response_json text,
+      created_at integer not null
+    );
+
+    create table if not exists polish_rule_presets (
+      id text primary key,
+      title text not null,
+      description text not null,
+      body text not null,
+      body_hash text not null,
+      is_builtin integer not null,
+      sort_order integer not null,
+      created_at integer not null,
+      updated_at integer not null
+    );
+
+    create table if not exists dictionary_entries (
+      id text primary key,
+      term text not null,
+      hint text,
+      enabled integer not null,
+      created_at integer not null,
+      updated_at integer not null
+    );
+
+    create table if not exists batch_source_ranges (
+      id text primary key,
+      batch_id text not null,
+      timeline_region_id text,
+      sequence integer not null,
+      source_start_ms integer not null,
+      source_end_ms integer not null,
+      derived_start_ms integer not null,
+      derived_end_ms integer not null,
+      reason text not null
+    );
+  `);
+
   if (!columnExists(sqlite, 'polish_rule_presets', 'description')) {
     sqlite.exec("alter table polish_rule_presets add column description text not null default ''");
   }
   if (!columnExists(sqlite, 'polish_rule_presets', 'sort_order')) {
     sqlite.exec('alter table polish_rule_presets add column sort_order integer not null default 0');
-  }
-  const transcriptColumns = [
-    ['billable_duration_ms', 'integer'],
-    ['input_tokens', 'integer'],
-    ['cached_input_tokens', 'integer'],
-    ['output_tokens', 'integer'],
-    ['cost_usd_micros', 'integer not null default 0'],
-    ['cost_source', "text not null default 'none'"],
-    ['pricing_catalog_provider_id', 'text'],
-    ['pricing_catalog_model_id', 'text'],
-  ] as const;
-  for (const [column, definition] of transcriptColumns) {
-    if (!columnExists(sqlite, 'batch_transcripts', column)) {
-      sqlite.exec(`alter table batch_transcripts add column ${column} ${definition}`);
-    }
-  }
-  const outputColumns = [
-    ['input_tokens', 'integer'],
-    ['cached_input_tokens', 'integer'],
-    ['output_tokens', 'integer'],
-    ['cost_usd_micros', 'integer not null default 0'],
-    ['cost_source', "text not null default 'none'"],
-    ['pricing_catalog_provider_id', 'text'],
-    ['pricing_catalog_model_id', 'text'],
-  ] as const;
-  for (const [column, definition] of outputColumns) {
-    if (!columnExists(sqlite, 'session_outputs', column)) {
-      sqlite.exec(`alter table session_outputs add column ${column} ${definition}`);
-    }
   }
 }
 
@@ -242,6 +367,29 @@ export async function createRecordingSessionStore(options: {
         db.delete(batchTranscripts).where(inArray(batchTranscripts.batchId, batchIds)).run();
         db.delete(batchSourceRanges).where(inArray(batchSourceRanges.batchId, batchIds)).run();
       }
+
+      db.delete(providerUsageEvents)
+        .where(
+          and(
+            eq(providerUsageEvents.sessionId, sessionId),
+            eq(providerUsageEvents.operationKind, 'transcription'),
+          ),
+        )
+        .run();
+      db.delete(providerUsageEvents)
+        .where(
+          clearOptions.keepOutputId
+            ? and(
+                eq(providerUsageEvents.sessionId, sessionId),
+                eq(providerUsageEvents.relatedEntityKind, 'session_output'),
+                ne(providerUsageEvents.relatedEntityId, clearOptions.keepOutputId),
+              )
+            : and(
+                eq(providerUsageEvents.sessionId, sessionId),
+                eq(providerUsageEvents.relatedEntityKind, 'session_output'),
+              ),
+        )
+        .run();
 
       db.delete(transcriptionBatches).where(eq(transcriptionBatches.sessionId, sessionId)).run();
       db.delete(timelineRegions).where(eq(timelineRegions.sessionId, sessionId)).run();
@@ -570,8 +718,11 @@ export async function createRecordingSessionStore(options: {
         .run();
     },
 
-    async insertBatchTranscript(transcript) {
-      db.insert(batchTranscripts).values(transcript).run();
+    async createBatchTranscript({ transcript, usageEvent }) {
+      db.transaction(() => {
+        db.insert(batchTranscripts).values(transcript).run();
+        db.insert(providerUsageEvents).values(usageEvent).run();
+      });
     },
 
     async listOrderedBatchTranscriptTexts(sessionId) {
@@ -585,31 +736,43 @@ export async function createRecordingSessionStore(options: {
         .map((row) => row.text);
     },
 
-    async createSessionOutput(output) {
-      db.insert(sessionOutputs)
-        .values(output)
-        .onConflictDoUpdate({
-          target: sessionOutputs.id,
-          set: {
-            sessionId: output.sessionId,
-            kind: output.kind,
-            text: output.text,
-            sourceOutputId: output.sourceOutputId,
-            provider: output.provider,
-            model: output.model,
-            rulePresetId: output.rulePresetId,
-            rulePresetHash: output.rulePresetHash,
-            inputTokens: output.inputTokens,
-            cachedInputTokens: output.cachedInputTokens,
-            outputTokens: output.outputTokens,
-            costUsdMicros: output.costUsdMicros,
-            costSource: output.costSource,
-            pricingCatalogProviderId: output.pricingCatalogProviderId,
-            pricingCatalogModelId: output.pricingCatalogModelId,
-            createdAt: output.createdAt,
-          },
-        })
-        .run();
+    async createSessionOutput({ output, usageEvent }) {
+      db.transaction(() => {
+        db.delete(providerUsageEvents)
+          .where(
+            and(
+              eq(providerUsageEvents.relatedEntityKind, 'session_output'),
+              eq(providerUsageEvents.relatedEntityId, output.id),
+            ),
+          )
+          .run();
+        db.insert(sessionOutputs)
+          .values(output)
+          .onConflictDoUpdate({
+            target: sessionOutputs.id,
+            set: {
+              sessionId: output.sessionId,
+              kind: output.kind,
+              text: output.text,
+              sourceOutputId: output.sourceOutputId,
+              provider: output.provider,
+              model: output.model,
+              rulePresetId: output.rulePresetId,
+              rulePresetHash: output.rulePresetHash,
+              createdAt: output.createdAt,
+            },
+          })
+          .run();
+        if (usageEvent) {
+          db.insert(providerUsageEvents)
+            .values(usageEvent)
+            .onConflictDoUpdate({
+              target: providerUsageEvents.id,
+              set: usageEvent,
+            })
+            .run();
+        }
+      });
     },
 
     async selectSessionOutput({ sessionId, outputId }) {
@@ -637,13 +800,6 @@ export async function createRecordingSessionStore(options: {
           model: sessionOutputs.model,
           rulePresetId: sessionOutputs.rulePresetId,
           rulePresetHash: sessionOutputs.rulePresetHash,
-          inputTokens: sessionOutputs.inputTokens,
-          cachedInputTokens: sessionOutputs.cachedInputTokens,
-          outputTokens: sessionOutputs.outputTokens,
-          costUsdMicros: sessionOutputs.costUsdMicros,
-          costSource: sessionOutputs.costSource,
-          pricingCatalogProviderId: sessionOutputs.pricingCatalogProviderId,
-          pricingCatalogModelId: sessionOutputs.pricingCatalogModelId,
           createdAt: sessionOutputs.createdAt,
         })
         .from(sessionOutputs)
@@ -658,20 +814,24 @@ export async function createRecordingSessionStore(options: {
       const threshold = now - rollingWindowDays * 24 * 60 * 60 * 1000;
       const selectedOutputs = sqlite
         .prepare(`
-          select so.text, so.cost_usd_micros as outputCostUsdMicros, so.session_id as sessionId
+          select so.id, so.text, so.session_id as sessionId
           from session_outputs so
           inner join recording_sessions rs on rs.selected_output_id = so.id
           where rs.status = 'completed' and so.created_at >= ?
         `)
         .all(threshold) as Array<{
+        id: string;
         text: string;
-        outputCostUsdMicros: number | null;
         sessionId: string;
       }>;
 
       const sessionIds = selectedOutputs.map((output) => output.sessionId);
+      const outputIds = selectedOutputs.map((output) => output.id);
       let derivedAudioDurationMs = 0;
-      let transcriptCostUsdMicros = 0;
+      let meteredSpendUsdMicros = 0;
+      let subscriptionEstimatedCostUsdMicros = 0;
+      let totalEstimatedCostUsdMicros = 0;
+      let costEstimateIncomplete = false;
       if (sessionIds.length > 0) {
         const placeholders = sessionIds.map(() => '?').join(',');
         const durationRow = sqlite
@@ -679,16 +839,40 @@ export async function createRecordingSessionStore(options: {
             `select coalesce(sum(derived_audio_duration_ms), 0) as total from transcription_batches where session_id in (${placeholders})`,
           )
           .get(...sessionIds) as { total: number } | undefined;
-        const costRow = sqlite
-          .prepare(`
-            select coalesce(sum(bt.cost_usd_micros), 0) as total
-            from batch_transcripts bt
-            inner join transcription_batches tb on tb.id = bt.batch_id
-            where tb.session_id in (${placeholders})
-          `)
-          .get(...sessionIds) as { total: number } | undefined;
         derivedAudioDurationMs = durationRow?.total ?? 0;
-        transcriptCostUsdMicros = costRow?.total ?? 0;
+        const usageFilters = [
+          `(operation_kind = 'transcription' and session_id in (${placeholders}))`,
+          outputIds.length > 0
+            ? `(operation_kind = 'inference' and related_entity_kind = 'session_output' and related_entity_id in (${outputIds.map(() => '?').join(',')}))`
+            : null,
+        ].filter(Boolean).join(' or ');
+        const usageRows = sqlite
+          .prepare(`
+            select
+              billing_mode as billingMode,
+              cost_source as costSource,
+              coalesce(sum(estimated_cost_usd_micros), 0) as total
+            from provider_usage_events
+            where ${usageFilters}
+            group by billing_mode, cost_source
+          `)
+          .all(...sessionIds, ...outputIds) as Array<{
+          billingMode: string;
+          costSource: string;
+          total: number;
+        }>;
+        for (const row of usageRows) {
+          totalEstimatedCostUsdMicros += row.total;
+          if (row.billingMode === 'metered') {
+            meteredSpendUsdMicros += row.total;
+          }
+          if (row.billingMode === 'subscription') {
+            subscriptionEstimatedCostUsdMicros += row.total;
+          }
+          if ((row.billingMode === 'metered' || row.billingMode === 'unknown') && row.costSource === 'none') {
+            costEstimateIncomplete = true;
+          }
+        }
       }
 
       const words = selectedOutputs.reduce((total, output) => {
@@ -705,9 +889,10 @@ export async function createRecordingSessionStore(options: {
         words,
         averageSpokenWpm,
         timeSavedMinutes: Math.max(0, typingMinutes - speakingMinutes),
-        costUsdMicros:
-          transcriptCostUsdMicros +
-          selectedOutputs.reduce((total, output) => total + (output.outputCostUsdMicros ?? 0), 0),
+        meteredSpendUsdMicros,
+        subscriptionEstimatedCostUsdMicros,
+        totalEstimatedCostUsdMicros,
+        costEstimateIncomplete,
       };
     },
 

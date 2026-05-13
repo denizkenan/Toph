@@ -1,5 +1,6 @@
 import {
   DEFAULT_APP_SETTINGS,
+  PROVIDER_BILLING_MODES,
   formatShortcutChord,
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
@@ -106,6 +107,7 @@ function createInitialState(): AppState {
           id: 'openai-sub',
           label: 'OpenAI (ChatGPT Plus/Pro subscription)',
           description: 'Use your ChatGPT subscription to transcribe recordings.',
+          billingMode: PROVIDER_BILLING_MODES['openai-sub'],
           status: 'missing',
           accountId: null,
           expires: null,
@@ -138,7 +140,10 @@ function createInitialState(): AppState {
       words: 0,
       averageSpokenWpm: null,
       timeSavedMinutes: 0,
-      costUsdMicros: 0,
+      meteredSpendUsdMicros: 0,
+      subscriptionEstimatedCostUsdMicros: 0,
+      totalEstimatedCostUsdMicros: 0,
+      costEstimateIncomplete: false,
     },
     updatedAt: Date.now(),
   };

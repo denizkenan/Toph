@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
+import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
+
 import type { ProviderAuthService } from '../../auth/provider-auth-service';
 import type { PricingService } from '../../pricing/pricing-service';
 import type { AppSettingsStore } from '../../settings/app-settings-store';
@@ -124,12 +126,18 @@ export function createOpenAiSubTranscriptionProvider(options: {
         text,
         provider: providerId,
         model,
-        estimatedBillableDurationMs: input.durationMs,
-        billableDurationMs: input.durationMs,
-        inputTokens: null,
-        cachedInputTokens: null,
-        outputTokens: null,
-        ...cost,
+        usage: {
+          billingMode: PROVIDER_BILLING_MODES[providerId],
+          audioDurationMs: input.durationMs,
+          billableDurationMs: input.durationMs,
+          inputTokens: null,
+          cachedInputTokens: null,
+          outputTokens: null,
+          estimatedCostUsdMicros: cost.costUsdMicros,
+          costSource: cost.costSource,
+          pricingCatalogProviderId: cost.pricingCatalogProviderId,
+          pricingCatalogModelId: cost.pricingCatalogModelId,
+        },
         providerRequestId: requestId,
         providerResponseJson: body,
       };
