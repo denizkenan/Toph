@@ -27,6 +27,7 @@ import { defaultPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
 import { createPricingService } from './pricing/pricing-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
+import { createDefaultStreamingVadRuntime } from './segmentation/streaming-vad-runtime';
 import { createAppSettingsStore } from './settings/app-settings-store';
 import {
   ensureDictionaryEnabledLimit,
@@ -196,7 +197,12 @@ export async function bootstrap(options: {
   };
   await refreshRecentConversions();
   const audioRecorder = createElectronCaptureAudioRecorder();
-  const segmentation = createSessionSegmentationService({ sessionStore });
+  const vadRuntime = createDefaultStreamingVadRuntime({
+    onStatusChanged: stateStore.setVadRuntimeStatus,
+  });
+  await vadRuntime.prepare();
+  stateStore.setVadRuntimeStatus(vadRuntime.getStatus());
+  const segmentation = createSessionSegmentationService({ sessionStore, vadRuntime });
   const outputs = createSessionOutputService({ sessionStore });
   const providerAuth = createProviderAuthService({
     authPath: dataPaths.authPath,
@@ -654,6 +660,7 @@ export async function bootstrap(options: {
 
     void dictation.dispose().finally(async () => {
       await transcription.dispose();
+      await vadRuntime.dispose();
       await providerAuth.dispose();
       sessionStore.close();
       quitCleanupComplete = true;

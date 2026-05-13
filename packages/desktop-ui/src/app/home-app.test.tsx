@@ -53,6 +53,11 @@ const baseState: AppState = {
       },
     ],
   },
+  vad: {
+    kind: 'ready',
+    activeAnalyzer: 'silero',
+    detail: 'Voice activity detection is ready.',
+  },
   settings: {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
@@ -201,6 +206,23 @@ describe('HomeApp', () => {
 
     await screen.findByText('$0.00');
     expect(screen.getByText('usage cost')).toBeTruthy();
+  });
+
+  it('shows degraded voice detection status when Silero falls back to energy', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          vad: {
+            kind: 'degraded',
+            activeAnalyzer: 'energy',
+            detail: 'Silero VAD failed to load. Falling back to basic energy detection.',
+          },
+        })}
+      />,
+    );
+
+    await screen.findByText('Voice detection degraded');
   });
 
   it('renders the home shortcut from the configured chord as spaced keys', async () => {

@@ -66,6 +66,9 @@ function deriveSystemStatus(state: AppState): { label: string; tone: string } {
   if (state.pasteSupport.helper === null) {
     return { label: 'Paste helper unavailable', tone: 'text-accent-amber' };
   }
+  if (state.vad.kind === 'degraded') {
+    return { label: 'Voice detection degraded', tone: 'text-accent-amber' };
+  }
   return { label: 'All systems go', tone: 'text-accent-green' };
 }
 

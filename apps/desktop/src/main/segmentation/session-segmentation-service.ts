@@ -1,11 +1,9 @@
 import type { RecordingSessionStore } from '../stores/session-store';
-import { createEnergyStreamingSpeechActivityAnalyzer } from './analyzers/energy-streaming-speech-activity-analyzer';
-import { createFallbackStreamingSpeechActivityAnalyzer } from './analyzers/fallback-streaming-speech-activity-analyzer';
-import { createSileroStreamingSpeechActivityAnalyzer } from './analyzers/silero-streaming-speech-activity-analyzer';
 import type { StreamingSpeechActivityAnalyzer } from './analyzers/streaming-speech-activity-analyzer';
 import { createSegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
 import type { SegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
 import { streamPcm16MonoWav } from './streaming/wav-stream-source';
+import { createDefaultStreamingVadRuntime } from './streaming-vad-runtime';
 import type { PlannedTranscriptionBatch } from './types';
 
 export type SegmentationOutcome = 'segmented' | 'no_speech';
@@ -29,13 +27,6 @@ function describeSegmentationError(error: unknown) {
   return `Segmentation failed: ${detail}`;
 }
 
-function createDefaultSpeechActivityAnalyzer() {
-  return createFallbackStreamingSpeechActivityAnalyzer({
-    primary: createSileroStreamingSpeechActivityAnalyzer(),
-    fallback: createEnergyStreamingSpeechActivityAnalyzer({ frameSizeSamples: 512 }),
-  });
-}
-
 export function createSessionSegmentationService(options: {
   sessionStore: Pick<
     RecordingSessionStore,
@@ -49,9 +40,9 @@ export function createSessionSegmentationService(options: {
     | 'insertPlannedBatches'
     | 'updateBatchDerivedAudioPaths'
   >;
-  analyzer?: StreamingSpeechActivityAnalyzer;
+  vadRuntime?: StreamingSpeechActivityAnalyzer;
 }): SessionSegmentationService {
-  const analyzer = options.analyzer ?? createDefaultSpeechActivityAnalyzer();
+  const vadRuntime = options.vadRuntime ?? createDefaultStreamingVadRuntime();
 
   return {
     async createLiveSession({ sessionId, rawAudioPath, generateBatchAudio, onBatchesReady }) {
@@ -61,7 +52,7 @@ export function createSessionSegmentationService(options: {
         createdLive: true,
         generateBatchAudio,
         onBatchesReady,
-        analyzer,
+        analyzer: vadRuntime,
         sessionStore: options.sessionStore,
       });
     },
@@ -84,7 +75,7 @@ export function createSessionSegmentationService(options: {
           rawAudioPath: session.rawAudioPath,
           createdLive: false,
           generateBatchAudio,
-          analyzer,
+          analyzer: vadRuntime,
           sessionStore: options.sessionStore,
         });
 
@@ -95,7 +86,7 @@ export function createSessionSegmentationService(options: {
           });
           const outcome = await pipeline.flush();
           console.info(
-            `Toph streaming segmentation pipeline ${analyzer.name} produced ${outcome.regions.length} timeline regions and ${outcome.batches.length} batches for session ${sessionId}.`,
+            `Toph streaming segmentation pipeline ${vadRuntime.name} produced ${outcome.regions.length} timeline regions and ${outcome.batches.length} batches for session ${sessionId}.`,
           );
 
           if (outcome.result === 'no_speech') {
