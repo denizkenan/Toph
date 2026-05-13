@@ -14,6 +14,9 @@ importers:
       oxlint:
         specifier: ^1.61.0
         version: 1.61.0
+      oxlint-tailwindcss:
+        specifier: ^0.7.1
+        version: 0.7.1(@oxlint/plugins@1.64.0)
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -1255,6 +1258,10 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
+
+  '@oxlint/plugins@1.64.0':
+    resolution: {integrity: sha512-aUOYj3qpaR/Mbo0HQo8CuwrxbkwRTpsxMlvaQ00INGXS1KdvllRHU1eEn7WYgwhgK3cXtAbLP13VjSknwdxvzA==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -2710,6 +2717,12 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
+  oxlint-tailwindcss@0.7.1:
+    resolution: {integrity: sha512-l4WuZt/iKvMwggwnfsIPCNvY/GDMK9FffXiYTWfXrh+PR0WeItRwqzU5UD1iFfV5CC0bfsiYZbLFt1CJLT6t3g==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@oxlint/plugins': '>=1.43.0'
+
   oxlint@1.61.0:
     resolution: {integrity: sha512-ZC0ALuhDZ6ivOFG+sy0D0pEDN49EvsId98zVlmYdkcXHsEM14m/qTNUEsUpiFiCVbpIxYtVBmmLE87nsbUHohQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -4137,6 +4150,8 @@ snapshots:
 
   '@oxlint/binding-win32-x64-msvc@1.61.0':
     optional: true
+
+  '@oxlint/plugins@1.64.0': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -5601,6 +5616,12 @@ snapshots:
       '@oxfmt/binding-win32-arm64-msvc': 0.46.0
       '@oxfmt/binding-win32-ia32-msvc': 0.46.0
       '@oxfmt/binding-win32-x64-msvc': 0.46.0
+
+  oxlint-tailwindcss@0.7.1(@oxlint/plugins@1.64.0):
+    dependencies:
+      '@oxlint/plugins': 1.64.0
+      '@tailwindcss/node': 4.2.4
+      tailwindcss: 4.2.4
 
   oxlint@1.61.0:
     optionalDependencies:

@@ -154,19 +154,19 @@ export function OnboardingScreen({
       )}
       <AppBackdrop variant="onboarding" />
 
-      <section className="relative mx-auto h-full max-w-[1100px]">
+      <section className="relative mx-auto h-full max-w-275">
         <div className="grid h-full min-h-0 gap-16 lg:grid-cols-[1fr_1.4fr] max-[980px]:grid-rows-[auto_1fr] max-[980px]:gap-8">
-          <header className="max-w-[390px] self-start max-[980px]:mx-auto max-[980px]:max-w-[42rem] max-[980px]:text-center">
+          <header className="max-w-97.5 self-start max-[980px]:mx-auto max-[980px]:max-w-2xl max-[980px]:text-center">
             <span className="mb-6 inline-flex rounded-full border border-accent-cyan/18 bg-accent-cyan/6 px-3.5 py-1.5 font-display text-xs font-semibold tracking-[0.12em] text-accent-cyan uppercase">
               Setup
             </span>
-            <h1 className="m-0 font-display text-[2.6rem] leading-[1.05] font-semibold tracking-[-0.05em] text-text-primary max-[640px]:text-[2rem]">
+            <h1 className="m-0 font-display text-[2.6rem] leading-[1.05] font-semibold tracking-tighter text-text-primary max-[640px]:text-[2rem]">
               Your fingers called, they want a break.
             </h1>
             <p className="mt-5 mb-0 text-base leading-relaxed text-text-secondary">
               Real-time voice transcription across all your apps. I capture your words so you can focus on breaking production, not your wrists.
             </p>
-            <div className="mt-8 grid gap-3.5 text-left max-[980px]:mx-auto max-[980px]:max-w-[26rem]">
+            <div className="mt-8 grid gap-3.5 text-left max-[980px]:mx-auto max-[980px]:max-w-104">
               {[
                 'Bring your own subscription - no new SaaS bill padding',
                 'Auto-punctuation and formatting. Your ramble, but intentional',
@@ -300,7 +300,7 @@ export function OnboardingScreen({
 
       {setupComplete && (
         <div className="fixed right-0 bottom-0 left-0 z-40 animate-onboarding-ready-enter border-t border-white/8 bg-canvas/88 px-6 py-4 backdrop-blur-md">
-          <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-4 max-[640px]:flex-col max-[640px]:items-stretch">
+          <div className="mx-auto flex max-w-275 items-center justify-between gap-4 max-[640px]:flex-col max-[640px]:items-stretch">
             <div>
               <p className="m-0 text-sm font-semibold text-text-primary">
                 Setup complete. The tiny dictation empire is operational.

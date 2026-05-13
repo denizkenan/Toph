@@ -89,7 +89,7 @@ function HomeScreen({
       {state.environment.platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="home" />
 
-      <section className="relative mx-auto max-w-[720px]">
+      <section className="relative mx-auto max-w-180">
         <header className="mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
@@ -220,7 +220,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     return (
       <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
         <AppBackdrop variant="home" />
-        <section className="relative mx-auto max-w-[720px]">
+        <section className="relative mx-auto max-w-180">
           <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
           <p className="mt-3 mb-0 text-text-secondary">Connecting to the desktop runtime...</p>
         </section>

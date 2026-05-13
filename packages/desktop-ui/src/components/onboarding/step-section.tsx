@@ -24,13 +24,13 @@ export function StepSection({
     >
       {showConnector && (
         <span
-          className={`absolute top-11 bottom-[-0.25rem] left-[1.3125rem] w-0.5 rounded-full max-[640px]:left-[1.0625rem] ${complete ? 'bg-accent-green/22' : 'bg-white/6'}`}
+          className={`absolute top-11 -bottom-1 left-5.25 w-0.5 rounded-full max-[640px]:left-4.25 ${complete ? 'bg-accent-green/22' : 'bg-white/6'}`}
           aria-hidden="true"
         />
       )}
       <StepMarker complete={complete}>{marker}</StepMarker>
       <div className="min-w-0">
-        <h2 className="mt-0 mb-1 font-display text-lg font-semibold tracking-[-0.025em] text-text-primary">
+        <h2 className="mt-0 mb-1 font-display text-lg font-semibold tracking-tight text-text-primary">
           {title}
         </h2>
         <div className="mb-4">

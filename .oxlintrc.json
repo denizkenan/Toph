@@ -5,6 +5,7 @@
     "suspicious": "error"
   },
   "plugins": ["eslint", "typescript", "oxc"],
+  "jsPlugins": ["oxlint-tailwindcss"],
   "ignorePatterns": ["node_modules", "dist", "out", ".turbo", ".opencode"],
   "rules": {
     "eslint/no-unused-vars": [
@@ -13,7 +14,8 @@
         "varsIgnorePattern": "^_",
         "argsIgnorePattern": "^_"
       }
-    ]
+    ],
+    "tailwindcss/enforce-canonical": "error"
   },
   "overrides": [
     {

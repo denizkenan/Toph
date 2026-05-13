@@ -276,7 +276,7 @@ export function OverlayApp({
       visible pill bottom-anchored so active growth expands upward. */}
       <section
         ref={pillRef}
-        className={`flex items-center justify-center overflow-hidden border backdrop-blur-xl transition-all duration-[520ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${pillVisualClass}`}
+        className={`flex items-center justify-center overflow-hidden border backdrop-blur-xl transition-all duration-520 ease-[cubic-bezier(0.16,1,0.3,1)] ${pillVisualClass}`}
         aria-hidden={isIdle && !ruleSwitcherVisible}
       >
         {ruleSwitcherVisible ? (
@@ -305,14 +305,14 @@ export function OverlayApp({
               ) : noSpeech ? (
                 <span className="size-3.5 rounded-full bg-accent-amber" />
               ) : listening ? (
-                <div className="flex h-3.5 items-center gap-[3px]" aria-hidden="true">
+                <div className="flex h-3.5 items-center gap-0.75" aria-hidden="true">
                   <span className="h-2 w-1 animate-wave rounded-full bg-text-primary" />
                   <span className="h-3 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.12s]" />
                   <span className="h-3.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.24s]" />
                   <span className="h-2.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.36s]" />
                 </div>
               ) : (
-                <span className="size-4 animate-spin-ring rounded-full border-[2px] border-text-tertiary/20 border-t-text-primary" />
+                <span className="size-4 animate-spin-ring rounded-full border-2 border-text-tertiary/20 border-t-text-primary" />
               )}
             </div>
 

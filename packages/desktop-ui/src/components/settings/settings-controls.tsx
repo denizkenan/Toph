@@ -141,12 +141,12 @@ export function SettingsSwitch({
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      className={`relative h-[26px] w-11 rounded-full transition-colors duration-200 ease-out disabled:cursor-default disabled:opacity-55 ${checked ? 'bg-accent-green' : 'bg-white/12'}`}
+      className={`relative h-6.5 w-11 rounded-full transition-colors duration-200 ease-out disabled:cursor-default disabled:opacity-55 ${checked ? 'bg-accent-green' : 'bg-white/12'}`}
       onClick={() => onCheckedChange(!checked)}
       disabled={disabled}
     >
       <span
-        className={`absolute top-[3px] left-[3px] size-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${checked ? 'translate-x-[18px]' : ''}`}
+        className={`absolute top-0.75 left-0.75 size-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${checked ? 'translate-x-[18px]' : ''}`}
       />
     </button>
   );
