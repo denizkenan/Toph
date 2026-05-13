@@ -213,7 +213,7 @@ describe('HomeApp', () => {
     await screen.findByRole('heading', { name: 'Toph' });
     expect(screen.getAllByLabelText('Command + Shift + K')).toHaveLength(2);
     expect(screen.getByLabelText('Control + Space')).toBeTruthy();
-    expect(screen.getByText(/to switch rules/)).toBeTruthy();
+    expect(screen.getByText('rules')).toBeTruthy();
     expect(screen.queryByText('Ctrl+Alt+Space')).toBeNull();
   });
 

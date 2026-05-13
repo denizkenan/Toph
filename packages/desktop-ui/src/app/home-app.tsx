@@ -126,22 +126,21 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
         <header className="mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
-            <div className="mt-2 flex max-w-full items-center gap-2 overflow-x-auto text-sm text-text-secondary whitespace-nowrap">
-              <ShortcutHint
-                chord={state.shortcut.chord}
-                platform={state.environment.platform}
-                action="dictate"
-              />
-              <span className="text-text-tertiary">/</span>
-              <ShortcutHint
-                chord={state.ruleSwitcherShortcut.chord}
-                platform={state.environment.platform}
-                action="switch rules"
-              />
-            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <HeaderShortcutHint
+              chord={state.shortcut.chord}
+              platform={state.environment.platform}
+              action="dictate"
+            />
+            <HeaderDivider />
+            <HeaderShortcutHint
+              chord={state.ruleSwitcherShortcut.chord}
+              platform={state.environment.platform}
+              action="rules"
+            />
+            <HeaderDivider />
             <span
               className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${systemStatus.tone}`}
             >
@@ -239,12 +238,17 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
   );
 }
 
-function ShortcutHint({ chord, platform, action }: { chord: ShortcutChord; platform: NodeJS.Platform; action: string }) {
+function HeaderShortcutHint({ chord, platform, action }: { chord: ShortcutChord; platform: NodeJS.Platform; action: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1">
-      Press <ShortcutKeyChips chord={chord} platform={platform} compact /> to {action}
+    <span className="inline-flex items-center gap-1.5 text-sm text-text-tertiary whitespace-nowrap">
+      <ShortcutKeyChips chord={chord} platform={platform} compact />
+      <span>{action}</span>
     </span>
   );
+}
+
+function HeaderDivider() {
+  return <span className="h-4 w-px bg-white/10" aria-hidden="true" />;
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
