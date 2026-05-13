@@ -7,6 +7,7 @@ import {
   type AppState,
   type AppSettings,
   type ConversionRecord,
+  type DashboardStats,
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
@@ -28,7 +29,11 @@ export interface ShortcutStateSupport {
 export interface DesktopStateStore {
   getState: () => AppState;
   subscribe: (listener: (state: AppState) => void) => () => void;
-  setShortcut: (kind: 'dictation' | 'ruleSwitcher', chord: ShortcutChord, support: ShortcutStateSupport) => void;
+  setShortcut: (
+    kind: 'dictation' | 'ruleSwitcher',
+    chord: ShortcutChord,
+    support: ShortcutStateSupport,
+  ) => void;
   openRuleSwitcher: () => void;
   showRuleSwitcherSelected: (rulePresetId: string, message: string) => void;
   showRuleSwitcherDisabled: () => void;
@@ -39,6 +44,7 @@ export interface DesktopStateStore {
   setPermissions: (permissions: PermissionState) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
   setRecentConversions: (conversions: ConversionRecord[]) => void;
+  setDashboardStats: (dashboardStats: DashboardStats) => void;
   setPhase: (phase: DictationPhase) => void;
   startListening: () => void;
   startTranscribing: () => void;
@@ -61,7 +67,9 @@ export interface DesktopStateStore {
 
 function createInitialState(): AppState {
   const defaultShortcutChord = resolveDefaultShortcutChord(process.platform);
-  const defaultRuleSwitcherShortcutChord = resolveDefaultRuleSwitcherShortcutChord(process.platform);
+  const defaultRuleSwitcherShortcutChord = resolveDefaultRuleSwitcherShortcutChord(
+    process.platform,
+  );
   const toShortcutState = (chord: ShortcutChord, detail: string): ShortcutRegistrationState => ({
     chord,
     accelerator: shortcutChordToElectronAccelerator(chord, process.platform),
@@ -125,6 +133,13 @@ function createInitialState(): AppState {
     },
     lastTranscript: null,
     recentConversions: [],
+    dashboardStats: {
+      rollingWindowDays: 7,
+      words: 0,
+      averageSpokenWpm: null,
+      timeSavedMinutes: 0,
+      costUsdMicros: 0,
+    },
     updatedAt: Date.now(),
   };
 }
@@ -190,7 +205,7 @@ export function createDesktopStateStore(): DesktopStateStore {
         draft.ruleSwitcher = {
           mode: 'disabled',
           selectedRulePresetId: null,
-          message: 'Can\'t switch rules while the prose engine is unplugged.',
+          message: "Can't switch rules while the prose engine is unplugged.",
         };
       });
     },
@@ -235,6 +250,12 @@ export function createDesktopStateStore(): DesktopStateStore {
       commit((draft) => {
         draft.recentConversions = conversions.slice(0, 8);
         draft.lastTranscript = conversions[0]?.text ?? null;
+      });
+    },
+
+    setDashboardStats(dashboardStats) {
+      commit((draft) => {
+        draft.dashboardStats = dashboardStats;
       });
     },
 

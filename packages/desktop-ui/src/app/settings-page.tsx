@@ -1,19 +1,15 @@
-import { useState } from "react";
+import { useState } from 'react';
 
-import {
-  type AppState,
-  type DesktopApi,
-  type ProviderId,
-} from "@toph/desktop-contracts";
+import { type AppState, type DesktopApi, type ProviderId } from '@toph/desktop-contracts';
 
-import { DiagnosticsSection } from "../components/settings/diagnostics-section";
-import { PolishSection } from "../components/settings/polish-section";
-import { ProviderSection } from "../components/settings/provider-section";
-import { RoutingSection } from "../components/settings/routing-section";
-import { ShortcutSection } from "../components/settings/shortcut-section";
-import { Button } from "../components/button";
-import { AppBackdrop } from "../components/app-backdrop";
-import { WindowDragRegion } from "../components/window-drag-region";
+import { AppBackdrop } from '../components/app-backdrop';
+import { Button } from '../components/button';
+import { DiagnosticsSection } from '../components/settings/diagnostics-section';
+import { PolishSection } from '../components/settings/polish-section';
+import { ProviderSection } from '../components/settings/provider-section';
+import { RoutingSection } from '../components/settings/routing-section';
+import { ShortcutSection } from '../components/settings/shortcut-section';
+import { WindowDragRegion } from '../components/window-drag-region';
 
 export function SettingsPage({
   state,
@@ -28,7 +24,7 @@ export function SettingsPage({
   const [busyPolish, setBusyPolish] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
   const provider = state.providers.providers[0];
-  const settingsEditable = state.phase === "idle";
+  const settingsEditable = state.phase === 'idle';
 
   const providerItems = state.providers.providers.map((item) => ({
     value: item.id,
@@ -83,9 +79,7 @@ export function SettingsPage({
 
   return (
     <main className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 [scrollbar-width:none] max-[640px]:px-5 [&::-webkit-scrollbar]:hidden">
-      {state.environment.platform === "darwin" && (
-        <WindowDragRegion />
-      )}
+      {state.environment.platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="settings" fixed />
 
       <section className="relative mx-auto max-w-160">
@@ -108,9 +102,7 @@ export function SettingsPage({
               <path d="M11 4L6 9L11 14" />
             </svg>
           </button>
-          <h1 className="m-0 font-display text-[28px] font-bold tracking-[-0.03em]">
-            Settings
-          </h1>
+          <h1 className="m-0 font-display text-[28px] font-bold tracking-[-0.03em]">Settings</h1>
         </header>
 
         <ProviderSection
@@ -128,9 +120,7 @@ export function SettingsPage({
           inferenceModel={state.settings.inference.model}
           disabled={!settingsEditable || busySettings}
           onTranscriptionProviderChange={(providerId: ProviderId) =>
-            void updateSetting(() =>
-              client.setTranscriptionProvider(providerId),
-            )
+            void updateSetting(() => client.setTranscriptionProvider(providerId))
           }
           onTranscriptionModelChange={(model) =>
             void updateSetting(() => client.setTranscriptionModel(model))
@@ -148,9 +138,13 @@ export function SettingsPage({
           activeRulePresetId={state.settings.polish.rulePresetId}
           rulePresets={state.polish.rulePresets}
           dictionary={state.polish.dictionary}
+          typingWpm={state.settings.dashboard.typingWpm}
           disabled={!settingsEditable || busyPolish}
           client={client}
           onEnabledChange={(enabled) => void setPolishEnabled(enabled)}
+          onTypingWpmChange={(typingWpm) =>
+            void updateSetting(() => client.setTypingWpm(typingWpm))
+          }
         />
 
         <ShortcutSection

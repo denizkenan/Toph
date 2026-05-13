@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { DropdownSelect, type DropdownSelectItem } from '../dropdown';
 
@@ -21,14 +21,14 @@ export function SettingsSection({
         {eyebrow}
       </span>
       {description && (
-        <p className="mb-2 px-1 text-sm leading-relaxed text-text-secondary">
-          {description}
-        </p>
+        <p className="mb-2 px-1 text-sm leading-relaxed text-text-secondary">{description}</p>
       )}
       <div className="overflow-hidden rounded-xl border border-white/6 bg-canvas-elevated/55">
         {children}
       </div>
-      {footer && <div className="px-1 pt-2 text-xs leading-relaxed text-text-tertiary">{footer}</div>}
+      {footer && (
+        <div className="px-1 pt-2 text-xs leading-relaxed text-text-tertiary">{footer}</div>
+      )}
     </section>
   );
 }
@@ -52,12 +52,16 @@ export function SettingsRow({
   const descriptionClass = tone === 'danger' ? 'text-accent-red' : 'text-text-secondary';
 
   return (
-    <div className={`flex min-h-12 items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-b-0 ${className}`}>
+    <div
+      className={`flex min-h-12 items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-b-0 ${className}`}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {icon}
         <div className="min-w-0">
           <div className={`truncate text-sm font-semibold ${labelClass}`}>{label}</div>
-          {description && <div className={`text-xs leading-relaxed ${descriptionClass}`}>{description}</div>}
+          {description && (
+            <div className={`text-xs leading-relaxed ${descriptionClass}`}>{description}</div>
+          )}
         </div>
       </div>
       {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
@@ -81,7 +85,11 @@ export function SettingsIcon({
     cyan: 'bg-accent-cyan/14 text-accent-cyan',
   }[tone];
 
-  return <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>{children}</span>;
+  return (
+    <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>
+      {children}
+    </span>
+  );
 }
 
 export function StatusBadge({
@@ -107,7 +115,9 @@ export function StatusBadge({
   }[inactiveTone];
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-accent-green/12 text-accent-green' : inactiveClass}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-accent-green/12 text-accent-green' : inactiveClass}`}
+    >
       <span className={`size-1.5 rounded-full ${active ? 'bg-accent-green' : inactiveDotClass}`} />
       {active ? activeLabel : inactiveLabel}
     </span>
@@ -135,7 +145,9 @@ export function SettingsSwitch({
       onClick={() => onCheckedChange(!checked)}
       disabled={disabled}
     >
-      <span className={`absolute top-[3px] left-[3px] size-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${checked ? 'translate-x-[18px]' : ''}`} />
+      <span
+        className={`absolute top-[3px] left-[3px] size-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${checked ? 'translate-x-[18px]' : ''}`}
+      />
     </button>
   );
 }
@@ -181,6 +193,58 @@ export function SettingsTextInput({
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  );
+}
+
+export function SettingsNumberInput({
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+}: {
+  value: number;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const next = Number(draft);
+    if (!Number.isFinite(next) || (min !== undefined && next < min) || (max !== undefined && next > max)) {
+      setDraft(String(value));
+      return;
+    }
+
+    const rounded = Math.round(next);
+    setDraft(String(rounded));
+    if (rounded !== value) {
+      onChange(rounded);
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      className="w-24 rounded-lg border border-white/8 bg-white/4 px-3 py-1.5 text-right text-sm font-semibold text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/70 focus:bg-white/6 disabled:opacity-55"
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+        }
+      }}
     />
   );
 }

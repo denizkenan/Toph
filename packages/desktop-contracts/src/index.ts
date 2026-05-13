@@ -23,6 +23,7 @@ export const DESKTOP_IPC_CHANNELS = {
   setInferenceProvider: 'toph:set-inference-provider',
   setInferenceModel: 'toph:set-inference-model',
   setPolishEnabled: 'toph:set-polish-enabled',
+  setTypingWpm: 'toph:set-typing-wpm',
   setActivePolishRulePreset: 'toph:set-active-polish-rule-preset',
   createPolishRulePreset: 'toph:create-polish-rule-preset',
   updatePolishRulePreset: 'toph:update-polish-rule-preset',
@@ -105,9 +106,7 @@ const domCodeToShortcutKey: Record<string, ShortcutKey> = {
   ArrowRight: 'Right',
 };
 
-const supportedNamedShortcutKeys = new Set<ShortcutKey>([
-  ...Object.values(domCodeToShortcutKey),
-]);
+const supportedNamedShortcutKeys = new Set<ShortcutKey>([...Object.values(domCodeToShortcutKey)]);
 
 const electronKeyAliases: Record<ShortcutKey, string> = {
   Escape: 'Esc',
@@ -129,7 +128,9 @@ function isKnownShortcutModifier(value: string): value is ShortcutModifier {
   return SHORTCUT_MODIFIER_ORDER.includes(value as ShortcutModifier);
 }
 
-export function normalizeShortcutModifiers(modifiers: readonly ShortcutModifier[]): ShortcutModifier[] {
+export function normalizeShortcutModifiers(
+  modifiers: readonly ShortcutModifier[],
+): ShortcutModifier[] {
   const unique = new Set(modifiers);
   return SHORTCUT_MODIFIER_ORDER.filter((modifier) => unique.has(modifier));
 }
@@ -195,7 +196,12 @@ export function isFunctionShortcutKey(key: ShortcutKey): boolean {
 }
 
 export function isSupportedShortcutKey(key: ShortcutKey): boolean {
-  return /^[A-Z]$/.test(key) || /^[0-9]$/.test(key) || isFunctionShortcutKey(key) || supportedNamedShortcutKeys.has(key);
+  return (
+    /^[A-Z]$/.test(key) ||
+    /^[0-9]$/.test(key) ||
+    isFunctionShortcutKey(key) ||
+    supportedNamedShortcutKeys.has(key)
+  );
 }
 
 export function validateShortcutCandidate(candidate: ShortcutCandidate): ShortcutValidationResult {
@@ -210,10 +216,18 @@ export function validateShortcutCandidate(candidate: ShortcutCandidate): Shortcu
     errors.push('Shortcuts can only use one main key. Try Ctrl+Alt+Space or F15.');
   }
   if (keys.some((key) => !isSupportedShortcutKey(key))) {
-    errors.push('This key is not supported for global shortcuts yet. Try a letter, number, function key, or Space.');
+    errors.push(
+      'This key is not supported for global shortcuts yet. Try a letter, number, function key, or Space.',
+    );
   }
-  if (keys.length === 1 && modifiers.length === 0 && !isFunctionShortcutKey(keys[0] as ShortcutKey)) {
-    errors.push('Use at least one modifier with this key. Try Ctrl+Alt+Space, or use a function key like F15.');
+  if (
+    keys.length === 1 &&
+    modifiers.length === 0 &&
+    !isFunctionShortcutKey(keys[0] as ShortcutKey)
+  ) {
+    errors.push(
+      'Use at least one modifier with this key. Try Ctrl+Alt+Space, or use a function key like F15.',
+    );
   }
 
   if (errors.length > 0) {
@@ -246,11 +260,18 @@ export function isShortcutChord(value: unknown): value is ShortcutChord {
     return false;
   }
 
-  if (!candidate.modifiers.every((modifier) => typeof modifier === 'string' && isKnownShortcutModifier(modifier))) {
+  if (
+    !candidate.modifiers.every(
+      (modifier) => typeof modifier === 'string' && isKnownShortcutModifier(modifier),
+    )
+  ) {
     return false;
   }
 
-  return validateShortcutChord({ modifiers: candidate.modifiers as ShortcutModifier[], key: candidate.key }).valid;
+  return validateShortcutChord({
+    modifiers: candidate.modifiers as ShortcutModifier[],
+    key: candidate.key,
+  }).valid;
 }
 
 export function formatShortcutKeyForDisplay(key: ShortcutKey): string {
@@ -260,7 +281,9 @@ export function formatShortcutKeyForDisplay(key: ShortcutKey): string {
 export function formatShortcutChordKeys(chord: ShortcutChord, platform: NodeJS.Platform): string[] {
   return [
     ...normalizeShortcutModifiers(chord.modifiers).map((modifier) =>
-      platform === 'darwin' ? shortcutModifierLabels[modifier].darwin : shortcutModifierLabels[modifier].default
+      platform === 'darwin'
+        ? shortcutModifierLabels[modifier].darwin
+        : shortcutModifierLabels[modifier].default,
     ),
     formatShortcutKeyForDisplay(chord.key),
   ];
@@ -292,7 +315,8 @@ export function shortcutChordToGnomeBinding(chord: ShortcutChord): string {
     if (modifier === 'shift') return '<Shift>';
     return '<Alt>';
   });
-  const key = gnomeKeyAliases[chord.key] ?? (/^[A-Z]$/.test(chord.key) ? chord.key.toLowerCase() : chord.key);
+  const key =
+    gnomeKeyAliases[chord.key] ?? (/^[A-Z]$/.test(chord.key) ? chord.key.toLowerCase() : chord.key);
 
   return `${modifiers.join('')}${key}`;
 }
@@ -422,6 +446,9 @@ export interface AppSettings {
     enabled: boolean;
     rulePresetId: string | null;
   };
+  dashboard: {
+    typingWpm: number;
+  };
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -453,7 +480,18 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     enabled: true,
     rulePresetId: null,
   },
+  dashboard: {
+    typingWpm: 50,
+  },
 };
+
+export interface DashboardStats {
+  rollingWindowDays: number;
+  words: number;
+  averageSpokenWpm: number | null;
+  timeSavedMinutes: number;
+  costUsdMicros: number;
+}
 
 export interface PermissionRequirement {
   id: PermissionRequirementId;
@@ -507,6 +545,7 @@ export interface AppState {
   lastPasteAttempt: PasteAttempt;
   lastTranscript: string | null;
   recentConversions: ConversionRecord[];
+  dashboardStats: DashboardStats;
   updatedAt: number;
 }
 
@@ -538,6 +577,7 @@ export interface DesktopApi {
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
   setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
+  setTypingWpm: (typingWpm: number) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;

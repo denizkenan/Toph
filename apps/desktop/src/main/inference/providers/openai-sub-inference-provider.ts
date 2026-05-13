@@ -1,10 +1,11 @@
+import type { ProviderAuthService } from '../../auth/provider-auth-service';
+import type { PricingService } from '../../pricing/pricing-service';
+import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
   TransientInferenceProviderError,
   type InferenceProvider,
   type InferenceProviderResult,
 } from '../inference-provider';
-import type { ProviderAuthService } from '../../auth/provider-auth-service';
-import type { AppSettingsStore } from '../../settings/app-settings-store';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
@@ -79,7 +80,9 @@ function extractTextFromCompletedResponse(event: unknown) {
     return '';
   }
 
-  return output.flatMap((item) => extractTextFromContent((item as { content?: unknown })?.content)).join('');
+  return output
+    .flatMap((item) => extractTextFromContent((item as { content?: unknown })?.content))
+    .join('');
 }
 
 function extractText(events: unknown[]) {
@@ -90,7 +93,12 @@ function extractText(events: unknown[]) {
       continue;
     }
 
-    const candidate = event as { delta?: unknown; text?: unknown; output_text?: unknown; type?: unknown };
+    const candidate = event as {
+      delta?: unknown;
+      text?: unknown;
+      output_text?: unknown;
+      type?: unknown;
+    };
     if (candidate.type === 'response.output_text.delta' && typeof candidate.delta === 'string') {
       deltaParts.push(candidate.delta);
     }
@@ -117,8 +125,41 @@ function extractText(events: unknown[]) {
   return '';
 }
 
+function extractTokenUsage(events: unknown[]) {
+  for (const event of [...events].reverse()) {
+    if (typeof event !== 'object' || event === null) {
+      continue;
+    }
+    const response = (event as { response?: unknown }).response;
+    if (typeof response !== 'object' || response === null) {
+      continue;
+    }
+    const usage = (response as { usage?: unknown }).usage;
+    if (typeof usage !== 'object' || usage === null) {
+      continue;
+    }
+
+    const candidate = usage as {
+      input_tokens?: unknown;
+      input_tokens_details?: { cached_tokens?: unknown };
+      output_tokens?: unknown;
+    };
+    return {
+      inputTokens: typeof candidate.input_tokens === 'number' ? candidate.input_tokens : 0,
+      cachedInputTokens:
+        typeof candidate.input_tokens_details?.cached_tokens === 'number'
+          ? candidate.input_tokens_details.cached_tokens
+          : 0,
+      outputTokens: typeof candidate.output_tokens === 'number' ? candidate.output_tokens : 0,
+    };
+  }
+
+  return null;
+}
+
 export function createOpenAiSubInferenceProvider(options: {
   auth: Pick<ProviderAuthService, 'resolveCredentials'>;
+  pricing: Pick<PricingService, 'estimateCost'>;
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
 }): InferenceProvider {
   return {
@@ -156,7 +197,9 @@ export function createOpenAiSubInferenceProvider(options: {
         if (input.signal?.aborted) {
           throw error;
         }
-        throw new TransientInferenceProviderError(`OpenAI-sub inference request failed: ${String(error)}`);
+        throw new TransientInferenceProviderError(
+          `OpenAI-sub inference request failed: ${String(error)}`,
+        );
       }
 
       const requestId = response.headers.get('x-request-id') ?? response.headers.get('request-id');
@@ -175,10 +218,31 @@ export function createOpenAiSubInferenceProvider(options: {
         throw new TransientInferenceProviderError('OpenAI-sub inference returned an empty output.');
       }
 
+      const usage = extractTokenUsage(events);
+      const cost = usage
+        ? options.pricing.estimateCost({
+            providerId,
+            model,
+            usage: {
+              kind: 'tokens',
+              ...usage,
+            },
+          })
+        : {
+            costUsdMicros: 0,
+            costSource: 'none' as const,
+            pricingCatalogProviderId: null,
+            pricingCatalogModelId: null,
+          };
+
       return {
         text,
         provider: providerId,
         model,
+        inputTokens: usage?.inputTokens ?? null,
+        cachedInputTokens: usage?.cachedInputTokens ?? null,
+        outputTokens: usage?.outputTokens ?? null,
+        ...cost,
         providerRequestId: requestId,
         providerResponseJson: events,
       };

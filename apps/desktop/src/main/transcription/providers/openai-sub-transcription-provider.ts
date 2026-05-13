@@ -1,13 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
+import type { ProviderAuthService } from '../../auth/provider-auth-service';
+import type { PricingService } from '../../pricing/pricing-service';
+import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
   TransientTranscriptionProviderError,
   type TranscriptionProvider,
   type TranscriptionProviderResult,
 } from '../transcription-provider';
-import type { ProviderAuthService } from '../../auth/provider-auth-service';
-import type { AppSettingsStore } from '../../settings/app-settings-store';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/transcribe';
@@ -49,6 +50,7 @@ async function readResponseBody(response: Response) {
 
 export function createOpenAiSubTranscriptionProvider(options: {
   auth: Pick<ProviderAuthService, 'resolveCredentials'>;
+  pricing: Pick<PricingService, 'estimateCost'>;
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
 }): TranscriptionProvider {
   return {
@@ -89,7 +91,9 @@ export function createOpenAiSubTranscriptionProvider(options: {
         if (input.signal?.aborted) {
           throw error;
         }
-        throw new TransientTranscriptionProviderError(`OpenAI-sub transcription request failed: ${String(error)}`);
+        throw new TransientTranscriptionProviderError(
+          `OpenAI-sub transcription request failed: ${String(error)}`,
+        );
       }
       const requestId = response.headers.get('x-request-id') ?? response.headers.get('request-id');
       const body = await readResponseBody(response);
@@ -107,12 +111,25 @@ export function createOpenAiSubTranscriptionProvider(options: {
         throw new Error('OpenAI-sub transcription response did not include transcript text.');
       }
 
+      const cost = options.pricing.estimateCost({
+        providerId,
+        model,
+        usage: {
+          kind: 'audio_duration',
+          durationMs: input.durationMs,
+        },
+      });
+
       return {
         text,
         provider: providerId,
         model,
         estimatedBillableDurationMs: input.durationMs,
-        estimatedCostUsd: null,
+        billableDurationMs: input.durationMs,
+        inputTokens: null,
+        cachedInputTokens: null,
+        outputTokens: null,
+        ...cost,
         providerRequestId: requestId,
         providerResponseJson: body,
       };

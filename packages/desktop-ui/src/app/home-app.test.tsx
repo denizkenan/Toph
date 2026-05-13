@@ -60,12 +60,34 @@ const baseState: AppState = {
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: 'general' },
+    dashboard: { typingWpm: 50 },
   },
   polish: {
     rulePresets: [
-      { id: 'general', title: 'General', description: 'Clean rules', body: 'General rules', bodyHash: 'hash', sortOrder: 0 },
-      { id: 'engineer', title: 'Engineer', description: 'Technical rules', body: 'Engineer rules', bodyHash: 'hash', sortOrder: 1 },
-      { id: 'email-writing', title: 'Email & Writing', description: 'Email rules', body: 'Email rules', bodyHash: 'hash', sortOrder: 2 },
+      {
+        id: 'general',
+        title: 'General',
+        description: 'Clean rules',
+        body: 'General rules',
+        bodyHash: 'hash',
+        sortOrder: 0,
+      },
+      {
+        id: 'engineer',
+        title: 'Engineer',
+        description: 'Technical rules',
+        body: 'Engineer rules',
+        bodyHash: 'hash',
+        sortOrder: 1,
+      },
+      {
+        id: 'email-writing',
+        title: 'Email & Writing',
+        description: 'Email rules',
+        body: 'Email rules',
+        bodyHash: 'hash',
+        sortOrder: 2,
+      },
     ],
     dictionary: [],
   },
@@ -84,6 +106,13 @@ const baseState: AppState = {
   },
   lastTranscript: null,
   recentConversions: [],
+  dashboardStats: {
+    rollingWindowDays: 7,
+    words: 0,
+    averageSpokenWpm: null,
+    timeSavedMinutes: 0,
+    costUsdMicros: 0,
+  },
   updatedAt: 1,
 };
 
@@ -115,6 +144,7 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setInferenceProvider: async () => {},
     setInferenceModel: async () => {},
     setPolishEnabled: async () => {},
+    setTypingWpm: async () => {},
     setActivePolishRulePreset: async () => {},
     createPolishRulePreset: async () => {},
     updatePolishRulePreset: async () => {},
@@ -139,6 +169,22 @@ describe('HomeApp', () => {
     await screen.findByRole('heading', { name: 'Toph' });
     expect(screen.getByText('Nothing here yet.')).toBeTruthy();
     expect(screen.getByText('All systems go')).toBeTruthy();
+  });
+
+  it('rounds positive cost up to the nearest cent', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          dashboardStats: {
+            ...baseState.dashboardStats,
+            costUsdMicros: 1,
+          },
+        })}
+      />,
+    );
+
+    await screen.findByText('$0.01');
   });
 
   it('renders recent conversions when present', async () => {
@@ -234,17 +280,19 @@ describe('HomeApp', () => {
         polish: { enabled: true, rulePresetId: 'engineer' },
       },
     };
-    const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(async (rulePresetId) => {
-      act(() => {
-        publish?.({
-          ...selectedState,
-          settings: {
-            ...selectedState.settings,
-            polish: { enabled: true, rulePresetId },
-          },
+    const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(
+      async (rulePresetId) => {
+        act(() => {
+          publish?.({
+            ...selectedState,
+            settings: {
+              ...selectedState.settings,
+              polish: { enabled: true, rulePresetId },
+            },
+          });
         });
-      });
-    });
+      },
+    );
 
     render(
       <HomeApp
@@ -268,7 +316,11 @@ describe('HomeApp', () => {
     await waitFor(() => expect(setActivePolishRulePreset).toHaveBeenCalledWith('engineer'));
     expect(screen.getByRole('heading', { name: /Your fingers called/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
-    expect(screen.getByText('Setup complete. The tiny dictation empire is operational.').closest('.animate-onboarding-ready-enter')).toBeTruthy();
+    expect(
+      screen
+        .getByText('Setup complete. The tiny dictation empire is operational.')
+        .closest('.animate-onboarding-ready-enter'),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -354,7 +406,9 @@ describe('HomeApp', () => {
   });
 
   it('keeps the onboarding completion bar hidden while preset selection is pending', async () => {
-    const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(() => new Promise(() => {}));
+    const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(
+      () => new Promise(() => {}),
+    );
 
     render(
       <HomeApp

@@ -28,7 +28,7 @@ import { MAX_POLISH_RULE_PRESETS as maxPolishRulePresets } from '@toph/desktop-c
 
 import { Button } from '../button';
 import { ModalShell } from '../modal';
-import { SettingsIcon, SettingsRow, SettingsSection, SettingsSwitch } from './settings-controls';
+import { SettingsIcon, SettingsNumberInput, SettingsRow, SettingsSection, SettingsSwitch } from './settings-controls';
 
 const hiddenScrollbarClass = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
@@ -507,17 +507,21 @@ export function PolishSection({
   activeRulePresetId,
   rulePresets,
   dictionary,
+  typingWpm,
   disabled,
   client,
   onEnabledChange,
+  onTypingWpmChange,
 }: {
   enabled: boolean;
   activeRulePresetId: string | null;
   rulePresets: PolishRulePresetSummary[];
   dictionary: DictionaryEntrySummary[];
+  typingWpm: number;
   disabled: boolean;
   client: DesktopApi;
   onEnabledChange: (enabled: boolean) => void;
+  onTypingWpmChange: (typingWpm: number) => void;
 }) {
   const [rulesOpen, setRulesOpen] = useState(false);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
@@ -573,6 +577,19 @@ export function PolishSection({
           <Button onClick={() => setDictionaryOpen(true)} disabled={disabled}>
             Manage
           </Button>
+        </SettingsRow>
+        <SettingsRow
+          label="Typing Speed"
+          description="Used to estimate personalized time saved on the dashboard."
+        >
+          <SettingsNumberInput
+            value={typingWpm}
+            min={20}
+            max={200}
+            disabled={disabled}
+            onChange={onTypingWpmChange}
+          />
+          <span className="text-xs font-semibold text-text-tertiary">WPM</span>
         </SettingsRow>
       </SettingsSection>
 

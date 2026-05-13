@@ -60,9 +60,19 @@ const baseState: AppState = {
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: 'general' },
+    dashboard: { typingWpm: 50 },
   },
   polish: {
-    rulePresets: [{ id: 'general', title: 'General', description: 'Clean rules', body: 'General rules', bodyHash: 'hash', sortOrder: 0 }],
+    rulePresets: [
+      {
+        id: 'general',
+        title: 'General',
+        description: 'Clean rules',
+        body: 'General rules',
+        bodyHash: 'hash',
+        sortOrder: 0,
+      },
+    ],
     dictionary: [],
   },
   permissions: {
@@ -80,6 +90,13 @@ const baseState: AppState = {
   },
   lastTranscript: 'hello',
   recentConversions: [],
+  dashboardStats: {
+    rollingWindowDays: 7,
+    words: 0,
+    averageSpokenWpm: null,
+    timeSavedMinutes: 0,
+    costUsdMicros: 0,
+  },
   updatedAt: 1,
 };
 
@@ -127,6 +144,7 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setInferenceProvider: async () => {},
     setInferenceModel: async () => {},
     setPolishEnabled: async () => {},
+    setTypingWpm: async () => {},
     setActivePolishRulePreset: async () => {},
     createPolishRulePreset: async () => {},
     updatePolishRulePreset: async () => {},
@@ -184,33 +202,35 @@ describe('OverlayApp', () => {
   it('sizes the rule switcher from content instead of the current overlay viewport', async () => {
     const selectRuleSwitcherPreset = vi.fn<DesktopApi['selectRuleSwitcherPreset']>(async () => {});
     const resizeOverlay = vi.fn<DesktopApi['resizeOverlay']>(async () => {});
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this.tagName === 'SECTION') {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        if (this.tagName === 'SECTION') {
+          return {
+            x: 0,
+            y: 0,
+            width: 840,
+            height: 168,
+            top: 0,
+            right: 840,
+            bottom: 168,
+            left: 0,
+            toJSON: () => ({}),
+          };
+        }
+
         return {
           x: 0,
           y: 0,
-          width: 840,
-          height: 168,
+          width: 0,
+          height: 0,
           top: 0,
-          right: 840,
-          bottom: 168,
+          right: 0,
+          bottom: 0,
           left: 0,
           toJSON: () => ({}),
         };
-      }
-
-      return {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        toJSON: () => ({}),
-      };
-    });
+      },
+    );
     const state: AppState = {
       ...baseState,
       phase: 'idle',

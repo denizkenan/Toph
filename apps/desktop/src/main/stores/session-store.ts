@@ -6,7 +6,8 @@ import Database from 'better-sqlite3';
 import { asc, desc, eq, inArray } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { MAX_POLISH_RULE_PRESETS } from '@toph/desktop-contracts';
+
+import { MAX_POLISH_RULE_PRESETS, type DashboardStats } from '@toph/desktop-contracts';
 
 import {
   batchTranscripts,
@@ -88,6 +89,11 @@ export interface RecordingSessionStore {
   createSessionOutput: (output: SessionOutput) => Promise<void>;
   selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
   listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
+  getDashboardStats: (options: {
+    now: number;
+    rollingWindowDays: number;
+    typingWpm: number;
+  }) => Promise<DashboardStats>;
   syncDefaultPolishRulePreset: (rulePreset: {
     id: string;
     title: string;
@@ -98,16 +104,34 @@ export interface RecordingSessionStore {
   }) => Promise<PolishRulePreset>;
   listPolishRulePresets: () => Promise<PolishRulePreset[]>;
   getPolishRulePreset: (rulePresetId: string) => Promise<PolishRulePreset | null>;
-  createPolishRulePreset: (draft: { title: string; description: string; body: string; bodyHash: string }) => Promise<PolishRulePreset>;
-  updatePolishRulePreset: (id: string, draft: { title: string; description: string; body: string; bodyHash: string }) => Promise<PolishRulePreset>;
+  createPolishRulePreset: (draft: {
+    title: string;
+    description: string;
+    body: string;
+    bodyHash: string;
+  }) => Promise<PolishRulePreset>;
+  updatePolishRulePreset: (
+    id: string,
+    draft: { title: string; description: string; body: string; bodyHash: string },
+  ) => Promise<PolishRulePreset>;
   duplicatePolishRulePreset: (id: string) => Promise<PolishRulePreset>;
   reorderPolishRulePresets: (ids: string[]) => Promise<void>;
   deletePolishRulePreset: (id: string) => Promise<void>;
   listDictionaryEntries: () => Promise<DictionaryEntry[]>;
-  createDictionaryEntry: (draft: { term: string; hint: string | null; enabled: boolean }) => Promise<DictionaryEntry>;
-  updateDictionaryEntry: (id: string, draft: { term: string; hint: string | null; enabled: boolean }) => Promise<DictionaryEntry>;
+  createDictionaryEntry: (draft: {
+    term: string;
+    hint: string | null;
+    enabled: boolean;
+  }) => Promise<DictionaryEntry>;
+  updateDictionaryEntry: (
+    id: string,
+    draft: { term: string; hint: string | null; enabled: boolean },
+  ) => Promise<DictionaryEntry>;
   deleteDictionaryEntry: (id: string) => Promise<void>;
-  getLegacyPolishSettings: () => Promise<{ enabled: boolean; activeRulePresetId: string | null } | null>;
+  getLegacyPolishSettings: () => Promise<{
+    enabled: boolean;
+    activeRulePresetId: string | null;
+  } | null>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
 }
@@ -145,9 +169,12 @@ function createSessionStoreDatabase(options: { databasePath: string; migrationsF
 }
 
 function columnExists(sqlite: Database.Database, table: string, column: string) {
-  return sqlite.prepare(`pragma table_info(${table})`).all().some((row) => {
-    return typeof row === 'object' && row !== null && (row as { name?: unknown }).name === column;
-  });
+  return sqlite
+    .prepare(`pragma table_info(${table})`)
+    .all()
+    .some((row) => {
+      return typeof row === 'object' && row !== null && (row as { name?: unknown }).name === column;
+    });
 }
 
 function ensureCurrentWritableSchema(sqlite: Database.Database) {
@@ -156,6 +183,35 @@ function ensureCurrentWritableSchema(sqlite: Database.Database) {
   }
   if (!columnExists(sqlite, 'polish_rule_presets', 'sort_order')) {
     sqlite.exec('alter table polish_rule_presets add column sort_order integer not null default 0');
+  }
+  const transcriptColumns = [
+    ['billable_duration_ms', 'integer'],
+    ['input_tokens', 'integer'],
+    ['cached_input_tokens', 'integer'],
+    ['output_tokens', 'integer'],
+    ['cost_usd_micros', 'integer not null default 0'],
+    ['cost_source', "text not null default 'none'"],
+    ['pricing_catalog_provider_id', 'text'],
+    ['pricing_catalog_model_id', 'text'],
+  ] as const;
+  for (const [column, definition] of transcriptColumns) {
+    if (!columnExists(sqlite, 'batch_transcripts', column)) {
+      sqlite.exec(`alter table batch_transcripts add column ${column} ${definition}`);
+    }
+  }
+  const outputColumns = [
+    ['input_tokens', 'integer'],
+    ['cached_input_tokens', 'integer'],
+    ['output_tokens', 'integer'],
+    ['cost_usd_micros', 'integer not null default 0'],
+    ['cost_source', "text not null default 'none'"],
+    ['pricing_catalog_provider_id', 'text'],
+    ['pricing_catalog_model_id', 'text'],
+  ] as const;
+  for (const [column, definition] of outputColumns) {
+    if (!columnExists(sqlite, 'session_outputs', column)) {
+      sqlite.exec(`alter table session_outputs add column ${column} ${definition}`);
+    }
   }
 }
 
@@ -534,6 +590,13 @@ export async function createRecordingSessionStore(options: {
           model: sessionOutputs.model,
           rulePresetId: sessionOutputs.rulePresetId,
           rulePresetHash: sessionOutputs.rulePresetHash,
+          inputTokens: sessionOutputs.inputTokens,
+          cachedInputTokens: sessionOutputs.cachedInputTokens,
+          outputTokens: sessionOutputs.outputTokens,
+          costUsdMicros: sessionOutputs.costUsdMicros,
+          costSource: sessionOutputs.costSource,
+          pricingCatalogProviderId: sessionOutputs.pricingCatalogProviderId,
+          pricingCatalogModelId: sessionOutputs.pricingCatalogModelId,
           createdAt: sessionOutputs.createdAt,
         })
         .from(sessionOutputs)
@@ -544,9 +607,70 @@ export async function createRecordingSessionStore(options: {
         .all();
     },
 
+    async getDashboardStats({ now, rollingWindowDays, typingWpm }) {
+      const threshold = now - rollingWindowDays * 24 * 60 * 60 * 1000;
+      const selectedOutputs = sqlite
+        .prepare(`
+          select so.text, so.cost_usd_micros as outputCostUsdMicros, so.session_id as sessionId
+          from session_outputs so
+          inner join recording_sessions rs on rs.selected_output_id = so.id
+          where rs.status = 'completed' and so.created_at >= ?
+        `)
+        .all(threshold) as Array<{
+        text: string;
+        outputCostUsdMicros: number | null;
+        sessionId: string;
+      }>;
+
+      const sessionIds = selectedOutputs.map((output) => output.sessionId);
+      let derivedAudioDurationMs = 0;
+      let transcriptCostUsdMicros = 0;
+      if (sessionIds.length > 0) {
+        const placeholders = sessionIds.map(() => '?').join(',');
+        const durationRow = sqlite
+          .prepare(
+            `select coalesce(sum(derived_audio_duration_ms), 0) as total from transcription_batches where session_id in (${placeholders})`,
+          )
+          .get(...sessionIds) as { total: number } | undefined;
+        const costRow = sqlite
+          .prepare(`
+            select coalesce(sum(bt.cost_usd_micros), 0) as total
+            from batch_transcripts bt
+            inner join transcription_batches tb on tb.id = bt.batch_id
+            where tb.session_id in (${placeholders})
+          `)
+          .get(...sessionIds) as { total: number } | undefined;
+        derivedAudioDurationMs = durationRow?.total ?? 0;
+        transcriptCostUsdMicros = costRow?.total ?? 0;
+      }
+
+      const words = selectedOutputs.reduce((total, output) => {
+        const trimmed = output.text.trim();
+        return total + (trimmed ? trimmed.split(/\s+/).length : 0);
+      }, 0);
+      const averageSpokenWpm =
+        words > 0 && derivedAudioDurationMs > 0 ? words / (derivedAudioDurationMs / 60_000) : null;
+      const typingMinutes = words / typingWpm;
+      const speakingMinutes = averageSpokenWpm ? words / averageSpokenWpm : 0;
+
+      return {
+        rollingWindowDays,
+        words,
+        averageSpokenWpm,
+        timeSavedMinutes: Math.max(0, typingMinutes - speakingMinutes),
+        costUsdMicros:
+          transcriptCostUsdMicros +
+          selectedOutputs.reduce((total, output) => total + (output.outputCostUsdMicros ?? 0), 0),
+      };
+    },
+
     async syncDefaultPolishRulePreset(rulePreset) {
       const now = Date.now();
-      const existing = db.select().from(polishRulePresets).where(eq(polishRulePresets.id, rulePreset.id)).get();
+      const existing = db
+        .select()
+        .from(polishRulePresets)
+        .where(eq(polishRulePresets.id, rulePreset.id))
+        .get();
       if (!existing) {
         const inserted = {
           id: rulePreset.id,
@@ -563,13 +687,20 @@ export async function createRecordingSessionStore(options: {
         return inserted;
       }
 
-      if (existing.description.trim().length === 0 || (existing.sortOrder === 0 && rulePreset.sortOrder > 0)) {
+      if (
+        existing.description.trim().length === 0 ||
+        (existing.sortOrder === 0 && rulePreset.sortOrder > 0)
+      ) {
         const updated = {
           ...existing,
-          description: existing.description.trim().length === 0 ? rulePreset.description : existing.description,
-          sortOrder: existing.sortOrder === 0 && rulePreset.sortOrder > 0
-            ? rulePreset.sortOrder
-            : existing.sortOrder,
+          description:
+            existing.description.trim().length === 0
+              ? rulePreset.description
+              : existing.description,
+          sortOrder:
+            existing.sortOrder === 0 && rulePreset.sortOrder > 0
+              ? rulePreset.sortOrder
+              : existing.sortOrder,
           updatedAt: now,
         };
         db.update(polishRulePresets)
@@ -595,7 +726,10 @@ export async function createRecordingSessionStore(options: {
     },
 
     async getPolishRulePreset(rulePresetId) {
-      return db.select().from(polishRulePresets).where(eq(polishRulePresets.id, rulePresetId)).get() ?? null;
+      return (
+        db.select().from(polishRulePresets).where(eq(polishRulePresets.id, rulePresetId)).get() ??
+        null
+      );
     },
 
     async createPolishRulePreset(draft) {
@@ -621,7 +755,11 @@ export async function createRecordingSessionStore(options: {
     },
 
     async updatePolishRulePreset(id, draft) {
-      const existing = db.select().from(polishRulePresets).where(eq(polishRulePresets.id, id)).get();
+      const existing = db
+        .select()
+        .from(polishRulePresets)
+        .where(eq(polishRulePresets.id, id))
+        .get();
       if (!existing) {
         throw new Error(`Polish rule preset "${id}" is not available.`);
       }
@@ -648,7 +786,11 @@ export async function createRecordingSessionStore(options: {
     },
 
     async duplicatePolishRulePreset(id) {
-      const existing = db.select().from(polishRulePresets).where(eq(polishRulePresets.id, id)).get();
+      const existing = db
+        .select()
+        .from(polishRulePresets)
+        .where(eq(polishRulePresets.id, id))
+        .get();
       if (!existing) {
         throw new Error(`Polish rule preset "${id}" is not available.`);
       }
@@ -674,10 +816,18 @@ export async function createRecordingSessionStore(options: {
     },
 
     async reorderPolishRulePresets(ids) {
-      const existing = db.select().from(polishRulePresets).orderBy(asc(polishRulePresets.sortOrder)).all();
+      const existing = db
+        .select()
+        .from(polishRulePresets)
+        .orderBy(asc(polishRulePresets.sortOrder))
+        .all();
       const existingIds = existing.map((preset) => preset.id);
       const uniqueIds = new Set(ids);
-      if (ids.length !== existingIds.length || uniqueIds.size !== ids.length || ids.some((id) => !existingIds.includes(id))) {
+      if (
+        ids.length !== existingIds.length ||
+        uniqueIds.size !== ids.length ||
+        ids.some((id) => !existingIds.includes(id))
+      ) {
         throw new Error('Rule order must include every writing rule exactly once.');
       }
 
@@ -692,7 +842,11 @@ export async function createRecordingSessionStore(options: {
     },
 
     async deletePolishRulePreset(id) {
-      const existing = db.select().from(polishRulePresets).orderBy(asc(polishRulePresets.sortOrder)).all();
+      const existing = db
+        .select()
+        .from(polishRulePresets)
+        .orderBy(asc(polishRulePresets.sortOrder))
+        .all();
       if (!existing.some((preset) => preset.id === id)) {
         return;
       }
@@ -702,12 +856,14 @@ export async function createRecordingSessionStore(options: {
 
       db.transaction(() => {
         db.delete(polishRulePresets).where(eq(polishRulePresets.id, id)).run();
-        existing.filter((preset) => preset.id !== id).forEach((preset, index) => {
-          db.update(polishRulePresets)
-            .set({ sortOrder: index })
-            .where(eq(polishRulePresets.id, preset.id))
-            .run();
-        });
+        existing
+          .filter((preset) => preset.id !== id)
+          .forEach((preset, index) => {
+            db.update(polishRulePresets)
+              .set({ sortOrder: index })
+              .where(eq(polishRulePresets.id, preset.id))
+              .run();
+          });
       });
     },
 
@@ -730,7 +886,11 @@ export async function createRecordingSessionStore(options: {
     },
 
     async updateDictionaryEntry(id, draft) {
-      const existing = db.select().from(dictionaryEntries).where(eq(dictionaryEntries.id, id)).get();
+      const existing = db
+        .select()
+        .from(dictionaryEntries)
+        .where(eq(dictionaryEntries.id, id))
+        .get();
       if (!existing) {
         throw new Error(`Dictionary entry "${id}" is not available.`);
       }

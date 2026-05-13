@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { AppState, ConversionRecord, DesktopApi } from '@toph/desktop-contracts';
+import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { DictationCard } from '../components/dictation-card';
@@ -11,35 +11,7 @@ import { SettingsPage } from './settings-page';
 
 type ActiveView = 'home' | 'settings';
 
-function countWordsInConversions(conversions: ConversionRecord[]): number {
-  let total = 0;
-  for (const c of conversions) {
-    const trimmed = c.text.trim();
-    if (trimmed.length > 0) {
-      total += trimmed.split(/\s+/).length;
-    }
-  }
-  return total;
-}
-
-function countTodayConversions(conversions: ConversionRecord[]): number {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const threshold = todayStart.getTime();
-
-  let count = 0;
-  for (const c of conversions) {
-    if (c.createdAt >= threshold) {
-      count++;
-    }
-  }
-  return count;
-}
-
-function formatTimeSaved(totalWords: number): string {
-  const typingWpm = 40;
-  const minutesSaved = totalWords / typingWpm;
-
+function formatDuration(minutesSaved: number): string {
   if (minutesSaved < 1) {
     return '< 1m';
   }
@@ -53,10 +25,25 @@ function formatTimeSaved(totalWords: number): string {
 }
 
 function formatWordCount(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1)}m`;
+  }
   if (count >= 1000) {
     return `${(count / 1000).toFixed(1)}k`;
   }
   return String(count);
+}
+
+function formatSpokenWpm(averageSpokenWpm: number | null): string {
+  return averageSpokenWpm ? `${Math.round(averageSpokenWpm)} WPM` : '—';
+}
+
+function formatCost(costUsdMicros: number): string {
+  if (costUsdMicros <= 0) {
+    return '—';
+  }
+
+  return `$${(Math.ceil((costUsdMicros / 1_000_000) * 100) / 100).toFixed(2)}`;
 }
 
 function deriveSystemStatus(state: AppState): { label: string; tone: string } {
@@ -81,20 +68,25 @@ function deriveSystemStatus(state: AppState): { label: string; tone: string } {
 function hasActiveWritingPreset(state: AppState): boolean {
   // Onboarding requires an explicit writing style choice before first use, even
   // when polish is disabled later, so the app never silently chooses a preset.
-  return !!state.settings.polish.rulePresetId && state.polish.rulePresets.some((preset) => preset.id === state.settings.polish.rulePresetId);
+  return (
+    !!state.settings.polish.rulePresetId &&
+    state.polish.rulePresets.some((preset) => preset.id === state.settings.polish.rulePresetId)
+  );
 }
 
-function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigateSettings: () => void }) {
-  const totalWords = countWordsInConversions(state.recentConversions);
-  const todayCount = countTodayConversions(state.recentConversions);
-  const timeSaved = formatTimeSaved(totalWords);
+function HomeScreen({
+  state,
+  onNavigateSettings,
+}: {
+  state: AppState;
+  onNavigateSettings: () => void;
+}) {
   const systemStatus = deriveSystemStatus(state);
+  const dashboardStats = state.dashboardStats;
 
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
-      {state.environment.platform === 'darwin' && (
-        <WindowDragRegion />
-      )}
+      {state.environment.platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="home" />
 
       <section className="relative mx-auto max-w-[720px]">
@@ -111,8 +103,12 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
           </div>
 
           <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${systemStatus.tone}`}>
-              <span className={`size-2 rounded-full ${systemStatus.tone === 'text-accent-green' ? 'bg-accent-green' : 'bg-accent-amber'}`} />
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${systemStatus.tone}`}
+            >
+              <span
+                className={`size-2 rounded-full ${systemStatus.tone === 'text-accent-green' ? 'bg-accent-green' : 'bg-accent-amber'}`}
+              />
               {systemStatus.label}
             </span>
 
@@ -122,7 +118,16 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
               onClick={onNavigateSettings}
               aria-label="Settings"
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 18 18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M9 11.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5Z" />
                 <path d="M14.55 11.25a1.24 1.24 0 0 0 .25 1.37l.05.04a1.5 1.5 0 1 1-2.12 2.12l-.05-.04a1.24 1.24 0 0 0-1.37-.25 1.24 1.24 0 0 0-.75 1.14v.12a1.5 1.5 0 1 1-3 0v-.07a1.24 1.24 0 0 0-.82-1.14 1.24 1.24 0 0 0-1.37.25l-.04.05a1.5 1.5 0 1 1-2.12-2.12l.04-.05a1.24 1.24 0 0 0 .25-1.37 1.24 1.24 0 0 0-1.14-.75h-.12a1.5 1.5 0 1 1 0-3h.07a1.24 1.24 0 0 0 1.14-.82 1.24 1.24 0 0 0-.25-1.37l-.05-.04A1.5 1.5 0 1 1 5.28 3.2l.05.04a1.24 1.24 0 0 0 1.37.25h.06a1.24 1.24 0 0 0 .75-1.14v-.12a1.5 1.5 0 0 1 3 0v.07a1.24 1.24 0 0 0 .75 1.14 1.24 1.24 0 0 0 1.37-.25l.04-.05a1.5 1.5 0 1 1 2.12 2.12l-.04.05a1.24 1.24 0 0 0-.25 1.37v.06a1.24 1.24 0 0 0 1.14.75h.12a1.5 1.5 0 0 1 0 3h-.07a1.24 1.24 0 0 0-1.14.75Z" />
               </svg>
@@ -131,10 +136,13 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
         </header>
 
         <div className="mb-8 grid grid-cols-4 gap-3 max-[640px]:grid-cols-2">
-          <StatCard label="today" value={String(todayCount)} />
-          <StatCard label="words" value={formatWordCount(totalWords)} />
-          <StatCard label="saved" value={timeSaved} />
-          <StatCard label="cost" value="—" />
+          <StatCard
+            label={`${dashboardStats.rollingWindowDays} days`}
+            value={formatWordCount(dashboardStats.words)}
+          />
+          <StatCard label="pace" value={formatSpokenWpm(dashboardStats.averageSpokenWpm)} />
+          <StatCard label="saved" value={formatDuration(dashboardStats.timeSavedMinutes)} />
+          <StatCard label="cost" value={formatCost(dashboardStats.costUsdMicros)} />
         </div>
 
         <section>
@@ -171,11 +179,11 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
                 ? 'Transcribing...'
                 : state.phase === 'polishing'
                   ? 'Polishing...'
-                : state.phase === 'no_speech'
-                  ? 'No speech detected'
-              : state.phase === 'failed'
-                  ? 'Recording failed'
-                : 'Ready'}
+                  : state.phase === 'no_speech'
+                    ? 'No speech detected'
+                    : state.phase === 'failed'
+                      ? 'Recording failed'
+                      : 'Ready'}
           </span>
         </footer>
       </section>
@@ -186,9 +194,7 @@ function HomeScreen({ state, onNavigateSettings }: { state: AppState; onNavigate
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/6 bg-white/3 px-4 py-3 transition-colors duration-200 hover:border-white/10">
-      <p className="m-0 font-display text-2xl tracking-[-0.03em] text-text-primary">
-        {value}
-      </p>
+      <p className="m-0 font-display text-2xl tracking-[-0.03em] text-text-primary">{value}</p>
       <span className="text-xs font-medium tracking-wide text-text-tertiary uppercase">
         {label}
       </span>
@@ -200,7 +206,9 @@ export function HomeApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const [view, setView] = useState<ActiveView>('home');
   const [awaitingSetupContinue, setAwaitingSetupContinue] = useState(false);
-  const setupComplete = state ? state.providers.ready && state.permissions.ready && hasActiveWritingPreset(state) : false;
+  const setupComplete = state
+    ? state.providers.ready && state.permissions.ready && hasActiveWritingPreset(state)
+    : false;
 
   useEffect(() => {
     if (!setupComplete) {

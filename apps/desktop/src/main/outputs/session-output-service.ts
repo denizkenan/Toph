@@ -1,18 +1,34 @@
 import { randomUUID } from 'node:crypto';
 
+import type { CostSource } from '../pricing/pricing-service';
 import type { RecordingSessionStore } from '../stores/session-store';
 
 export interface SessionOutputService {
-  createRawConcatOutput: (sessionId: string) => Promise<{ id: string; text: string; createdAt: number }>;
+  createRawConcatOutput: (
+    sessionId: string,
+  ) => Promise<{ id: string; text: string; createdAt: number }>;
   createPolishedOutput: (options: {
     sessionId: string;
     sourceOutputId: string;
     text: string;
     provider: string;
     model: string | null;
+    inputTokens: number | null;
+    cachedInputTokens: number | null;
+    outputTokens: number | null;
+    costUsdMicros: number;
+    costSource: CostSource;
+    pricingCatalogProviderId: string | null;
+    pricingCatalogModelId: string | null;
     rulePresetId: string;
     rulePresetHash: string;
-  }) => Promise<{ id: string; text: string; createdAt: number; rulePresetId: string; rulePresetHash: string }>;
+  }) => Promise<{
+    id: string;
+    text: string;
+    createdAt: number;
+    rulePresetId: string;
+    rulePresetHash: string;
+  }>;
   selectOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
 }
 
@@ -37,7 +53,9 @@ export function createSessionOutputService(options: {
 }): SessionOutputService {
   return {
     async createRawConcatOutput(sessionId) {
-      const text = assembleRawText(await options.sessionStore.listOrderedBatchTranscriptTexts(sessionId));
+      const text = assembleRawText(
+        await options.sessionStore.listOrderedBatchTranscriptTexts(sessionId),
+      );
       if (!text) {
         throw new Error(`Session ${sessionId} does not have batch transcripts to assemble.`);
       }
@@ -52,6 +70,13 @@ export function createSessionOutputService(options: {
         model: null,
         rulePresetId: null,
         rulePresetHash: null,
+        inputTokens: null,
+        cachedInputTokens: null,
+        outputTokens: null,
+        costUsdMicros: 0,
+        costSource: 'none' as const,
+        pricingCatalogProviderId: null,
+        pricingCatalogModelId: null,
         createdAt: Date.now(),
       };
 
@@ -75,6 +100,13 @@ export function createSessionOutputService(options: {
         model: input.model,
         rulePresetId: input.rulePresetId,
         rulePresetHash: input.rulePresetHash,
+        inputTokens: input.inputTokens,
+        cachedInputTokens: input.cachedInputTokens,
+        outputTokens: input.outputTokens,
+        costUsdMicros: input.costUsdMicros,
+        costSource: input.costSource,
+        pricingCatalogProviderId: input.pricingCatalogProviderId,
+        pricingCatalogModelId: input.pricingCatalogModelId,
         createdAt: Date.now(),
       };
 
@@ -83,8 +115,8 @@ export function createSessionOutputService(options: {
         id: output.id,
         text: output.text,
         createdAt: output.createdAt,
-          rulePresetId: output.rulePresetId,
-          rulePresetHash: output.rulePresetHash,
+        rulePresetId: output.rulePresetId,
+        rulePresetHash: output.rulePresetHash,
       };
     },
 

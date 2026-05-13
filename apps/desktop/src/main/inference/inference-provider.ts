@@ -1,7 +1,16 @@
+import type { CostSource } from '../pricing/pricing-service';
+
 export interface InferenceProviderResult {
   text: string;
   provider: string;
   model: string | null;
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  outputTokens: number | null;
+  costUsdMicros: number;
+  costSource: CostSource;
+  pricingCatalogProviderId: string | null;
+  pricingCatalogModelId: string | null;
   providerRequestId: string | null;
   providerResponseJson: unknown;
 }
@@ -22,6 +31,8 @@ export class TransientInferenceProviderError extends Error {
   }
 }
 
-export function isTransientInferenceProviderError(error: unknown): error is TransientInferenceProviderError {
+export function isTransientInferenceProviderError(
+  error: unknown,
+): error is TransientInferenceProviderError {
   return error instanceof TransientInferenceProviderError;
 }

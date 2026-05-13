@@ -55,10 +55,15 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut, chord) as Promise<void>,
   suspendShortcut: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.suspendShortcut) as Promise<void>,
   resumeShortcut: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.resumeShortcut) as Promise<void>,
-  openRuleSwitcher: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.openRuleSwitcher) as Promise<void>,
-  closeRuleSwitcher: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.closeRuleSwitcher) as Promise<void>,
+  openRuleSwitcher: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.openRuleSwitcher) as Promise<void>,
+  closeRuleSwitcher: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.closeRuleSwitcher) as Promise<void>,
   selectRuleSwitcherPreset: (rulePresetId: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset, rulePresetId) as Promise<void>,
+    ipcRenderer.invoke(
+      DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset,
+      rulePresetId,
+    ) as Promise<void>,
   connectProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId) as Promise<void>,
   submitProviderAuthorization: (providerId: ProviderId, input: string) =>
@@ -83,8 +88,13 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceModel, model) as Promise<void>,
   setPolishEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setPolishEnabled, enabled) as Promise<void>,
+  setTypingWpm: (typingWpm: number) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setTypingWpm, typingWpm) as Promise<void>,
   setActivePolishRulePreset: (rulePresetId: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset, rulePresetId) as Promise<void>,
+    ipcRenderer.invoke(
+      DESKTOP_IPC_CHANNELS.setActivePolishRulePreset,
+      rulePresetId,
+    ) as Promise<void>,
   createPolishRulePreset: (draft: PolishRulePresetDraft) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.createPolishRulePreset, draft) as Promise<void>,
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) =>

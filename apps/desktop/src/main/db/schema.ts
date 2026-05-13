@@ -79,6 +79,18 @@ export const batchTranscripts = sqliteTable('batch_transcripts', {
   text: text('text').notNull(),
   estimatedBillableDurationMs: integer('estimated_billable_duration_ms').notNull(),
   estimatedCostUsd: integer('estimated_cost_usd'),
+  billableDurationMs: integer('billable_duration_ms'),
+  inputTokens: integer('input_tokens'),
+  cachedInputTokens: integer('cached_input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costUsdMicros: integer('cost_usd_micros').notNull().default(0),
+  costSource: text('cost_source', {
+    enum: ['provider_reported', 'models_dev', 'static_fallback', 'none'],
+  })
+    .notNull()
+    .default('none'),
+  pricingCatalogProviderId: text('pricing_catalog_provider_id'),
+  pricingCatalogModelId: text('pricing_catalog_model_id'),
   providerRequestId: text('provider_request_id'),
   providerResponseJson: text('provider_response_json'),
   createdAt: integer('created_at').notNull(),
@@ -94,6 +106,17 @@ export const sessionOutputs = sqliteTable('session_outputs', {
   model: text('model'),
   rulePresetId: text('rule_preset_id'),
   rulePresetHash: text('rule_preset_hash'),
+  inputTokens: integer('input_tokens'),
+  cachedInputTokens: integer('cached_input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costUsdMicros: integer('cost_usd_micros').notNull().default(0),
+  costSource: text('cost_source', {
+    enum: ['provider_reported', 'models_dev', 'static_fallback', 'none'],
+  })
+    .notNull()
+    .default('none'),
+  pricingCatalogProviderId: text('pricing_catalog_provider_id'),
+  pricingCatalogModelId: text('pricing_catalog_model_id'),
   createdAt: integer('created_at').notNull(),
 });
 

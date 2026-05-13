@@ -1,15 +1,21 @@
+import type { DictionaryEntry, PolishRulePreset } from '../db/schema';
+import type { InferenceProvider, InferenceProviderResult } from '../inference/inference-provider';
 import type { SessionOutputService } from '../outputs/session-output-service';
 import type { AppSettingsStore } from '../settings/app-settings-store';
 import type { RecordingSessionStore } from '../stores/session-store';
-import type { InferenceProvider, InferenceProviderResult } from '../inference/inference-provider';
-import type { DictionaryEntry, PolishRulePreset } from '../db/schema';
 
 export interface PolishService {
   polishOutput: (input: {
     sessionId: string;
     rawOutput: { id: string; text: string };
     signal?: AbortSignal;
-  }) => Promise<{ id: string; text: string; createdAt: number; rulePresetId: string; rulePresetHash: string }>;
+  }) => Promise<{
+    id: string;
+    text: string;
+    createdAt: number;
+    rulePresetId: string;
+    rulePresetHash: string;
+  }>;
 }
 
 const maxAttempts = 3;
@@ -130,6 +136,13 @@ export function createPolishService(options: {
             text: result.text,
             provider: result.provider,
             model: result.model,
+            inputTokens: result.inputTokens,
+            cachedInputTokens: result.cachedInputTokens,
+            outputTokens: result.outputTokens,
+            costUsdMicros: result.costUsdMicros,
+            costSource: result.costSource,
+            pricingCatalogProviderId: result.pricingCatalogProviderId,
+            pricingCatalogModelId: result.pricingCatalogModelId,
             rulePresetId: rulePreset.id,
             rulePresetHash: rulePreset.bodyHash,
           });
@@ -143,7 +156,9 @@ export function createPolishService(options: {
         }
       }
 
-      throw new Error(`Polish failed after ${attempt} attempt${attempt === 1 ? '' : 's'}: ${describeError(lastError)}`);
+      throw new Error(
+        `Polish failed after ${attempt} attempt${attempt === 1 ? '' : 's'}: ${describeError(lastError)}`,
+      );
     },
   };
 }

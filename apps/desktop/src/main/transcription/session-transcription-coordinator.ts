@@ -61,7 +61,15 @@ function toTranscriptRow(options: {
     model: options.result.model,
     text: options.result.text,
     estimatedBillableDurationMs: options.result.estimatedBillableDurationMs,
-    estimatedCostUsd: options.result.estimatedCostUsd,
+    estimatedCostUsd: null,
+    billableDurationMs: options.result.billableDurationMs,
+    inputTokens: options.result.inputTokens,
+    cachedInputTokens: options.result.cachedInputTokens,
+    outputTokens: options.result.outputTokens,
+    costUsdMicros: options.result.costUsdMicros,
+    costSource: options.result.costSource,
+    pricingCatalogProviderId: options.result.pricingCatalogProviderId,
+    pricingCatalogModelId: options.result.pricingCatalogModelId,
     providerRequestId: options.result.providerRequestId,
     providerResponseJson: JSON.stringify(options.result.providerResponseJson) ?? null,
     createdAt: options.createdAt,
@@ -119,7 +127,11 @@ export function createSessionTranscriptionCoordinator(options: {
 
   const markFailed = async (batch: TranscriptionBatch, attempts: number, error: unknown) => {
     const message = describeError(error);
-    await options.sessionStore.markBatchFailed({ batchId: batch.id, attempts, errorMessage: message });
+    await options.sessionStore.markBatchFailed({
+      batchId: batch.id,
+      attempts,
+      errorMessage: message,
+    });
     let failedBatchIds = failedBatchIdsBySession.get(batch.sessionId);
     if (!failedBatchIds) {
       failedBatchIds = new Set();
@@ -152,8 +164,13 @@ export function createSessionTranscriptionCoordinator(options: {
           signal: abortController.signal,
         });
         const createdAt = Date.now();
-        await options.sessionStore.insertBatchTranscript(toTranscriptRow({ batchId: batch.id, result, createdAt }));
-        await options.sessionStore.markBatchTranscribed({ batchId: batch.id, transcribedAt: createdAt });
+        await options.sessionStore.insertBatchTranscript(
+          toTranscriptRow({ batchId: batch.id, result, createdAt }),
+        );
+        await options.sessionStore.markBatchTranscribed({
+          batchId: batch.id,
+          transcribedAt: createdAt,
+        });
         return;
       } catch (error) {
         lastError = error;

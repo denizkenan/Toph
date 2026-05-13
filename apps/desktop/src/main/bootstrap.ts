@@ -25,6 +25,7 @@ import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
 import { defaultPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
+import { createPricingService } from './pricing/pricing-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createAppSettingsStore } from './settings/app-settings-store';
 import {
@@ -133,6 +134,16 @@ export async function bootstrap(options: {
         }
       : defaultAppSettings,
   });
+  const pricing = await createPricingService({ modelsDevCachePath: dataPaths.modelsDevCachePath });
+  const refreshDashboardStats = async () => {
+    stateStore.setDashboardStats(
+      await sessionStore.getDashboardStats({
+        now: Date.now(),
+        rollingWindowDays: 7,
+        typingWpm: settingsStore.getSettings().dashboard.typingWpm,
+      }),
+    );
+  };
   const refreshPolishState = async () => {
     stateStore.setPolish(
       toPolishState(
@@ -155,6 +166,7 @@ export async function bootstrap(options: {
   };
   const publishSettings = async () => {
     stateStore.setSettings(settingsStore.getSettings());
+    await refreshDashboardStats();
     await refreshPolishState();
   };
   const unsubscribeSettings = settingsStore.subscribe(() => {
@@ -169,6 +181,7 @@ export async function bootstrap(options: {
     }
   }
   await refreshPolishState();
+  await refreshDashboardStats();
   stateStore.setRecentConversions(
     (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
       id: output.id,
@@ -192,9 +205,14 @@ export async function bootstrap(options: {
   stateStore.setProviders(await providerAuth.getState());
   const transcriptionProvider = createOpenAiSubTranscriptionProvider({
     auth: providerAuth,
+    pricing,
     settingsStore,
   });
-  const inferenceProvider = createOpenAiSubInferenceProvider({ auth: providerAuth, settingsStore });
+  const inferenceProvider = createOpenAiSubInferenceProvider({
+    auth: providerAuth,
+    pricing,
+    settingsStore,
+  });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
     provider: transcriptionProvider,
@@ -247,6 +265,7 @@ export async function bootstrap(options: {
       (await ensurePermissionsReady()) &&
       (await ensureWritingReady()),
     windows,
+    onDashboardStatsChanged: refreshDashboardStats,
   });
   let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
   let ruleSwitcherSelectionGeneration = 0;
@@ -466,6 +485,11 @@ export async function bootstrap(options: {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setPolishEnabled(enabled);
+    },
+    setTypingWpm: async (typingWpm) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setTypingWpm(typingWpm);
     },
     setActivePolishRulePreset: async (rulePresetId) => {
       if (stateStore.getState().phase !== 'idle')

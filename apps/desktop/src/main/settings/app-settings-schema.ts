@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import {
   DEFAULT_APP_SETTINGS,
   PROVIDER_IDS,
@@ -7,7 +9,6 @@ import {
   type AppSettings,
   type ProviderId,
 } from '@toph/desktop-contracts';
-import { z } from 'zod';
 
 const shortcutModifierSchema = z.enum(['command', 'control', 'option', 'alt', 'shift']);
 const shortcutChordSchema = z.object({
@@ -17,12 +18,16 @@ const shortcutChordSchema = z.object({
 
 const appSettingsFileSchema = z.object({
   version: z.literal(1),
-  shortcut: z.object({
-    chord: shortcutChordSchema,
-  }).optional(),
-  ruleSwitcherShortcut: z.object({
-    chord: shortcutChordSchema,
-  }).optional(),
+  shortcut: z
+    .object({
+      chord: shortcutChordSchema,
+    })
+    .optional(),
+  ruleSwitcherShortcut: z
+    .object({
+      chord: shortcutChordSchema,
+    })
+    .optional(),
   auth: z.object({
     providerId: z.string(),
   }),
@@ -39,6 +44,11 @@ const appSettingsFileSchema = z.object({
     rulePresetId: z.string().nullable().optional(),
     promptId: z.string().optional(),
   }),
+  dashboard: z
+    .object({
+      typingWpm: z.number(),
+    })
+    .optional(),
 });
 
 type AppSettingsFile = z.infer<typeof appSettingsFileSchema>;
@@ -66,18 +76,29 @@ function normalizeModel(model: string, fallback: string) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function normalizeTypingWpm(typingWpm: number | undefined) {
+  return typingWpm !== undefined &&
+    Number.isFinite(typingWpm) &&
+    typingWpm >= 20 &&
+    typingWpm <= 200
+    ? Math.round(typingWpm)
+    : defaultAppSettings.dashboard.typingWpm;
+}
+
 export function parseAppSettingsFile(value: unknown): AppSettingsFile {
   return appSettingsFileSchema.parse(value);
 }
 
-export function normalizeAppSettings(value: AppSettingsFile, options: { rulePresetIds: string[] }): AppSettings {
+export function normalizeAppSettings(
+  value: AppSettingsFile,
+  options: { rulePresetIds: string[] },
+): AppSettings {
   const selectedRulePresetId = value.polish.rulePresetId ?? value.polish.promptId ?? null;
-  const rulePresetId = selectedRulePresetId && options.rulePresetIds.includes(selectedRulePresetId)
-    ? selectedRulePresetId
-    : null;
-  const shortcutValidation = value.shortcut
-    ? validateShortcutChord(value.shortcut.chord)
-    : null;
+  const rulePresetId =
+    selectedRulePresetId && options.rulePresetIds.includes(selectedRulePresetId)
+      ? selectedRulePresetId
+      : null;
+  const shortcutValidation = value.shortcut ? validateShortcutChord(value.shortcut.chord) : null;
   const ruleSwitcherShortcutValidation = value.ruleSwitcherShortcut
     ? validateShortcutChord(value.ruleSwitcherShortcut.chord)
     : null;
@@ -85,7 +106,9 @@ export function normalizeAppSettings(value: AppSettingsFile, options: { rulePres
   return {
     version: 1,
     shortcut: {
-      chord: shortcutValidation?.valid ? shortcutValidation.chord : defaultAppSettings.shortcut.chord,
+      chord: shortcutValidation?.valid
+        ? shortcutValidation.chord
+        : defaultAppSettings.shortcut.chord,
     },
     ruleSwitcherShortcut: {
       chord: ruleSwitcherShortcutValidation?.valid
@@ -96,16 +119,25 @@ export function normalizeAppSettings(value: AppSettingsFile, options: { rulePres
       providerId: normalizeProviderId(value.auth.providerId, defaultAppSettings.auth.providerId),
     },
     transcription: {
-      providerId: normalizeProviderId(value.transcription.providerId, defaultAppSettings.transcription.providerId),
+      providerId: normalizeProviderId(
+        value.transcription.providerId,
+        defaultAppSettings.transcription.providerId,
+      ),
       model: normalizeModel(value.transcription.model, defaultAppSettings.transcription.model),
     },
     inference: {
-      providerId: normalizeProviderId(value.inference.providerId, defaultAppSettings.inference.providerId),
+      providerId: normalizeProviderId(
+        value.inference.providerId,
+        defaultAppSettings.inference.providerId,
+      ),
       model: normalizeModel(value.inference.model, defaultAppSettings.inference.model),
     },
     polish: {
       enabled: value.polish.enabled,
       rulePresetId,
+    },
+    dashboard: {
+      typingWpm: normalizeTypingWpm(value.dashboard?.typingWpm),
     },
   };
 }

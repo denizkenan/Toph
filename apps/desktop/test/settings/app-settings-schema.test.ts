@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveDefaultShortcutChord } from '@toph/desktop-contracts';
+import {
+  resolveDefaultRuleSwitcherShortcutChord,
+  resolveDefaultShortcutChord,
+} from '@toph/desktop-contracts';
 
-import { normalizeAppSettings, parseAppSettingsFile } from '../../src/main/settings/app-settings-schema.ts';
+import {
+  normalizeAppSettings,
+  parseAppSettingsFile,
+} from '../../src/main/settings/app-settings-schema.ts';
 
 test('normalizes unknown providers, empty models, and unknown rule presets to unresolved setup', () => {
   const settings = normalizeAppSettings(
@@ -21,10 +27,12 @@ test('normalizes unknown providers, empty models, and unknown rule presets to un
   assert.deepEqual(settings, {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
+    ruleSwitcherShortcut: { chord: resolveDefaultRuleSwitcherShortcutChord(process.platform) },
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: null },
+    dashboard: { typingWpm: 50 },
   });
 });
 
@@ -60,8 +68,8 @@ test('preserves legacy active prompt IDs as rule preset IDs when available', () 
 });
 
 test('rejects invalid settings structure', () => {
-  assert.throws(
-    () => parseAppSettingsFile({
+  assert.throws(() =>
+    parseAppSettingsFile({
       version: 1,
       shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
       auth: { providerId: 'openai-sub' },

@@ -32,7 +32,11 @@ function isPolishRulePresetDraft(value: unknown): value is PolishRulePresetDraft
   }
 
   const draft = value as Partial<PolishRulePresetDraft>;
-  return typeof draft.title === 'string' && typeof draft.description === 'string' && typeof draft.body === 'string';
+  return (
+    typeof draft.title === 'string' &&
+    typeof draft.description === 'string' &&
+    typeof draft.body === 'string'
+  );
 }
 
 function isDictionaryEntryDraft(value: unknown): value is DictionaryEntryDraft {
@@ -72,6 +76,7 @@ export function registerDesktopIpc(options: {
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
   setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
+  setTypingWpm: (typingWpm: number) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
@@ -124,18 +129,21 @@ export function registerDesktopIpc(options: {
 
     await options.installShortcut(validation.chord);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut, async (_event, chord: unknown) => {
-    if (!isShortcutChord(chord)) {
-      throw new Error('Invalid shortcut.');
-    }
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut,
+    async (_event, chord: unknown) => {
+      if (!isShortcutChord(chord)) {
+        throw new Error('Invalid shortcut.');
+      }
 
-    const validation = validateShortcutChord(chord);
-    if (!validation.valid) {
-      throw new Error('Invalid shortcut.');
-    }
+      const validation = validateShortcutChord(chord);
+      if (!validation.valid) {
+        throw new Error('Invalid shortcut.');
+      }
 
-    await options.installRuleSwitcherShortcut(validation.chord);
-  });
+      await options.installRuleSwitcherShortcut(validation.chord);
+    },
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.suspendShortcut, async () => {
     await options.suspendShortcut();
   });
@@ -148,13 +156,16 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.closeRuleSwitcher, async () => {
     await options.closeRuleSwitcher();
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset, async (_event, rulePresetId: unknown) => {
-    if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
-      throw new Error('Invalid Polish rule preset.');
-    }
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset,
+    async (_event, rulePresetId: unknown) => {
+      if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
+        throw new Error('Invalid Polish rule preset.');
+      }
 
-    await options.selectRuleSwitcherPreset(rulePresetId);
-  });
+      await options.selectRuleSwitcherPreset(rulePresetId);
+    },
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.connectProvider, async (_event, providerId: unknown) => {
     if (!isProviderId(providerId)) {
       throw new Error('Unknown provider.');
@@ -222,13 +233,23 @@ export function registerDesktopIpc(options: {
 
     await options.setPolishEnabled(enabled);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset, async (_event, rulePresetId: unknown) => {
-    if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
-      throw new Error('Invalid Polish rule preset.');
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setTypingWpm, async (_event, typingWpm: unknown) => {
+    if (typeof typingWpm !== 'number' || !Number.isFinite(typingWpm) || typingWpm < 20 || typingWpm > 200) {
+      throw new Error('Invalid typing speed.');
     }
 
-    await options.setActivePolishRulePreset(rulePresetId);
+    await options.setTypingWpm(Math.round(typingWpm));
   });
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setActivePolishRulePreset,
+    async (_event, rulePresetId: unknown) => {
+      if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
+        throw new Error('Invalid Polish rule preset.');
+      }
+
+      await options.setActivePolishRulePreset(rulePresetId);
+    },
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.createPolishRulePreset, async (_event, draft: unknown) => {
     if (!isPolishRulePresetDraft(draft)) {
       throw new Error('Invalid Polish rule preset.');
@@ -236,13 +257,16 @@ export function registerDesktopIpc(options: {
 
     await options.createPolishRulePreset(draft);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.updatePolishRulePreset, async (_event, id: unknown, draft: unknown) => {
-    if (typeof id !== 'string' || id.trim().length === 0 || !isPolishRulePresetDraft(draft)) {
-      throw new Error('Invalid Polish rule preset.');
-    }
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.updatePolishRulePreset,
+    async (_event, id: unknown, draft: unknown) => {
+      if (typeof id !== 'string' || id.trim().length === 0 || !isPolishRulePresetDraft(draft)) {
+        throw new Error('Invalid Polish rule preset.');
+      }
 
-    await options.updatePolishRulePreset(id, draft);
-  });
+      await options.updatePolishRulePreset(id, draft);
+    },
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.deletePolishRulePreset, async (_event, id: unknown) => {
     if (typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Invalid Polish rule preset.');
@@ -271,13 +295,16 @@ export function registerDesktopIpc(options: {
 
     await options.createDictionaryEntry(draft);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.updateDictionaryEntry, async (_event, id: unknown, draft: unknown) => {
-    if (typeof id !== 'string' || id.trim().length === 0 || !isDictionaryEntryDraft(draft)) {
-      throw new Error('Invalid dictionary entry.');
-    }
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.updateDictionaryEntry,
+    async (_event, id: unknown, draft: unknown) => {
+      if (typeof id !== 'string' || id.trim().length === 0 || !isDictionaryEntryDraft(draft)) {
+        throw new Error('Invalid dictionary entry.');
+      }
 
-    await options.updateDictionaryEntry(id, draft);
-  });
+      await options.updateDictionaryEntry(id, draft);
+    },
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry, async (_event, id: unknown) => {
     if (typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Invalid dictionary entry.');

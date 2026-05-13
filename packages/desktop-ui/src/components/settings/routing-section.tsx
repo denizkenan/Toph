@@ -1,4 +1,4 @@
-import type { ProviderId } from "@toph/desktop-contracts";
+import type { ProviderId } from '@toph/desktop-contracts';
 
 import {
   SettingsRow,
@@ -6,7 +6,7 @@ import {
   SettingsSelect,
   SettingsTextInput,
   type SettingsSelectItem,
-} from "./settings-controls";
+} from './settings-controls';
 
 export function RoutingSection({
   providerItems,

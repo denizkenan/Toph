@@ -54,6 +54,7 @@ export function createDictationController(options: {
   clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
+  onDashboardStatsChanged: () => Promise<void>;
 }): DictationController {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
@@ -202,8 +203,17 @@ export function createDictationController(options: {
   const pruneSessions = async () => {
     try {
       await options.sessionStore.pruneRetainedSessions();
+      await refreshDashboardStatsBestEffort();
     } catch (error) {
       console.error('Toph could not prune old recording sessions.', error);
+    }
+  };
+
+  const refreshDashboardStatsBestEffort = async () => {
+    try {
+      await options.onDashboardStatsChanged();
+    } catch (error) {
+      console.error('Toph could not refresh dashboard stats.', error);
     }
   };
 
@@ -535,6 +545,7 @@ export function createDictationController(options: {
         activeSession = null;
         lifecycle = 'idle';
         options.windows.emitSound('done');
+        void refreshDashboardStatsBestEffort();
         return;
       }
 
@@ -596,6 +607,7 @@ export function createDictationController(options: {
       activeSession = null;
       lifecycle = 'idle';
       options.windows.emitSound('done');
+      void refreshDashboardStatsBestEffort();
     } catch (error) {
       activePolishAbortController = null;
       if (!isCurrentOperation(operationGeneration)) {

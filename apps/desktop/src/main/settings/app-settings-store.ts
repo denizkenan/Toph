@@ -20,6 +20,7 @@ export interface AppSettingsStore {
   setInferenceProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setInferenceModel: (model: string) => Promise<AppSettings>;
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
+  setTypingWpm: (typingWpm: number) => Promise<AppSettings>;
   setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
 }
 
@@ -55,9 +56,10 @@ export async function createAppSettingsStore(options: {
     }
   };
 
-  const normalizeWithCurrentRules = async (value: unknown) => normalizeAppSettings(parseAppSettingsFile(value), {
-    rulePresetIds: await options.listRulePresetIds(),
-  });
+  const normalizeWithCurrentRules = async (value: unknown) =>
+    normalizeAppSettings(parseAppSettingsFile(value), {
+      rulePresetIds: await options.listRulePresetIds(),
+    });
 
   const loadFromDisk = async () => {
     let raw: string;
@@ -68,7 +70,9 @@ export async function createAppSettingsStore(options: {
         throw error;
       }
 
-      const defaults = normalizeAppSettings(fallbackSettings, { rulePresetIds: await options.listRulePresetIds() });
+      const defaults = normalizeAppSettings(fallbackSettings, {
+        rulePresetIds: await options.listRulePresetIds(),
+      });
       await writeSettings(defaults);
       return defaults;
     }
@@ -82,7 +86,9 @@ export async function createAppSettingsStore(options: {
       return normalized;
     } catch {
       await rename(options.settingsPath, invalidSettingsPath(options.settingsPath));
-      const defaults = normalizeAppSettings(fallbackSettings, { rulePresetIds: await options.listRulePresetIds() });
+      const defaults = normalizeAppSettings(fallbackSettings, {
+        rulePresetIds: await options.listRulePresetIds(),
+      });
       await writeSettings(defaults);
       return defaults;
     }
@@ -92,7 +98,9 @@ export async function createAppSettingsStore(options: {
     const task = writeQueue.then(async () => {
       const draft = cloneSettings(settings);
       update(draft);
-      const normalized = normalizeAppSettings(draft, { rulePresetIds: await options.listRulePresetIds() });
+      const normalized = normalizeAppSettings(draft, {
+        rulePresetIds: await options.listRulePresetIds(),
+      });
       if (!settingsEqual(settings, normalized)) {
         await writeSettings(normalized);
         settings = normalized;
@@ -172,6 +180,12 @@ export async function createAppSettingsStore(options: {
     setPolishEnabled(enabled) {
       return commit((draft) => {
         draft.polish.enabled = enabled;
+      });
+    },
+
+    setTypingWpm(typingWpm) {
+      return commit((draft) => {
+        draft.dashboard.typingWpm = typingWpm;
       });
     },
 
