@@ -218,7 +218,8 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         console.error('Toph live audio chunk observer failed.', error);
       });
     } catch (error) {
-      captureError = error instanceof Error ? error : new Error('Audio chunk could not be written.');
+      captureError =
+        error instanceof Error ? error : new Error('Audio chunk could not be written.');
       startDeferred?.reject(captureError);
       stopDeferred?.reject(captureError);
       startDeferred = null;

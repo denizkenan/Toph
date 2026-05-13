@@ -40,7 +40,9 @@ class EnergyStreamingSpeechActivitySession implements StreamingSpeechActivityAna
     );
 
     if (rms < threshold) {
-      this.noiseFloor = this.noiseFloor * (1 - this.policy.noiseAdaptationRate) + rms * this.policy.noiseAdaptationRate;
+      this.noiseFloor =
+        this.noiseFloor * (1 - this.policy.noiseAdaptationRate) +
+        rms * this.policy.noiseAdaptationRate;
     }
 
     if (threshold === 0) {

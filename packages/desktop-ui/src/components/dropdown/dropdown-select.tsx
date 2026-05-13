@@ -36,11 +36,24 @@ export function DropdownSelect<TValue extends string>({
   const triggerClass = variant === 'inline' ? selectTriggerInlineClass : selectTriggerDefaultClass;
 
   return (
-    <Select.Root items={items} value={value} onValueChange={(nextValue) => nextValue != null && onValueChange(nextValue as TValue)}>
+    <Select.Root
+      items={items}
+      value={value}
+      onValueChange={(nextValue) => nextValue != null && onValueChange(nextValue as TValue)}
+    >
       <Select.Trigger aria-label={ariaLabel} className={triggerClass} disabled={disabled}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon className="text-text-tertiary">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M3 2L7 5L3 8" />
           </svg>
         </Select.Icon>

@@ -218,7 +218,11 @@ export function SettingsNumberInput({
 
   const commit = () => {
     const next = Number(draft);
-    if (!Number.isFinite(next) || (min !== undefined && next < min) || (max !== undefined && next > max)) {
+    if (
+      !Number.isFinite(next) ||
+      (min !== undefined && next < min) ||
+      (max !== undefined && next > max)
+    ) {
       setDraft(String(value));
       return;
     }

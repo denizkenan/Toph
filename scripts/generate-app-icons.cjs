@@ -25,10 +25,7 @@ const icnsRepresentations = [
 ];
 
 async function renderPng(size) {
-  return sharp(sourcePath)
-    .resize(size, size, { fit: 'contain' })
-    .png()
-    .toBuffer();
+  return sharp(sourcePath).resize(size, size, { fit: 'contain' }).png().toBuffer();
 }
 
 async function renderMacPng(size) {
@@ -129,10 +126,7 @@ async function main() {
   );
   console.log('Generated icon.ico');
 
-  await fs.writeFile(
-    path.join(outputDir, 'icon.icns'),
-    encodeIcns(macImages),
-  );
+  await fs.writeFile(path.join(outputDir, 'icon.icns'), encodeIcns(macImages));
   console.log('Generated icon.icns');
 }
 

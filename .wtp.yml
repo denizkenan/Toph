@@ -5,5 +5,5 @@ hooks:
     - type: command
       command: mkdir .toph
     - type: copy
-      from: ".toph/auth.json"
-      to: ".toph/auth.json"
+      from: '.toph/auth.json'
+      to: '.toph/auth.json'

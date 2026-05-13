@@ -1,4 +1,3 @@
-import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -16,6 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
 
 import type {
   DesktopApi,
@@ -28,7 +28,13 @@ import { MAX_POLISH_RULE_PRESETS as maxPolishRulePresets } from '@toph/desktop-c
 
 import { Button } from '../button';
 import { ModalShell } from '../modal';
-import { SettingsIcon, SettingsNumberInput, SettingsRow, SettingsSection, SettingsSwitch } from './settings-controls';
+import {
+  SettingsIcon,
+  SettingsNumberInput,
+  SettingsRow,
+  SettingsSection,
+  SettingsSwitch,
+} from './settings-controls';
 
 const hiddenScrollbarClass = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
@@ -45,7 +51,9 @@ function SortableRuleButton({
   active: boolean;
   onSelect: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: preset.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: preset.id,
+  });
 
   return (
     <div
@@ -173,7 +181,8 @@ function RulesModal({
 
   const draft = (): PolishRulePresetDraft => ({ title, description, body });
   const canAddRule = rulePresets.length < maxPolishRulePresets;
-  const canDeleteSelected = selected && rulePresets.length > 1 && activeRulePresetId !== selected.id;
+  const canDeleteSelected =
+    selected && rulePresets.length > 1 && activeRulePresetId !== selected.id;
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
@@ -226,7 +235,10 @@ function RulesModal({
             </Button>
           )}
           {!selected && (
-            <Button onClick={() => void createCustom(draft())} disabled={disabled || busy || !canAddRule}>
+            <Button
+              onClick={() => void createCustom(draft())}
+              disabled={disabled || busy || !canAddRule}
+            >
               Create
             </Button>
           )}
@@ -260,11 +272,19 @@ function RulesModal({
           </Button>
           {!canAddRule && (
             <p className="mb-3 rounded-2xl border border-accent-amber/18 bg-accent-amber/10 p-3 text-xs leading-relaxed text-accent-amber">
-              Nine rules max. Delete a rule before adding another so every rule keeps a number shortcut.
+              Nine rules max. Delete a rule before adding another so every rule keeps a number
+              shortcut.
             </p>
           )}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={rulePresets.map((preset) => preset.id)} strategy={verticalListSortingStrategy}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={rulePresets.map((preset) => preset.id)}
+              strategy={verticalListSortingStrategy}
+            >
               <div className="grid gap-2">
                 {rulePresets.map((preset, index) => (
                   <SortableRuleButton
@@ -312,7 +332,8 @@ function RulesModal({
             </label>
             {selected && activeRulePresetId === selected.id && (
               <p className="m-0 rounded-xl border border-white/6 bg-white/3 px-3 py-2 text-xs leading-relaxed text-text-tertiary">
-                Active rules cannot be deleted. Switch to another rule first; succession planning, but tiny.
+                Active rules cannot be deleted. Switch to another rule first; succession planning,
+                but tiny.
               </p>
             )}
             {error && (

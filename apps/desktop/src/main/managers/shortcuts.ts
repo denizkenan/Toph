@@ -18,8 +18,10 @@ const { app, globalShortcut } = electron;
 const GNOME_MEDIA_KEYS_SCHEMA = 'org.gnome.settings-daemon.plugins.media-keys';
 const GNOME_CUSTOM_KEYBINDING_SCHEMA =
   'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding';
-const GNOME_TOPH_DICTATION_PATH = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph/';
-const GNOME_TOPH_RULE_SWITCHER_PATH = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph-rule-switcher/';
+const GNOME_TOPH_DICTATION_PATH =
+  '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph/';
+const GNOME_TOPH_RULE_SWITCHER_PATH =
+  '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph-rule-switcher/';
 
 export interface ShortcutManagerConfig {
   launcherScriptPath: string;
@@ -30,7 +32,10 @@ export interface ShortcutManagerConfig {
 export interface ShortcutManager {
   installDictationShortcut: (chord: ShortcutChord) => Promise<void>;
   installRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
-  registerSavedShortcuts: (chords: { dictation: ShortcutChord; ruleSwitcher: ShortcutChord }) => Promise<void>;
+  registerSavedShortcuts: (chords: {
+    dictation: ShortcutChord;
+    ruleSwitcher: ShortcutChord;
+  }) => Promise<void>;
   suspend: () => Promise<void>;
   resume: () => Promise<void>;
   unregister: () => void;
@@ -148,17 +153,40 @@ async function installGnomeShortcut(options: {
     ? keybindings
     : [...keybindings, options.path];
 
-  await gsettingsSet(GNOME_MEDIA_KEYS_SCHEMA, 'custom-keybindings', serializeStringArray(updatedKeybindings));
-  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'name', quoteVariantString(options.name), options.path);
-  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'command', quoteVariantString(options.command), options.path);
-  await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'binding', quoteVariantString(options.binding), options.path);
+  await gsettingsSet(
+    GNOME_MEDIA_KEYS_SCHEMA,
+    'custom-keybindings',
+    serializeStringArray(updatedKeybindings),
+  );
+  await gsettingsSet(
+    GNOME_CUSTOM_KEYBINDING_SCHEMA,
+    'name',
+    quoteVariantString(options.name),
+    options.path,
+  );
+  await gsettingsSet(
+    GNOME_CUSTOM_KEYBINDING_SCHEMA,
+    'command',
+    quoteVariantString(options.command),
+    options.path,
+  );
+  await gsettingsSet(
+    GNOME_CUSTOM_KEYBINDING_SCHEMA,
+    'binding',
+    quoteVariantString(options.binding),
+    options.path,
+  );
 }
 
 async function suspendGnomeShortcut(path: string) {
   await gsettingsSet(GNOME_CUSTOM_KEYBINDING_SCHEMA, 'binding', quoteVariantString(''), path);
 }
 
-function createSupport(chord: ShortcutChord, registered: boolean, backend: ShortcutBackend): ShortcutSupport {
+function createSupport(
+  chord: ShortcutChord,
+  registered: boolean,
+  backend: ShortcutBackend,
+): ShortcutSupport {
   const label = formatShortcutChord(chord, process.platform);
   return {
     backend,
@@ -209,7 +237,11 @@ export function createShortcutManager(options: {
 
     return {
       dictation: createSupport(chords.dictation, dictationRegistered, 'electron-global-shortcut'),
-      ruleSwitcher: createSupport(chords.ruleSwitcher, ruleSwitcherRegistered, 'electron-global-shortcut'),
+      ruleSwitcher: createSupport(
+        chords.ruleSwitcher,
+        ruleSwitcherRegistered,
+        'electron-global-shortcut',
+      ),
     };
   };
 
@@ -238,7 +270,10 @@ export function createShortcutManager(options: {
       const detail = `GNOME custom shortcut fallback could not be installed. ${describeError(error)}.`;
       return {
         dictation: { ...createSupport(chords.dictation, false, 'gnome-custom-shortcut'), detail },
-        ruleSwitcher: { ...createSupport(chords.ruleSwitcher, false, 'gnome-custom-shortcut'), detail },
+        ruleSwitcher: {
+          ...createSupport(chords.ruleSwitcher, false, 'gnome-custom-shortcut'),
+          detail,
+        },
       };
     }
   };
@@ -249,7 +284,10 @@ export function createShortcutManager(options: {
       : registerElectronShortcuts(chords);
   };
 
-  const applyState = (chords: typeof savedChords, support: Awaited<ReturnType<typeof registerShortcuts>>) => {
+  const applyState = (
+    chords: typeof savedChords,
+    support: Awaited<ReturnType<typeof registerShortcuts>>,
+  ) => {
     options.stateStore.setShortcut('dictation', chords.dictation, support.dictation);
     options.stateStore.setShortcut('ruleSwitcher', chords.ruleSwitcher, support.ruleSwitcher);
   };

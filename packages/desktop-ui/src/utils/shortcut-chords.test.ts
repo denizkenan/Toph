@@ -23,7 +23,9 @@ describe('shortcut chords', () => {
   });
 
   it('maps Enter to the GNOME accelerator name', () => {
-    expect(shortcutChordToGnomeBinding({ modifiers: ['control'], key: 'Enter' })).toBe('<Primary>Return');
+    expect(shortcutChordToGnomeBinding({ modifiers: ['control'], key: 'Enter' })).toBe(
+      '<Primary>Return',
+    );
   });
 
   it('allows function keys without modifiers', () => {

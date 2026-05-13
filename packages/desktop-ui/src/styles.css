@@ -1,4 +1,4 @@
-@import "tailwindcss" source(".");
+@import 'tailwindcss' source('.');
 
 @theme {
   --color-canvas: #24273a;
@@ -13,11 +13,12 @@
   --color-accent-green: #a6da95;
   --color-accent-red: #ed8796;
   --color-accent-cyan: #91d7e3;
-  --font-body: "Source Sans 3", system-ui, sans-serif;
-  --font-display: "Sora", system-ui, sans-serif;
+  --font-body: 'Source Sans 3', system-ui, sans-serif;
+  --font-display: 'Sora', system-ui, sans-serif;
   --shadow-menu: 0 16px 48px rgba(0, 0, 0, 0.4);
   --animate-onboarding-ready-enter: onboarding-ready-enter 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-rule-switcher-content-enter: rule-switcher-content-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-rule-switcher-content-enter: rule-switcher-content-enter 280ms
+    cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-spin-ring: spin 820ms linear infinite;
   --animate-wave: wave 1s ease-in-out infinite;
 }

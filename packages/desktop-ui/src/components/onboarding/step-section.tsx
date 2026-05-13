@@ -19,9 +19,7 @@ export function StepSection({
   children: ReactNode;
 }) {
   return (
-    <section
-      className="relative grid grid-cols-[2.75rem_1fr] gap-5 pb-9 max-[640px]:grid-cols-[2.25rem_1fr] max-[640px]:gap-3.5"
-    >
+    <section className="relative grid grid-cols-[2.75rem_1fr] gap-5 pb-9 max-[640px]:grid-cols-[2.25rem_1fr] max-[640px]:gap-3.5">
       {showConnector && (
         <span
           className={`absolute top-11 -bottom-1 left-5.25 w-0.5 rounded-full max-[640px]:left-4.25 ${complete ? 'bg-accent-green/22' : 'bg-white/6'}`}

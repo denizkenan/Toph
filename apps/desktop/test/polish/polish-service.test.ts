@@ -1,9 +1,12 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-import { TransientInferenceProviderError, type InferenceProvider } from '../../src/main/inference/inference-provider.ts';
-import { createPolishService } from '../../src/main/polish/polish-service.ts';
 import type { DictionaryEntry } from '../../src/main/db/schema.ts';
+import {
+  TransientInferenceProviderError,
+  type InferenceProvider,
+} from '../../src/main/inference/inference-provider.ts';
+import { createPolishService } from '../../src/main/polish/polish-service.ts';
 
 const rulePreset = {
   id: 'general',
@@ -17,7 +20,14 @@ const rulePreset = {
   updatedAt: 1,
 };
 
-function createService(provider: InferenceProvider, options: { rulePresetAvailable?: boolean; dictionaryEntries?: DictionaryEntry[]; onCreatePolishedOutput?: (input: Parameters<SessionOutputCreatePolishedOutput>[0]) => void } = {}) {
+function createService(
+  provider: InferenceProvider,
+  options: {
+    rulePresetAvailable?: boolean;
+    dictionaryEntries?: DictionaryEntry[];
+    onCreatePolishedOutput?: (input: Parameters<SessionOutputCreatePolishedOutput>[0]) => void;
+  } = {},
+) {
   return createPolishService({
     inference: provider,
     settingsStore: {
@@ -57,7 +67,9 @@ function createService(provider: InferenceProvider, options: { rulePresetAvailab
 }
 
 type SessionOutputCreatePolishedOutput = SessionOutputServiceCreatePolishedOutput;
-type SessionOutputServiceCreatePolishedOutput = Parameters<typeof createPolishService>[0]['outputs']['createPolishedOutput'];
+type SessionOutputServiceCreatePolishedOutput = Parameters<
+  typeof createPolishService
+>[0]['outputs']['createPolishedOutput'];
 
 test('retries transient empty inference output failures', async () => {
   let attempts = 0;
@@ -171,7 +183,11 @@ test('does not retry permanent inference failures', async () => {
   });
 
   await assert.rejects(
-    () => service.polishOutput({ sessionId: 'session-1', rawOutput: { id: 'raw-output', text: 'raw text' } }),
+    () =>
+      service.polishOutput({
+        sessionId: 'session-1',
+        rawOutput: { id: 'raw-output', text: 'raw text' },
+      }),
     /permanent failure/,
   );
   assert.equal(attempts, 1);
@@ -189,7 +205,11 @@ test('fails when the active rule preset is unavailable', async () => {
   );
 
   await assert.rejects(
-    () => service.polishOutput({ sessionId: 'session-1', rawOutput: { id: 'raw-output', text: 'raw text' } }),
+    () =>
+      service.polishOutput({
+        sessionId: 'session-1',
+        rawOutput: { id: 'raw-output', text: 'raw text' },
+      }),
     /not available/,
   );
 });

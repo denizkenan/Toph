@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PlannedBatchSourceRange, PlannedTranscriptionBatch, TimelineRegionDraft } from '../types';
+import type {
+  PlannedBatchSourceRange,
+  PlannedTranscriptionBatch,
+  TimelineRegionDraft,
+} from '../types';
 
 export interface LiveBatchPlanningPolicy {
   preferredMinDerivedBatchMs: number;
@@ -60,10 +64,10 @@ export class LiveBatchPlanner {
   private readonly emittedRanges: PlannedBatchSourceRange[] = [];
 
   constructor(options: {
-      sessionId: string;
-      createdLive: boolean;
-      policy?: Partial<LiveBatchPlanningPolicy>;
-    }) {
+    sessionId: string;
+    createdLive: boolean;
+    policy?: Partial<LiveBatchPlanningPolicy>;
+  }) {
     this.sessionId = options.sessionId;
     this.createdLive = options.createdLive;
     this.policy = { ...defaultPolicy, ...options.policy };

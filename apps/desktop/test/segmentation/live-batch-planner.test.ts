@@ -1,8 +1,11 @@
-import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 
 import { LiveBatchPlanner } from '../../src/main/segmentation/streaming/live-batch-planner.ts';
-import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../../src/main/segmentation/types.ts';
+import type {
+  PlannedTranscriptionBatch,
+  TimelineRegionDraft,
+} from '../../src/main/segmentation/types.ts';
 
 function region(
   sequence: number,

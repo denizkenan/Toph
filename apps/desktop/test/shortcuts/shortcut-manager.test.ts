@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { shortcutChordToElectronAccelerator, type AppState, type ShortcutChord } from '@toph/desktop-contracts';
+import {
+  shortcutChordToElectronAccelerator,
+  type AppState,
+  type ShortcutChord,
+} from '@toph/desktop-contracts';
 
 import { createShortcutManagerCore } from '../../src/main/managers/shortcut-manager-core.ts';
 import { createShortcutManager } from '../../src/main/managers/shortcuts.ts';
@@ -37,7 +41,11 @@ function createStateStore(chord: ShortcutChord = defaultChord) {
     getState() {
       return state;
     },
-    setShortcut(kind: 'dictation' | 'ruleSwitcher', nextChord: ShortcutChord, support: ShortcutStateSupport) {
+    setShortcut(
+      kind: 'dictation' | 'ruleSwitcher',
+      nextChord: ShortcutChord,
+      support: ShortcutStateSupport,
+    ) {
       if (kind === 'dictation') {
         state.shortcut = {
           ...state.shortcut,

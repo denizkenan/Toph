@@ -47,7 +47,10 @@ function percentile(values: number[], percentileValue: number) {
   }
 
   const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * percentileValue)));
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.floor(sorted.length * percentileValue)),
+  );
   return sorted[index];
 }
 
@@ -162,9 +165,7 @@ export function createEnergySpeechActivityAnalyzer(
       const mergedIntervals = mergeSpeechIntervals(
         rawSpeechIntervals,
         resolvedPolicy.minSilenceMs,
-      ).filter(
-        (interval) => interval.endMs - interval.startMs >= resolvedPolicy.minSpeechMs,
-      );
+      ).filter((interval) => interval.endMs - interval.startMs >= resolvedPolicy.minSpeechMs);
       const paddedIntervals = mergedIntervals.map((interval) => ({
         startMs: Math.max(0, interval.startMs - resolvedPolicy.speechPaddingMs),
         endMs: Math.min(durationMs, interval.endMs + resolvedPolicy.speechPaddingMs),

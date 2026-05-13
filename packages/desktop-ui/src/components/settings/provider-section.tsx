@@ -1,12 +1,7 @@
-import type { ProviderConnection } from "@toph/desktop-contracts";
+import type { ProviderConnection } from '@toph/desktop-contracts';
 
-import { Button } from "../button";
-import {
-  SettingsIcon,
-  SettingsRow,
-  SettingsSection,
-  StatusBadge,
-} from "./settings-controls";
+import { Button } from '../button';
+import { SettingsIcon, SettingsRow, SettingsSection, StatusBadge } from './settings-controls';
 
 export function ProviderSection({
   provider,
@@ -19,11 +14,9 @@ export function ProviderSection({
   onConnect: () => void;
   onRemove: () => void;
 }) {
-  const connected = provider?.status === "connected";
+  const connected = provider?.status === 'connected';
   const canConnect = Boolean(provider && (!connected || provider.error));
-  const connectLabel = connected || provider?.status === "invalid"
-    ? "Reconnect"
-    : "Connect";
+  const connectLabel = connected || provider?.status === 'invalid' ? 'Reconnect' : 'Connect';
 
   return (
     <SettingsSection
@@ -42,7 +35,7 @@ export function ProviderSection({
           <SettingsRow
             label={provider.label}
             description={provider.description}
-            icon={(
+            icon={
               <SettingsIcon tone="blue">
                 <svg
                   width="17"
@@ -58,7 +51,7 @@ export function ProviderSection({
                   <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
                 </svg>
               </SettingsIcon>
-            )}
+            }
           >
             <StatusBadge
               active={connected}
@@ -69,11 +62,7 @@ export function ProviderSection({
           </SettingsRow>
 
           {provider.error && (
-            <SettingsRow
-              label="Provider error"
-              description={provider.error}
-              tone="danger"
-            />
+            <SettingsRow label="Provider error" description={provider.error} tone="danger" />
           )}
 
           <div className="flex justify-end gap-2 px-4 py-3">
@@ -81,7 +70,7 @@ export function ProviderSection({
               <Button
                 variant="primary"
                 onClick={onConnect}
-                disabled={busy || provider.status === "connecting"}
+                disabled={busy || provider.status === 'connecting'}
               >
                 {connectLabel}
               </Button>

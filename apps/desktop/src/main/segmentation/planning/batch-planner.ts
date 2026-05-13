@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PlannedBatchSourceRange, PlannedTranscriptionBatch, TimelineRegionDraft } from '../types';
+import type {
+  PlannedBatchSourceRange,
+  PlannedTranscriptionBatch,
+  TimelineRegionDraft,
+} from '../types';
 
 export interface BatchPlanningPolicy {
   preferredMinDerivedBatchMs: number;
@@ -136,7 +140,10 @@ export function planTranscriptionBatches(options: {
       // Preserve both pause edges so soft starts/ends around a long pause are not clipped.
       const leadingPauseMs = Math.min(policy.shortenedPauseMs, Math.floor(durationMs / 2));
       const trailingPauseMs = Math.min(policy.shortenedPauseMs, durationMs - leadingPauseMs);
-      const trailingStartMs = Math.max(region.startMs + leadingPauseMs, region.endMs - trailingPauseMs);
+      const trailingStartMs = Math.max(
+        region.startMs + leadingPauseMs,
+        region.endMs - trailingPauseMs,
+      );
 
       appendPauseRange({
         region,

@@ -95,7 +95,8 @@ window.tophCapture.onStop(() => {
   stopCapture().catch((error: unknown) => {
     window.tophCapture.sendError({
       sessionId: activeSessionId,
-      message: error instanceof Error ? error.message : 'Microphone capture could not stop cleanly.',
+      message:
+        error instanceof Error ? error.message : 'Microphone capture could not stop cleanly.',
     });
   });
 });

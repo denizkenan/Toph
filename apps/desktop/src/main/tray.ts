@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 
 import { Menu, Tray, nativeImage, nativeTheme } from 'electron';
 
-import trayIconDark2x from '../../../../assets/tray-icon-dark@2x.png?asset';
-import trayIconDark from '../../../../assets/tray-icon-dark.png?asset';
-import trayIconLight2x from '../../../../assets/tray-icon-light@2x.png?asset';
-import trayIconLight from '../../../../assets/tray-icon-light.png?asset';
-import trayIconTemplate2x from '../../../../assets/tray-iconTemplate@2x.png?asset';
-import trayIconTemplate from '../../../../assets/tray-iconTemplate.png?asset';
-
 import type { AppState } from '@toph/desktop-contracts';
+
+import trayIconDark from '../../../../assets/tray-icon-dark.png?asset';
+import trayIconDark2x from '../../../../assets/tray-icon-dark@2x.png?asset';
+import trayIconLight from '../../../../assets/tray-icon-light.png?asset';
+import trayIconLight2x from '../../../../assets/tray-icon-light@2x.png?asset';
+import trayIconTemplate from '../../../../assets/tray-iconTemplate.png?asset';
+import trayIconTemplate2x from '../../../../assets/tray-iconTemplate@2x.png?asset';
 
 function isTophReady(state: AppState) {
   return state.providers.ready && state.permissions.ready && state.shortcut.registered;

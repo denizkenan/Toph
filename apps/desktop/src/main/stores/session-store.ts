@@ -62,7 +62,10 @@ export interface RecordingSessionStore {
   discardSessionArtifacts: (sessionId: string) => Promise<void>;
   setProcessingError: (options: { sessionId: string; errorMessage: string }) => Promise<void>;
   clearProcessingError: (sessionId: string) => Promise<void>;
-  clearSegmentationData: (sessionId: string, options?: { preserveSelectedOutput?: boolean }) => Promise<void>;
+  clearSegmentationData: (
+    sessionId: string,
+    options?: { preserveSelectedOutput?: boolean },
+  ) => Promise<void>;
   insertTimelineRegions: (options: {
     sessionId: string;
     regions: TimelineRegionDraft[];
@@ -103,7 +106,9 @@ export interface RecordingSessionStore {
     rollingWindowDays: number;
     typingWpm: number;
   }) => Promise<DashboardStats>;
-  prepareSessionForOutputRerun: (outputId: string) => Promise<{ session: RecordingSession; outputId: string }>;
+  prepareSessionForOutputRerun: (
+    outputId: string,
+  ) => Promise<{ session: RecordingSession; outputId: string }>;
   removeSessionForOutput: (outputId: string) => Promise<void>;
   syncDefaultPolishRulePreset: (rulePreset: {
     id: string;
@@ -354,7 +359,10 @@ export async function createRecordingSessionStore(options: {
     migrationsFolder: options.migrationsFolder,
   });
 
-  const clearSessionGeneratedData = (sessionId: string, clearOptions: { keepOutputId?: string } = {}) => {
+  const clearSessionGeneratedData = (
+    sessionId: string,
+    clearOptions: { keepOutputId?: string } = {},
+  ) => {
     db.transaction(() => {
       const batches = db
         .select({ id: transcriptionBatches.id })
@@ -396,14 +404,20 @@ export async function createRecordingSessionStore(options: {
       db.delete(sessionOutputs)
         .where(
           clearOptions.keepOutputId
-            ? and(eq(sessionOutputs.sessionId, sessionId), ne(sessionOutputs.id, clearOptions.keepOutputId))
+            ? and(
+                eq(sessionOutputs.sessionId, sessionId),
+                ne(sessionOutputs.id, clearOptions.keepOutputId),
+              )
             : eq(sessionOutputs.sessionId, sessionId),
         )
         .run();
     });
   };
 
-  const clearSessionGeneratedArtifacts = async (session: RecordingSession, clearOptions: { keepOutputId?: string } = {}) => {
+  const clearSessionGeneratedArtifacts = async (
+    session: RecordingSession,
+    clearOptions: { keepOutputId?: string } = {},
+  ) => {
     clearSessionGeneratedData(session.id, clearOptions);
     await rm(join(dirname(session.rawAudioPath), 'batches'), { recursive: true, force: true });
   };
@@ -583,7 +597,9 @@ export async function createRecordingSessionStore(options: {
       }
 
       await clearSessionGeneratedArtifacts(session, {
-        keepOutputId: clearOptions?.preserveSelectedOutput ? (session.selectedOutputId ?? undefined) : undefined,
+        keepOutputId: clearOptions?.preserveSelectedOutput
+          ? (session.selectedOutputId ?? undefined)
+          : undefined,
       });
     },
 
@@ -845,7 +861,9 @@ export async function createRecordingSessionStore(options: {
           outputIds.length > 0
             ? `(operation_kind = 'inference' and related_entity_kind = 'session_output' and related_entity_id in (${outputIds.map(() => '?').join(',')}))`
             : null,
-        ].filter(Boolean).join(' or ');
+        ]
+          .filter(Boolean)
+          .join(' or ');
         const usageRows = sqlite
           .prepare(`
             select
@@ -869,7 +887,10 @@ export async function createRecordingSessionStore(options: {
           if (row.billingMode === 'subscription') {
             subscriptionEstimatedCostUsdMicros += row.total;
           }
-          if ((row.billingMode === 'metered' || row.billingMode === 'unknown') && row.costSource === 'none') {
+          if (
+            (row.billingMode === 'metered' || row.billingMode === 'unknown') &&
+            row.costSource === 'none'
+          ) {
             costEstimateIncomplete = true;
           }
         }

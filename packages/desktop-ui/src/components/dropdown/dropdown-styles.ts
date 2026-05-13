@@ -10,11 +10,9 @@ export const itemIndicatorClass =
 export const itemClass =
   'flex cursor-default items-center gap-2 rounded-lg px-2.5 py-[7px] text-[0.8125rem] text-text-primary outline-hidden select-none transition-colors duration-100 data-highlighted:bg-white/8';
 
-export const dangerItemClass =
-  `${itemClass} text-accent-red data-highlighted:text-accent-red`;
+export const dangerItemClass = `${itemClass} text-accent-red data-highlighted:text-accent-red`;
 
-export const separatorClass =
-  'mx-1.5 my-[3px] h-px bg-white/6';
+export const separatorClass = 'mx-1.5 my-[3px] h-px bg-white/6';
 
 export const selectTriggerInlineClass =
   'inline-flex min-w-0 items-center justify-end gap-2 rounded-lg bg-transparent px-0 py-0 text-right text-sm font-semibold text-text-secondary transition-colors duration-150 hover:text-text-primary data-popup-open:text-text-primary disabled:opacity-55';

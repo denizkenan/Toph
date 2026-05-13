@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react';
-
 import { Menu } from '@base-ui/react/menu';
+import type { ReactNode } from 'react';
 
 import {
   dangerItemClass,
@@ -38,7 +37,10 @@ export function DropdownMenu({
 }) {
   return (
     <Menu.Root>
-      <Menu.Trigger aria-label={ariaLabel} className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden">
+      <Menu.Trigger
+        aria-label={ariaLabel}
+        className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-transparent text-text-tertiary transition-all duration-200 ease-out hover:bg-white/8 hover:text-text-primary focus:bg-white/8 focus:text-text-primary focus:outline-hidden"
+      >
         {trigger}
       </Menu.Trigger>
       <Menu.Portal>

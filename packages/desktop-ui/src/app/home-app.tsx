@@ -92,7 +92,15 @@ function formatShortcutChordAssistiveLabel(chord: ShortcutChord): string {
   ].join(' + ');
 }
 
-function ShortcutKeyChips({ chord, platform, compact = false }: { chord: ShortcutChord; platform: NodeJS.Platform; compact?: boolean }) {
+function ShortcutKeyChips({
+  chord,
+  platform,
+  compact = false,
+}: {
+  chord: ShortcutChord;
+  platform: NodeJS.Platform;
+  compact?: boolean;
+}) {
   const keys = formatShortcutChordKeys(chord, platform);
 
   return (
@@ -110,7 +118,15 @@ function ShortcutKeyChips({ chord, platform, compact = false }: { chord: Shortcu
   );
 }
 
-function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; client: DesktopApi; onNavigateSettings: () => void }) {
+function HomeScreen({
+  state,
+  client,
+  onNavigateSettings,
+}: {
+  state: AppState;
+  client: DesktopApi;
+  onNavigateSettings: () => void;
+}) {
   const systemStatus = deriveSystemStatus(state);
   const dashboardStats = state.dashboardStats;
 
@@ -213,7 +229,11 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
               <p className="m-0 font-display text-base text-text-primary">Nothing here yet.</p>
               <span className="text-sm text-text-secondary">
                 Press{' '}
-                <ShortcutKeyChips chord={state.shortcut.chord} platform={state.environment.platform} compact />{' '}
+                <ShortcutKeyChips
+                  chord={state.shortcut.chord}
+                  platform={state.environment.platform}
+                  compact
+                />{' '}
                 and say something brilliant. Or mediocre. I don't judge.
               </span>
             </div>
@@ -241,7 +261,15 @@ function HomeScreen({ state, client, onNavigateSettings }: { state: AppState; cl
   );
 }
 
-function HeaderShortcutHint({ chord, platform, action }: { chord: ShortcutChord; platform: NodeJS.Platform; action: string }) {
+function HeaderShortcutHint({
+  chord,
+  platform,
+  action,
+}: {
+  chord: ShortcutChord;
+  platform: NodeJS.Platform;
+  action: string;
+}) {
   return (
     <span className="inline-flex items-center gap-1.5 text-sm text-text-tertiary whitespace-nowrap">
       <ShortcutKeyChips chord={chord} platform={platform} compact />
@@ -313,5 +341,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     return <SettingsPage state={state} client={client} onBack={() => setView('home')} />;
   }
 
-  return <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />;
+  return (
+    <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />
+  );
 }

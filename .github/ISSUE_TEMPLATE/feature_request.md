@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Pitch an idea. Start with the problem you're hitting.
-title: "[Feature] "
+title: '[Feature] '
 labels: enhancement
 ---
 

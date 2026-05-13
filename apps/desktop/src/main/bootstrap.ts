@@ -183,16 +183,18 @@ export async function bootstrap(options: {
   await refreshPolishState();
   await refreshDashboardStats();
   const refreshRecentConversions = async (detailsByOutputId: Record<string, string> = {}) => {
-    stateStore.setRecentConversions((await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
-      id: output.id,
-      text: output.text,
-      kind: output.kind,
-      rulePresetId: output.rulePresetId,
-      rulePresetHash: output.rulePresetHash,
-      createdAt: output.createdAt,
-      pasteStatus: 'idle',
-      pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
-    })));
+    stateStore.setRecentConversions(
+      (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
+        id: output.id,
+        text: output.text,
+        kind: output.kind,
+        rulePresetId: output.rulePresetId,
+        rulePresetHash: output.rulePresetHash,
+        createdAt: output.createdAt,
+        pasteStatus: 'idle',
+        pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
+      })),
+    );
   };
   await refreshRecentConversions();
   const audioRecorder = createElectronCaptureAudioRecorder();

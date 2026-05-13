@@ -1,4 +1,8 @@
-import { PROVIDER_BILLING_MODES, type ProviderId, type ProviderState } from '@toph/desktop-contracts';
+import {
+  PROVIDER_BILLING_MODES,
+  type ProviderId,
+  type ProviderState,
+} from '@toph/desktop-contracts';
 
 import {
   readProviderAuthStorage,
@@ -55,7 +59,13 @@ function createProviderState(options: {
   connecting: boolean;
   error: string | null;
 }): ProviderState {
-  const status = options.connecting ? 'connecting' : options.credential ? 'connected' : options.error ? 'invalid' : 'missing';
+  const status = options.connecting
+    ? 'connecting'
+    : options.credential
+      ? 'connected'
+      : options.error
+        ? 'invalid'
+        : 'missing';
   return {
     ready: status === 'connected',
     selectedProviderId: status === 'connected' ? providerId : null,
@@ -117,16 +127,18 @@ export function createProviderAuthService(options: {
     try {
       await storeCredential(await refreshCredential(credential));
     } catch (error) {
-      lastError = error instanceof Error ? error.message : 'Provider credentials could not be refreshed.';
+      lastError =
+        error instanceof Error ? error.message : 'Provider credentials could not be refreshed.';
       await writeStorage({});
     }
   };
 
-  const stateFromDisk = async () => createProviderState({
-    credential: await readCurrentCredential(),
-    connecting: pendingFlow !== null,
-    error: lastError,
-  });
+  const stateFromDisk = async () =>
+    createProviderState({
+      credential: await readCurrentCredential(),
+      connecting: pendingFlow !== null,
+      error: lastError,
+    });
 
   const publishState = async () => {
     options.onStateChanged?.(await stateFromDisk());
@@ -180,10 +192,13 @@ export function createProviderAuthService(options: {
           credential = await refreshCredential(credential);
           await storeCredential(credential);
         } catch (error) {
-          lastError = error instanceof Error ? error.message : 'Provider credentials could not be refreshed.';
+          lastError =
+            error instanceof Error ? error.message : 'Provider credentials could not be refreshed.';
           await writeStorage({});
           await publishState();
-          throw new ProviderAuthError('Provider credentials expired. Reconnect the provider to continue.');
+          throw new ProviderAuthError(
+            'Provider credentials expired. Reconnect the provider to continue.',
+          );
         }
       }
 
@@ -215,7 +230,8 @@ export function createProviderAuthService(options: {
       try {
         await options.openExternal(flow.authorizationUrl);
       } catch (error) {
-        lastError = error instanceof Error ? error.message : 'Provider login could not open the browser.';
+        lastError =
+          error instanceof Error ? error.message : 'Provider login could not open the browser.';
         pendingFlow = null;
         pendingFlowSettled = true;
         await flow.dispose().catch(() => {});

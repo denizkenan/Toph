@@ -46,9 +46,9 @@ export function createShortcutManagerCore(options: {
       const support = await options.registerShortcut(previousChord);
       options.stateStore.setShortcut('dictation', previousChord, support);
     } catch (error) {
-        options.stateStore.setShortcut(
-          'dictation',
-          previousChord,
+      options.stateStore.setShortcut(
+        'dictation',
+        previousChord,
         toUnexpectedFailureSupport(previousChord, options.stateStore.getState().shortcut, error),
       );
     }
@@ -80,7 +80,8 @@ export function createShortcutManagerCore(options: {
       if (!restoredPrevious) {
         await restorePreviousShortcut(previousChord);
       }
-      const detail = error instanceof Error ? error.message : 'Unknown shortcut registration failure.';
+      const detail =
+        error instanceof Error ? error.message : 'Unknown shortcut registration failure.';
       throw new Error(detail, { cause: error });
     }
   };
@@ -91,9 +92,9 @@ export function createShortcutManagerCore(options: {
       const support = await options.registerShortcut(chord);
       options.stateStore.setShortcut('dictation', chord, support);
     } catch (error) {
-        options.stateStore.setShortcut(
-          'dictation',
-          chord,
+      options.stateStore.setShortcut(
+        'dictation',
+        chord,
         toUnexpectedFailureSupport(chord, options.stateStore.getState().shortcut, error),
       );
     }

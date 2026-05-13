@@ -133,7 +133,10 @@ export class TimelineAssembler {
     }
 
     this.extendCurrentRegion(frame);
-    if (this.currentRegion!.endMs - this.currentRegion!.startMs < this.policy.silenceEmitIntervalMs) {
+    if (
+      this.currentRegion!.endMs - this.currentRegion!.startMs <
+      this.policy.silenceEmitIntervalMs
+    ) {
       return [];
     }
 

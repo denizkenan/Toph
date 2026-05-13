@@ -1,5 +1,6 @@
-import type { DictionaryEntryDraft, PolishRulePresetDraft } from '@toph/desktop-contracts';
 import { createHash } from 'node:crypto';
+
+import type { DictionaryEntryDraft, PolishRulePresetDraft } from '@toph/desktop-contracts';
 
 import type { DictionaryEntry } from '../db/schema';
 
@@ -34,7 +35,9 @@ export function normalizeRulePresetDraft(draft: PolishRulePresetDraft) {
     throw new Error(`Rule preset bodies must be ${maxRulePresetBodyLength} characters or fewer.`);
   }
   if (description.length > maxRulePresetDescriptionLength) {
-    throw new Error(`Rule preset descriptions must be ${maxRulePresetDescriptionLength} characters or fewer.`);
+    throw new Error(
+      `Rule preset descriptions must be ${maxRulePresetDescriptionLength} characters or fewer.`,
+    );
   }
 
   return { title, description, body, bodyHash: createRulePresetHash(body) };
@@ -65,8 +68,12 @@ export function ensureDictionaryEnabledLimit(options: {
     return;
   }
 
-  const enabledCount = options.entries.filter((entry) => entry.enabled && entry.id !== options.existingId).length;
+  const enabledCount = options.entries.filter(
+    (entry) => entry.enabled && entry.id !== options.existingId,
+  ).length;
   if (enabledCount >= maxEnabledDictionaryEntries) {
-    throw new Error(`Only ${maxEnabledDictionaryEntries} dictionary entries can be enabled at once.`);
+    throw new Error(
+      `Only ${maxEnabledDictionaryEntries} dictionary entries can be enabled at once.`,
+    );
   }
 }

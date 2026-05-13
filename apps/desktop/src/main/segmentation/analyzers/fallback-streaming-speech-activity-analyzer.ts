@@ -33,7 +33,10 @@ class FallbackStreamingSpeechActivitySession implements StreamingSpeechActivityA
       try {
         await this.active.dispose();
       } catch (disposeError) {
-        console.error(`Toph could not dispose failed VAD analyzer ${this.options.primaryName}.`, disposeError);
+        console.error(
+          `Toph could not dispose failed VAD analyzer ${this.options.primaryName}.`,
+          disposeError,
+        );
       }
       this.fallback = await this.options.createFallback();
       this.active = this.fallback;
@@ -68,7 +71,10 @@ export function createFallbackStreamingSpeechActivityAnalyzer(options: {
           createFallback: options.fallback.createSession,
         });
       } catch (error) {
-        console.error(`Toph could not initialize ${options.primary.name}; falling back to ${options.fallback.name}.`, error);
+        console.error(
+          `Toph could not initialize ${options.primary.name}; falling back to ${options.fallback.name}.`,
+          error,
+        );
         return options.fallback.createSession();
       }
     },

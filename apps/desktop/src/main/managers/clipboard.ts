@@ -226,7 +226,8 @@ function createMacClipboardManager(): ClipboardManager {
 
       return {
         helper: 'macos-accessibility',
-        detail: 'Clipboard-first mode is active. Auto-paste will be attempted with macOS Accessibility.',
+        detail:
+          'Clipboard-first mode is active. Auto-paste will be attempted with macOS Accessibility.',
       };
     },
 
@@ -240,7 +241,8 @@ function createMacClipboardManager(): ClipboardManager {
         return {
           helper: 'macos-accessibility',
           status: 'clipboard-only',
-          detail: 'Transcript copied to the clipboard. Auto-paste needs macOS Accessibility access.',
+          detail:
+            'Transcript copied to the clipboard. Auto-paste needs macOS Accessibility access.',
         };
       }
 
@@ -253,7 +255,8 @@ function createMacClipboardManager(): ClipboardManager {
         return {
           helper: 'macos-accessibility',
           status: 'success',
-          detail: 'Transcript copied to the clipboard and paste was attempted with macOS Accessibility.',
+          detail:
+            'Transcript copied to the clipboard and paste was attempted with macOS Accessibility.',
         };
       } catch (error) {
         return {

@@ -62,7 +62,12 @@ export function createDictationController(options: {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
-  let activeSession: { id: string; rawAudioPath: string; preserveArtifactsOnCancel?: boolean; rerunOutputId?: string } | null = null;
+  let activeSession: {
+    id: string;
+    rawAudioPath: string;
+    preserveArtifactsOnCancel?: boolean;
+    rerunOutputId?: string;
+  } | null = null;
   let activeLivePipeline: SegmentationPipelineSession | null = null;
   let liveProcessingErrorMessage: string | null = null;
   let liveProcessingQueue: Promise<void> = Promise.resolve();
@@ -230,7 +235,9 @@ export function createDictationController(options: {
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
-        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput: true });
+        await options.sessionStore.clearSegmentationData(sessionId, {
+          preserveSelectedOutput: true,
+        });
         await options.outputs.selectOutput({ sessionId, outputId });
         return;
       }
@@ -249,13 +256,17 @@ export function createDictationController(options: {
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
-        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput: true });
+        await options.sessionStore.clearSegmentationData(sessionId, {
+          preserveSelectedOutput: true,
+        });
         await options.outputs.selectOutput({ sessionId, outputId });
         return;
       }
 
       if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
-        throw new Error(`${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`);
+        throw new Error(
+          `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`,
+        );
       }
 
       const polishSettings = options.settingsStore.getSettings().polish;
@@ -327,7 +338,9 @@ export function createDictationController(options: {
       const errorMessage = describeUnexpectedError('Rerun failed unexpectedly.', error);
       if (sessionId) {
         await options.transcription.cancelSession(sessionId);
-        await options.sessionStore.clearSegmentationData(sessionId, { preserveSelectedOutput: true });
+        await options.sessionStore.clearSegmentationData(sessionId, {
+          preserveSelectedOutput: true,
+        });
         await options.outputs.selectOutput({ sessionId, outputId });
       }
       options.stateStore.failDictation(errorMessage);
@@ -863,9 +876,14 @@ export function createDictationController(options: {
         await options.transcription.cancelSession(session.id);
         await pipeline?.dispose();
         if (session.preserveArtifactsOnCancel) {
-          await options.sessionStore.clearSegmentationData(session.id, { preserveSelectedOutput: true });
+          await options.sessionStore.clearSegmentationData(session.id, {
+            preserveSelectedOutput: true,
+          });
           if (session.rerunOutputId) {
-            await options.outputs.selectOutput({ sessionId: session.id, outputId: session.rerunOutputId });
+            await options.outputs.selectOutput({
+              sessionId: session.id,
+              outputId: session.rerunOutputId,
+            });
           }
         } else {
           await options.sessionStore.markCancelled({

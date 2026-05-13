@@ -82,7 +82,10 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 
   try {
-    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Record<string, unknown>;
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
@@ -146,7 +149,9 @@ async function exchangeAuthorizationCode(options: {
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI provider login failed: HTTP ${response.status} ${await response.text()}`);
+    throw new Error(
+      `OpenAI provider login failed: HTTP ${response.status} ${await response.text()}`,
+    );
   }
 
   const json = (await response.json()) as {
@@ -176,7 +181,9 @@ async function exchangeAuthorizationCode(options: {
   };
 }
 
-export async function refreshOpenAiSubOAuthToken(refreshToken: string): Promise<OpenAiSubOAuthTokens> {
+export async function refreshOpenAiSubOAuthToken(
+  refreshToken: string,
+): Promise<OpenAiSubOAuthTokens> {
   const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -188,7 +195,9 @@ export async function refreshOpenAiSubOAuthToken(refreshToken: string): Promise<
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI provider token refresh failed: HTTP ${response.status} ${await response.text()}`);
+    throw new Error(
+      `OpenAI provider token refresh failed: HTTP ${response.status} ${await response.text()}`,
+    );
   }
 
   const json = (await response.json()) as {
@@ -203,7 +212,9 @@ export async function refreshOpenAiSubOAuthToken(refreshToken: string): Promise<
     typeof json.refresh_token !== 'string' ||
     typeof json.expires_in !== 'number'
   ) {
-    throw new Error('OpenAI provider token refresh response did not include expected token fields.');
+    throw new Error(
+      'OpenAI provider token refresh response did not include expected token fields.',
+    );
   }
 
   const accountId =
@@ -250,7 +261,10 @@ export async function createOpenAiSubOAuthFlow(): Promise<PendingOpenAiSubOAuthF
     }
 
     if (url.searchParams.get('error')) {
-      const detail = url.searchParams.get('error_description') ?? url.searchParams.get('error') ?? 'Login failed.';
+      const detail =
+        url.searchParams.get('error_description') ??
+        url.searchParams.get('error') ??
+        'Login failed.';
       if (url.searchParams.get('state') === state) {
         rejectCallback?.(new Error(detail));
       }

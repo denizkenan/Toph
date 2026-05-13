@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Something broke. Help me reproduce it.
-title: "[Bug] "
+title: '[Bug] '
 labels: bug
 ---
 

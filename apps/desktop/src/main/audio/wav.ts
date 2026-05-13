@@ -134,7 +134,12 @@ export function msToPcmByteOffset(ms: number, sampleRate: number): number {
   return sampleIndex * 2;
 }
 
-export function slicePcmByTime(pcm: Buffer, sampleRate: number, startMs: number, endMs: number): Buffer {
+export function slicePcmByTime(
+  pcm: Buffer,
+  sampleRate: number,
+  startMs: number,
+  endMs: number,
+): Buffer {
   const start = Math.min(pcm.length, msToPcmByteOffset(startMs, sampleRate));
   const end = Math.min(pcm.length, msToPcmByteOffset(endMs, sampleRate));
   return pcm.subarray(start, Math.max(start, end));

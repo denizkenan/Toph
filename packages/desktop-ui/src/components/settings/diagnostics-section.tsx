@@ -1,4 +1,4 @@
-import { SettingsSection } from "./settings-controls";
+import { SettingsSection } from './settings-controls';
 
 export function DiagnosticsSection({
   providerLabel,
@@ -24,15 +24,15 @@ export function DiagnosticsSection({
   pasteDetail: string;
 }) {
   const rows = [
-    ["Provider", providerLabel ?? "None"],
-    ["Desktop environment", currentDesktop || "Unknown"],
-    ["Session type", sessionType || "Unknown"],
-    ["Platform", platform],
-    ["Provider status", providerReady ? "Ready" : "Needs setup"],
-    ["Polish status", polishEnabled ? (polishRulePresetId ?? "Needs setup") : "Disabled"],
-    ["Permission status", permissionsReady ? "Ready" : "Needs setup"],
-    ["Paste helper", pasteHelper ?? "None"],
-    ["Paste detail", pasteDetail || "None"],
+    ['Provider', providerLabel ?? 'None'],
+    ['Desktop environment', currentDesktop || 'Unknown'],
+    ['Session type', sessionType || 'Unknown'],
+    ['Platform', platform],
+    ['Provider status', providerReady ? 'Ready' : 'Needs setup'],
+    ['Polish status', polishEnabled ? (polishRulePresetId ?? 'Needs setup') : 'Disabled'],
+    ['Permission status', permissionsReady ? 'Ready' : 'Needs setup'],
+    ['Paste helper', pasteHelper ?? 'None'],
+    ['Paste detail', pasteDetail || 'None'],
   ];
 
   return (
@@ -53,13 +53,11 @@ export function DiagnosticsSection({
             <div
               key={label}
               className={`flex min-h-11 items-center justify-between gap-4 px-4 py-2.5 ${
-                index === rows.length - 1 ? "" : "border-b border-white/5"
+                index === rows.length - 1 ? '' : 'border-b border-white/5'
               }`}
             >
               <dt className="text-sm text-text-tertiary">{label}</dt>
-              <dd className="m-0 text-right text-sm font-semibold text-text-primary">
-                {value}
-              </dd>
+              <dd className="m-0 text-right text-sm font-semibold text-text-primary">{value}</dd>
             </div>
           ))}
         </dl>

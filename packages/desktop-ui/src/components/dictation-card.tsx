@@ -1,8 +1,12 @@
+import { Collapsible } from '@base-ui/react/collapsible';
+import { Check, Copy, RefreshCcw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Collapsible } from '@base-ui/react/collapsible';
-import type { ConversionRecord, DesktopApi, PolishRulePresetSummary } from '@toph/desktop-contracts';
-import { Check, Copy, RefreshCcw, Trash2, X } from 'lucide-react';
+import type {
+  ConversionRecord,
+  DesktopApi,
+  PolishRulePresetSummary,
+} from '@toph/desktop-contracts';
 
 import { useRelativeTime } from '../hooks/use-desktop-state';
 
@@ -21,7 +25,9 @@ export function DictationCard({
   client: DesktopApi;
 }) {
   const relativeTime = useRelativeTime(conversion.createdAt);
-  const rulePresetTitle = rulePresets.find((preset) => preset.id === conversion.rulePresetId)?.title;
+  const rulePresetTitle = rulePresets.find(
+    (preset) => preset.id === conversion.rulePresetId,
+  )?.title;
   const [justCopied, setJustCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [pendingAction, setPendingAction] = useState<'rerun' | 'delete' | null>(null);
@@ -63,11 +69,14 @@ export function DictationCard({
 
   const handleRerun = useCallback(() => {
     setPendingAction('rerun');
-    void client.rerunConversion(conversion.id).catch((error: unknown) => {
-      console.error('Toph could not rerun the conversion.', error);
-    }).finally(() => {
-      setPendingAction(null);
-    });
+    void client
+      .rerunConversion(conversion.id)
+      .catch((error: unknown) => {
+        console.error('Toph could not rerun the conversion.', error);
+      })
+      .finally(() => {
+        setPendingAction(null);
+      });
   }, [client, conversion.id]);
 
   const handleDelete = useCallback(() => {
@@ -108,7 +117,10 @@ export function DictationCard({
             <div className="pt-3">
               <p className="mt-2 mb-0 text-xs text-text-tertiary">
                 Polished with the{' '}
-                <span className="font-semibold text-text-secondary">{rulePresetTitle ?? 'selected'}</span> rule
+                <span className="font-semibold text-text-secondary">
+                  {rulePresetTitle ?? 'selected'}
+                </span>{' '}
+                rule
               </p>
             </div>
           )}
@@ -143,7 +155,10 @@ export function DictationCard({
             aria-label="Rerun workflow"
             disabled={pendingAction !== null}
           >
-            <RefreshCcw size={15} className={pendingAction === 'rerun' ? 'animate-spin' : undefined} />
+            <RefreshCcw
+              size={15}
+              className={pendingAction === 'rerun' ? 'animate-spin' : undefined}
+            />
           </button>
 
           <button

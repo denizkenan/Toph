@@ -8,10 +8,7 @@ const assetsDir = path.join(repoRoot, 'assets');
 const sourcePath = path.join(assetsDir, 'tray-icon.svg');
 
 async function renderPng(svg, size, outputFile) {
-  await sharp(Buffer.from(svg))
-    .resize(size, size)
-    .png()
-    .toFile(path.join(assetsDir, outputFile));
+  await sharp(Buffer.from(svg)).resize(size, size).png().toFile(path.join(assetsDir, outputFile));
 
   console.log(`Generated ${outputFile} at ${size}x${size}`);
 }

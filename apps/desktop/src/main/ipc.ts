@@ -236,7 +236,12 @@ export function registerDesktopIpc(options: {
     await options.setPolishEnabled(enabled);
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setTypingWpm, async (_event, typingWpm: unknown) => {
-    if (typeof typingWpm !== 'number' || !Number.isFinite(typingWpm) || typingWpm < 20 || typingWpm > 200) {
+    if (
+      typeof typingWpm !== 'number' ||
+      !Number.isFinite(typingWpm) ||
+      typingWpm < 20 ||
+      typingWpm > 200
+    ) {
       throw new Error('Invalid typing speed.');
     }
 

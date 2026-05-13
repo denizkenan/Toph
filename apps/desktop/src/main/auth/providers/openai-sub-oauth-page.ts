@@ -229,23 +229,29 @@ function renderOpenAiSubOAuthPage(options: {
         <img class="brand-logo" src="/assets/logo.png" alt="" aria-hidden="true">
       </div>
       <div class="status-icon ${options.status}" aria-hidden="true">
-        ${isSuccess
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path class="checkmark-path" d="M20 6L9 17l-5-5"></path></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'}
+        ${
+          isSuccess
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path class="checkmark-path" d="M20 6L9 17l-5-5"></path></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
+        }
       </div>
       <h1 id="oauth-title">${safeTitle}</h1>
       <p>${safeMessage}</p>
       ${safeErrorDetail ? `<div class="error-detail">${safeErrorDetail}</div>` : ''}
       <div class="action-row">
-        ${isSuccess
-          ? '<span class="close-hint">Closing in</span><span class="countdown" id="countdown">3</span>'
-          : '<span class="close-hint">You can close this window and try again from Toph.</span>'}
+        ${
+          isSuccess
+            ? '<span class="close-hint">Closing in</span><span class="countdown" id="countdown">3</span>'
+            : '<span class="close-hint">You can close this window and try again from Toph.</span>'
+        }
       </div>
     </section>
   </main>
-  ${isSuccess
-    ? '<script>let value=3;const el=document.getElementById("countdown");const timer=setInterval(()=>{value-=1;if(el)el.textContent=String(Math.max(value,0));if(value<=0){clearInterval(timer);window.close();}},1000);</script>'
-    : ''}
+  ${
+    isSuccess
+      ? '<script>let value=3;const el=document.getElementById("countdown");const timer=setInterval(()=>{value-=1;if(el)el.textContent=String(Math.max(value,0));if(value<=0){clearInterval(timer);window.close();}},1000);</script>'
+      : ''
+  }
 </body>
 </html>`;
 }
@@ -254,7 +260,8 @@ export function renderOpenAiSubOAuthSuccessPage() {
   return renderOpenAiSubOAuthPage({
     status: 'success',
     title: 'Authorization Successful',
-    message: 'Your provider is connected and ready to transcribe. You can close this window and return to Toph.',
+    message:
+      'Your provider is connected and ready to transcribe. You can close this window and return to Toph.',
   });
 }
 

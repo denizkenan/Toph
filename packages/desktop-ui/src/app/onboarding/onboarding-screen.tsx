@@ -8,6 +8,7 @@ import type {
   ProviderId,
   ProviderState,
 } from '@toph/desktop-contracts';
+
 import { AppBackdrop } from '../../components/app-backdrop';
 import { Button } from '../../components/button';
 import { CheckIcon } from '../../components/onboarding/check-icon';
@@ -38,23 +39,29 @@ export function OnboardingScreen({
   onSetupAction: () => void;
   onContinue: () => void;
 }) {
-  const [busyPermission, setBusyPermission] = useState<PermissionRequirementId | 'refresh' | null>(null);
+  const [busyPermission, setBusyPermission] = useState<PermissionRequirementId | 'refresh' | null>(
+    null,
+  );
   const [busyProvider, setBusyProvider] = useState<ProviderId | 'manual' | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [busyRulePreset, setBusyRulePreset] = useState<string | null>(null);
-  const [selectedRulePresetId, setSelectedRulePresetId] = useState<string | null>(activeRulePresetId);
+  const [selectedRulePresetId, setSelectedRulePresetId] = useState<string | null>(
+    activeRulePresetId,
+  );
   const [selectedProviderId, setSelectedProviderId] = useState<ProviderId>(
     providers.selectedProviderId ?? providers.providers[0]?.id ?? 'openai-sub',
   );
   const [manualInput, setManualInput] = useState('');
   const refreshingRef = useRef(false);
   const completeCount = requirements.filter((requirement) =>
-    isPermissionComplete(requirement)
+    isPermissionComplete(requirement),
   ).length;
   const providerComplete = providers.ready;
   const permissionsComplete = permissionsReady && completeCount === requirements.length;
-  const writingComplete = !!selectedRulePresetId && rulePresets.some((preset) => preset.id === selectedRulePresetId);
-  const committedWritingComplete = !!activeRulePresetId && rulePresets.some((preset) => preset.id === activeRulePresetId);
+  const writingComplete =
+    !!selectedRulePresetId && rulePresets.some((preset) => preset.id === selectedRulePresetId);
+  const committedWritingComplete =
+    !!activeRulePresetId && rulePresets.some((preset) => preset.id === activeRulePresetId);
   const setupComplete = providerComplete && permissionsComplete && committedWritingComplete;
 
   useEffect(() => {
@@ -149,9 +156,7 @@ export function OnboardingScreen({
 
   return (
     <main className="relative h-screen overflow-hidden px-10 pt-20 pb-32 max-[980px]:px-6 max-[980px]:pt-14 max-[980px]:pb-36">
-      {platform === 'darwin' && (
-        <WindowDragRegion />
-      )}
+      {platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="onboarding" />
 
       <section className="relative mx-auto h-full max-w-275">
@@ -164,7 +169,8 @@ export function OnboardingScreen({
               Your fingers called, they want a break.
             </h1>
             <p className="mt-5 mb-0 text-base leading-relaxed text-text-secondary">
-              Real-time voice transcription across all your apps. I capture your words so you can focus on breaking production, not your wrists.
+              Real-time voice transcription across all your apps. I capture your words so you can
+              focus on breaking production, not your wrists.
             </p>
             <div className="mt-8 grid gap-3.5 text-left max-[980px]:mx-auto max-[980px]:max-w-104">
               {[
@@ -185,7 +191,13 @@ export function OnboardingScreen({
               <StepSection
                 complete={providerComplete}
                 showConnector
-                marker={providerComplete ? <CheckIcon size={16} /> : <span className="font-display text-sm font-semibold">1</span>}
+                marker={
+                  providerComplete ? (
+                    <CheckIcon size={16} />
+                  ) : (
+                    <span className="font-display text-sm font-semibold">1</span>
+                  )
+                }
                 title="Choose a provider"
                 status={providerComplete ? 'Complete' : 'Pending'}
               >
@@ -204,21 +216,32 @@ export function OnboardingScreen({
               <StepSection
                 complete={permissionsComplete}
                 showConnector
-                marker={permissionsComplete ? <CheckIcon size={16} /> : <span className="font-display text-sm font-semibold">2</span>}
+                marker={
+                  permissionsComplete ? (
+                    <CheckIcon size={16} />
+                  ) : (
+                    <span className="font-display text-sm font-semibold">2</span>
+                  )
+                }
                 title="Grant permissions"
                 status={permissionsComplete ? 'Complete' : 'Pending'}
               >
                 <div className="rounded-[1.375rem] border border-white/6 bg-white/2 px-5 py-4 transition-[transform,border-color,background-color] duration-300 ease-out hover:-translate-y-px hover:border-white/10 hover:bg-white/3">
                   {!permissionsReady && requirements.length === 0 ? (
                     <div className="px-1 py-2">
-                      <h3 className="m-0 font-display text-base tracking-[-0.02em] text-text-primary">Inspecting permissions...</h3>
+                      <h3 className="m-0 font-display text-base tracking-[-0.02em] text-text-primary">
+                        Inspecting permissions...
+                      </h3>
                       <p className="mt-1 mb-0 text-sm text-text-secondary">
-                        Rehydrating the macOS permission cache. Classic distributed system: you and System Settings.
+                        Rehydrating the macOS permission cache. Classic distributed system: you and
+                        System Settings.
                       </p>
                     </div>
                   ) : requirements.length === 0 ? (
                     <div className="px-1 py-2">
-                      <h3 className="m-0 font-display text-base tracking-[-0.02em] text-text-primary">No permissions needed</h3>
+                      <h3 className="m-0 font-display text-base tracking-[-0.02em] text-text-primary">
+                        No permissions needed
+                      </h3>
                       <p className="mt-1 mb-0 text-sm text-text-secondary">
                         Your system already handed over the tiny keys. Suspiciously cooperative.
                       </p>
@@ -241,7 +264,13 @@ export function OnboardingScreen({
 
               <StepSection
                 complete={writingComplete}
-                marker={writingComplete ? <CheckIcon size={16} /> : <span className="font-display text-sm font-semibold">3</span>}
+                marker={
+                  writingComplete ? (
+                    <CheckIcon size={16} />
+                  ) : (
+                    <span className="font-display text-sm font-semibold">3</span>
+                  )
+                }
                 title="Choose writing style"
                 status={writingComplete ? 'Complete' : 'Required'}
               >
@@ -254,24 +283,33 @@ export function OnboardingScreen({
                         type="button"
                         className={`group flex min-h-42 cursor-pointer flex-col rounded-[1.375rem] border p-4 text-left transition-[transform,border-color,background-color,opacity] duration-300 ease-out hover:-translate-y-px disabled:cursor-default disabled:opacity-55 ${selected ? 'border-accent-blue/45 bg-accent-blue/10' : 'border-white/6 bg-white/2 hover:border-white/10 hover:bg-white/4'}`}
                         onClick={() => void selectRulePreset(preset.id)}
-                        disabled={!providerComplete || !permissionsComplete || busyRulePreset !== null}
+                        disabled={
+                          !providerComplete || !permissionsComplete || busyRulePreset !== null
+                        }
                       >
                         <span className="mb-3 inline-flex w-fit rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em] text-text-tertiary uppercase">
                           {selected ? 'Selected' : `Rule ${rulePresets.indexOf(preset) + 1}`}
                         </span>
-                        <span className="font-display text-lg font-semibold tracking-[-0.03em] text-text-primary">{preset.title}</span>
+                        <span className="font-display text-lg font-semibold tracking-[-0.03em] text-text-primary">
+                          {preset.title}
+                        </span>
                         <span className="mt-2 line-clamp-4 text-sm leading-relaxed text-text-secondary">
                           {preset.description}
                         </span>
                         <span className="mt-auto pt-4 text-xs font-semibold text-accent-blue">
-                          {busyRulePreset === preset.id ? 'Selecting...' : selected ? 'Ready to dictate' : 'Use this style'}
+                          {busyRulePreset === preset.id
+                            ? 'Selecting...'
+                            : selected
+                              ? 'Ready to dictate'
+                              : 'Use this style'}
                         </span>
                       </button>
                     );
                   })}
                 </div>
                 <p className="mt-3 mb-0 text-xs leading-relaxed text-text-tertiary">
-                  You can change this later from Settings → Writing & Dictionary. No lock-in, unlike that one vendor SDK.
+                  You can change this later from Settings → Writing & Dictionary. No lock-in, unlike
+                  that one vendor SDK.
                 </p>
               </StepSection>
 

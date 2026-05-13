@@ -18,8 +18,11 @@ const notRequiredPermissions: PermissionState = {
 
 function createPermissionState(requirements: PermissionRequirement[]): PermissionState {
   return {
-    ready: requirements.every((requirement) =>
-      !requirement.required || requirement.status === 'granted' || requirement.status === 'not-required'
+    ready: requirements.every(
+      (requirement) =>
+        !requirement.required ||
+        requirement.status === 'granted' ||
+        requirement.status === 'not-required',
     ),
     requirements,
   };
@@ -45,7 +48,8 @@ function inspectMacMicrophone(): PermissionRequirement {
       label: 'Microphone',
       status: 'promptable',
       required: true,
-      detail: 'Toph needs microphone access before it can listen. I promise not to monologue into prod.',
+      detail:
+        'Toph needs microphone access before it can listen. I promise not to monologue into prod.',
       action: 'request',
     };
   }
