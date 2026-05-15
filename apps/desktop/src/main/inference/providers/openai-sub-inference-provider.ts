@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
 
 import type { ProviderAuthService } from '../../auth/provider-auth-service';
@@ -5,6 +7,8 @@ import type { PricingService } from '../../pricing/pricing-service';
 import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
   TransientInferenceProviderError,
+  UnsupportedInferenceImageInputError,
+  type InferenceImageInput,
   type InferenceProvider,
   type InferenceProviderResult,
 } from '../inference-provider';
@@ -18,6 +22,24 @@ function isRetryableFailure(status: number, body: string) {
   }
 
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function isImageInputRejection(status: number, body: string) {
+  return (
+    status === 400 &&
+    /(?:image|input_image|multimodal|vision).*(?:unsupported|invalid|not supported)|(?:unsupported|invalid).*(?:image|input_image|multimodal|vision)/i.test(
+      body,
+    )
+  );
+}
+
+async function readImageInput(image: InferenceImageInput) {
+  const bytes = await readFile(image.path);
+  return {
+    type: 'input_image',
+    image_url: `data:${image.mimeType};base64,${bytes.toString('base64')}`,
+    detail: image.detail,
+  };
 }
 
 function parseSseEvents(text: string) {
@@ -174,6 +196,14 @@ export function createOpenAiSubInferenceProvider(options: {
     async inferText(input): Promise<InferenceProviderResult> {
       const credentials = await options.auth.resolveCredentials(providerId);
       const model = options.settingsStore.getSettings().inference.model;
+      let imageInputs: Awaited<ReturnType<typeof readImageInput>>[];
+      try {
+        imageInputs = await Promise.all((input.images ?? []).map(readImageInput));
+      } catch (error) {
+        throw new UnsupportedInferenceImageInputError(
+          `OpenAI-sub image input could not be prepared: ${String(error)}`,
+        );
+      }
       const headers: Record<string, string> = {
         Authorization: `Bearer ${credentials.accessToken}`,
         'Content-Type': 'application/json',
@@ -197,7 +227,7 @@ export function createOpenAiSubInferenceProvider(options: {
             input: [
               {
                 role: 'user',
-                content: [{ type: 'input_text', text: input.inputText }],
+                content: [{ type: 'input_text', text: input.inputText }, ...imageInputs],
               },
             ],
             stream: true,
@@ -218,6 +248,9 @@ export function createOpenAiSubInferenceProvider(options: {
       const body = await response.text();
       if (!response.ok) {
         const message = `OpenAI-sub inference failed: HTTP ${response.status} ${body.slice(0, 2000)}`;
+        if (imageInputs.length > 0 && isImageInputRejection(response.status, body)) {
+          throw new UnsupportedInferenceImageInputError(message);
+        }
         if (isRetryableFailure(response.status, body)) {
           throw new TransientInferenceProviderError(message);
         }

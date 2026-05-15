@@ -1,11 +1,17 @@
+import type { ScreenshotContextImage } from '@toph/desktop-contracts';
+
+import type {
+  ScreenshotContextService,
+  ScreenshotContextSession,
+} from './context/screenshot-context-service';
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
 import type { SessionOutputService } from './outputs/session-output-service';
 import type { PolishService } from './polish/polish-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
-import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import { isStreamingVadBusyError } from './segmentation/streaming-vad-runtime';
+import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import type { AppSettingsStore } from './settings/app-settings-store';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
@@ -14,6 +20,7 @@ import type { SessionTranscriptionCoordinator } from './transcription/session-tr
 export interface DictationController {
   toggleCapture: () => Promise<void>;
   cancelCapture: () => Promise<void>;
+  captureScreenshotContext: () => Promise<void>;
   rerunSession: (sessionId: string) => Promise<void>;
   dispose: () => Promise<void>;
 }
@@ -57,6 +64,7 @@ export function createDictationController(options: {
   outputs: SessionOutputService;
   polish: PolishService;
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
+  screenshotContext: ScreenshotContextService;
   audioRecorder: RawAudioRecorder;
   clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
@@ -81,6 +89,7 @@ export function createDictationController(options: {
   let activeOperationGeneration = 0;
   let activeRecorderStop: Promise<Awaited<ReturnType<RawAudioRecorder['stop']>>> | null = null;
   let activeFinishTask: Promise<void> | null = null;
+  let activeScreenshotContext: ScreenshotContextSession | null = null;
   let lifecycle: DictationLifecycle = 'idle';
   let activePolishAbortController: AbortController | null = null;
 
@@ -118,6 +127,41 @@ export function createDictationController(options: {
     }, noSpeechVisibleMs);
   };
 
+  const startScreenshotContext = (session: { rawAudioPath: string }) => {
+    const screenshotContext = options.screenshotContext.createSession({
+      settings: options.settingsStore.getSettings(),
+      rawAudioPath: session.rawAudioPath,
+      onStateChanged: options.stateStore.setScreenshotContext,
+    });
+    activeScreenshotContext = screenshotContext;
+    screenshotContext.start();
+  };
+
+  const disposeActiveScreenshotContext = async () => {
+    const screenshotContext = activeScreenshotContext;
+    activeScreenshotContext = null;
+    try {
+      await screenshotContext?.dispose();
+    } catch (error) {
+      console.error('Toph could not dispose screenshot context capture.', error);
+    }
+  };
+
+  const stopActiveScreenshotContext = async () => {
+    const screenshotContext = activeScreenshotContext;
+    activeScreenshotContext = null;
+    if (!screenshotContext) {
+      return [];
+    }
+
+    try {
+      return await screenshotContext.stop();
+    } catch (error) {
+      console.error('Toph could not stop screenshot context capture.', error);
+      return screenshotContext.listImages();
+    }
+  };
+
   const failProcessedSession = async (error: unknown) => {
     const session = activeSession;
     const pipeline = activeLivePipeline;
@@ -139,6 +183,7 @@ export function createDictationController(options: {
 
     activeSession = null;
     activeLivePipeline = null;
+    await disposeActiveScreenshotContext();
     liveProcessingErrorMessage = null;
     liveProcessingQueue = Promise.resolve();
     liveProcessingBacklog = 0;
@@ -154,12 +199,16 @@ export function createDictationController(options: {
   };
 
   const failActiveSession = async (detail: string, error: unknown) => {
-    const message = isStreamingVadBusyError(error) ? detail : describeUnexpectedError(detail, error);
+    const message = isStreamingVadBusyError(error)
+      ? detail
+      : describeUnexpectedError(detail, error);
     const failedSession = activeSession;
     const failedPipeline = activeLivePipeline;
+    const failedScreenshotContext = activeScreenshotContext;
     const pendingLiveProcessing = liveProcessingQueue;
     activeSession = null;
     activeLivePipeline = null;
+    activeScreenshotContext = null;
     liveProcessingErrorMessage = null;
     liveProcessingQueue = Promise.resolve();
     liveProcessingBacklog = 0;
@@ -170,6 +219,12 @@ export function createDictationController(options: {
       console.error('Toph live segmentation queue failed while recording was failing.', queueError);
     });
     await failedPipeline?.dispose();
+    await failedScreenshotContext?.dispose().catch((screenshotError: unknown) => {
+      console.error(
+        'Toph screenshot context capture failed while recording was failing.',
+        screenshotError,
+      );
+    });
 
     if (failedSession) {
       try {
@@ -339,9 +394,14 @@ export function createDictationController(options: {
       }
 
       activePolishAbortController = new AbortController();
+      const screenshotContext = await options.screenshotContext.listImagesForSession(
+        options.settingsStore.getSettings(),
+        prepared.session.rawAudioPath,
+      );
       const polishedOutput = await options.polish.polishOutput({
         sessionId,
         rawOutput,
+        screenshotContext,
         signal: activePolishAbortController.signal,
         outputId: existingOutputId ?? undefined,
       });
@@ -445,6 +505,7 @@ export function createDictationController(options: {
     ) => {
       activeSession = null;
       activeLivePipeline = null;
+      await disposeActiveScreenshotContext();
       liveProcessingErrorMessage = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
@@ -475,6 +536,7 @@ export function createDictationController(options: {
         id: session.id,
         rawAudioPath: session.rawAudioPath,
       };
+      startScreenshotContext(session);
 
       try {
         const pipeline = await options.segmentation.createLiveSession({
@@ -630,9 +692,15 @@ export function createDictationController(options: {
     options.stateStore.startTranscribing();
     options.windows.emitSound('stop');
     let recordingWasSaved = false;
+    let screenshotContext: ScreenshotContextImage[] = [];
 
     try {
       const recording = await stopActiveRecorder();
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
+      screenshotContext = await stopActiveScreenshotContext();
       if (!isCurrentOperation(operationGeneration)) {
         return;
       }
@@ -701,6 +769,7 @@ export function createDictationController(options: {
         await options.sessionStore.markNoSpeech(session.id);
         activeSession = null;
         lifecycle = 'idle';
+        await disposeActiveScreenshotContext();
         await completeNoSpeechRecording();
         return;
       }
@@ -790,6 +859,7 @@ export function createDictationController(options: {
         polishedOutput = await options.polish.polishOutput({
           sessionId: session.id,
           rawOutput,
+          screenshotContext,
           signal: activePolishAbortController.signal,
         });
         activePolishAbortController = null;
@@ -888,6 +958,7 @@ export function createDictationController(options: {
       const previousLifecycle = lifecycle;
       const session = activeSession;
       const pipeline = activeLivePipeline;
+      const screenshotContext = activeScreenshotContext;
       const pendingLiveProcessing = liveProcessingQueue;
       const pendingFinish = activeFinishTask;
       const shouldStopRecorder =
@@ -905,6 +976,7 @@ export function createDictationController(options: {
 
       activeSession = null;
       activeLivePipeline = null;
+      activeScreenshotContext = null;
       liveProcessingErrorMessage = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
@@ -926,6 +998,9 @@ export function createDictationController(options: {
 
       await pendingLiveProcessing.catch((queueError: unknown) => {
         console.error('Toph live segmentation queue failed while cancelling.', queueError);
+      });
+      await screenshotContext?.dispose().catch((screenshotError: unknown) => {
+        console.error('Toph screenshot context capture failed while cancelling.', screenshotError);
       });
 
       try {
@@ -961,6 +1036,19 @@ export function createDictationController(options: {
       }
     },
 
+    async captureScreenshotContext() {
+      const screenshotContext = activeScreenshotContext;
+      if (lifecycle !== 'listening' || options.stateStore.getState().phase !== 'listening') {
+        return;
+      }
+
+      try {
+        await screenshotContext?.capture();
+      } catch (error) {
+        console.error('Toph could not capture manual screenshot context.', error);
+      }
+    },
+
     async rerunSession(sessionId) {
       await rerunRecordedWorkflow(sessionId);
     },
@@ -970,9 +1058,11 @@ export function createDictationController(options: {
       clearNoSpeechTimer();
       const session = activeSession;
       const pipeline = activeLivePipeline;
+      const screenshotContext = activeScreenshotContext;
       const pendingLiveProcessing = liveProcessingQueue;
       activeSession = null;
       activeLivePipeline = null;
+      activeScreenshotContext = null;
       liveProcessingErrorMessage = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
@@ -986,6 +1076,9 @@ export function createDictationController(options: {
         console.error('Toph live segmentation queue failed during shutdown.', queueError);
       });
       await pipeline?.dispose();
+      await screenshotContext?.dispose().catch((screenshotError: unknown) => {
+        console.error('Toph screenshot context capture failed during shutdown.', screenshotError);
+      });
 
       if (session) {
         try {

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   formatShortcutChordKeys,
   normalizeShortcutModifiers,
+  resolveDefaultScreenshotContextShortcutChord,
   type AppState,
   type DesktopApi,
   type ShortcutChord,
@@ -84,7 +85,8 @@ function hasActiveWritingPreset(state: AppState): boolean {
 function formatShortcutModifierForAssistiveLabel(modifier: ShortcutModifier): string {
   if (modifier === 'command') return 'Command';
   if (modifier === 'control') return 'Control';
-  if (modifier === 'option' || modifier === 'alt') return 'Alt';
+  if (modifier === 'option') return 'Option';
+  if (modifier === 'alt') return 'Alt';
   return 'Shift';
 }
 
@@ -132,6 +134,10 @@ function HomeScreen({
 }) {
   const systemStatus = deriveSystemStatus(state);
   const dashboardStats = state.dashboardStats;
+  const screenshotContextShortcut = resolveDefaultScreenshotContextShortcutChord(
+    state.environment.platform,
+  );
+  const showScreenshotContextShortcut = state.settings.context.screenshots.enabled;
 
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
@@ -156,6 +162,16 @@ function HomeScreen({
               platform={state.environment.platform}
               action="rules"
             />
+            {showScreenshotContextShortcut && (
+              <>
+                <HeaderDivider />
+                <HeaderShortcutHint
+                  chord={screenshotContextShortcut}
+                  platform={state.environment.platform}
+                  action="screenshot"
+                />
+              </>
+            )}
             <HeaderDivider />
             <span
               className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3.5 py-2 text-sm ${systemStatus.tone}`}
@@ -224,6 +240,7 @@ function HomeScreen({
                   session={session}
                   rulePresets={state.polish.rulePresets}
                   client={client}
+                  diagnosticsEnabled={state.settings.diagnostics.enabled}
                 />
               ))}
             </div>
