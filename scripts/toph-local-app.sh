@@ -43,7 +43,7 @@ quit_local_app() {
 build_local_app() {
   (
     cd "$ROOT_DIR/apps/desktop"
-    pnpm run build
+    TOPH_BAKE_LOCAL_ENV=1 pnpm run build
     pnpm exec electron-builder \
       --mac dir \
       --publish never \
