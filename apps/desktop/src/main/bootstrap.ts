@@ -11,10 +11,14 @@ import {
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
+import { configureAppIdentity, packagedDevDataDirectoryName } from './app-identity';
 import { createProviderAuthService } from './auth/provider-auth-service';
+import { createScreenshotContextService } from './context/screenshot-context-service';
 import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createDictationController } from './dictation';
+import { createAntigravityInferenceProvider } from './inference/providers/antigravity-inference-provider';
 import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
+import { createRoutingInferenceProvider } from './inference/providers/routing-inference-provider';
 import { registerDesktopIpc } from './ipc';
 import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
 import { createClipboardManager } from './managers/clipboard';
@@ -36,12 +40,13 @@ import {
 } from './settings/writing-settings-validation';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
+import { createAntigravityTranscriptionProvider } from './transcription/providers/antigravity-transcription-provider';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
+import { createRoutingTranscriptionProvider } from './transcription/providers/routing-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 import { createDesktopTrayController } from './tray';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const appName = 'Toph';
 
 const defaultAppSettings = {
   ...DEFAULT_APP_SETTINGS,
@@ -85,7 +90,7 @@ export async function bootstrap(options: {
   toggleCaptureFlag: string;
   ruleSwitcherFlag: string;
 }) {
-  app.setName(appName);
+  const { appName, isPackagedDevApp } = configureAppIdentity();
 
   const singleInstance = app.requestSingleInstanceLock();
   if (!singleInstance) {
@@ -105,6 +110,7 @@ export async function bootstrap(options: {
   });
   const permissions = createPermissionManager();
   const clipboard = createClipboardManager();
+  const screenshotContext = createScreenshotContextService();
 
   await app.whenReady();
 
@@ -112,7 +118,9 @@ export async function bootstrap(options: {
     app.dock?.setIcon(macAppIconPath);
   }
 
-  const dataPaths = await resolveTophDataPaths();
+  const dataPaths = await resolveTophDataPaths({
+    defaultDataDirectoryName: isPackagedDevApp ? packagedDevDataDirectoryName : undefined,
+  });
   const sessionStore = await createRecordingSessionStore({
     paths: dataPaths,
     migrationsFolder: join(__dirname, '../../drizzle'),
@@ -166,7 +174,9 @@ export async function bootstrap(options: {
     return task;
   };
   const publishSettings = async () => {
-    stateStore.setSettings(settingsStore.getSettings());
+    const settings = settingsStore.getSettings();
+    stateStore.setSettings(settings);
+    stateStore.setScreenshotContext(screenshotContext.inspectState(settings));
     await refreshDashboardStats();
     await refreshPolishState();
   };
@@ -174,6 +184,7 @@ export async function bootstrap(options: {
     void publishSettings();
   });
   stateStore.setSettings(settingsStore.getSettings());
+  stateStore.setScreenshotContext(screenshotContext.inspectState(settingsStore.getSettings()));
   if (!settingsStore.getSettings().polish.rulePresetId) {
     const firstRulePreset = (await sessionStore.listPolishRulePresets())[0];
     if (firstRulePreset) {
@@ -184,17 +195,40 @@ export async function bootstrap(options: {
   await refreshPolishState();
   await refreshDashboardStats();
   const refreshRecentConversions = async (detailsByOutputId: Record<string, string> = {}) => {
+    const outputs = await sessionStore.listRecentSelectedSessionOutputs(8);
     stateStore.setRecentConversions(
-      (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
-        id: output.id,
-        text: output.text,
-        kind: output.kind,
-        rulePresetId: output.rulePresetId,
-        rulePresetHash: output.rulePresetHash,
-        createdAt: output.createdAt,
-        pasteStatus: 'idle',
-        pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
-      })),
+      await Promise.all(
+        outputs.map(async (output) => {
+          const screenshots = await screenshotContext.listImagesForSession(
+            null,
+            output.rawAudioPath,
+          );
+          return {
+            id: output.id,
+            text: output.text,
+            kind: output.kind,
+            rulePresetId: output.rulePresetId,
+            rulePresetHash: output.rulePresetHash,
+            createdAt: output.createdAt,
+            pasteStatus: 'idle',
+            pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
+            screenshots,
+            diagnostics: {
+              sessionId: output.sessionId,
+              outputId: output.id,
+              outputKind: output.kind,
+              sessionStartedAt: output.sessionStartedAt,
+              sessionEndedAt: output.sessionEndedAt,
+              sessionDurationMs: output.sessionDurationMs,
+              screenshotCount: screenshots.length,
+              screenshotDirectory:
+                screenshots.length > 0
+                  ? dirname(screenshots[0]?.path ?? output.rawAudioPath)
+                  : null,
+            },
+          };
+        }),
+      ),
     );
   };
   await refreshRecentConversions();
@@ -209,18 +243,49 @@ export async function bootstrap(options: {
   const providerAuth = createProviderAuthService({
     authPath: dataPaths.authPath,
     openExternal: shell.openExternal,
+    getRequiredProviderIds: () => {
+      const settings = settingsStore.getSettings();
+      return [
+        settings.transcription.providerId,
+        ...(settings.polish.enabled ? [settings.inference.providerId] : []),
+      ];
+    },
     onStateChanged: stateStore.setProviders,
   });
   stateStore.setProviders(await providerAuth.getState());
-  const transcriptionProvider = createOpenAiSubTranscriptionProvider({
+  const openAiSubTranscriptionProvider = createOpenAiSubTranscriptionProvider({
     auth: providerAuth,
     pricing,
     settingsStore,
   });
-  const inferenceProvider = createOpenAiSubInferenceProvider({
+  const antigravityTranscriptionProvider = createAntigravityTranscriptionProvider({
     auth: providerAuth,
     pricing,
     settingsStore,
+  });
+  const transcriptionProvider = createRoutingTranscriptionProvider({
+    settingsStore,
+    providers: {
+      'openai-sub': openAiSubTranscriptionProvider,
+      antigravity: antigravityTranscriptionProvider,
+    },
+  });
+  const openAiSubInferenceProvider = createOpenAiSubInferenceProvider({
+    auth: providerAuth,
+    pricing,
+    settingsStore,
+  });
+  const antigravityInferenceProvider = createAntigravityInferenceProvider({
+    auth: providerAuth,
+    pricing,
+    settingsStore,
+  });
+  const inferenceProvider = createRoutingInferenceProvider({
+    settingsStore,
+    providers: {
+      'openai-sub': openAiSubInferenceProvider,
+      antigravity: antigravityInferenceProvider,
+    },
   });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
@@ -267,6 +332,7 @@ export async function bootstrap(options: {
     outputs,
     polish,
     settingsStore,
+    screenshotContext,
     audioRecorder,
     clipboard,
     ensurePermissionsReady: async () =>
@@ -274,7 +340,10 @@ export async function bootstrap(options: {
       (await ensurePermissionsReady()) &&
       (await ensureWritingReady()),
     windows,
-    onDashboardStatsChanged: refreshDashboardStats,
+    onDashboardStatsChanged: async () => {
+      await refreshDashboardStats();
+      await refreshRecentConversions();
+    },
   });
   let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
   let ruleSwitcherSelectionGeneration = 0;
@@ -377,6 +446,10 @@ export async function bootstrap(options: {
     onRuleSwitcherTrigger: () => {
       void openRuleSwitcher();
     },
+    onScreenshotContextTrigger: () => {
+      void dictation.captureScreenshotContext();
+    },
+    isScreenshotContextEnabled: () => settingsStore.getSettings().context.screenshots.enabled,
     persistDictationShortcut: async (chord) => {
       await settingsStore.setShortcut(chord);
     },
@@ -384,6 +457,11 @@ export async function bootstrap(options: {
       await settingsStore.setRuleSwitcherShortcut(chord);
     },
   });
+  const registerCurrentShortcuts = () =>
+    shortcuts.registerSavedShortcuts({
+      dictation: settingsStore.getSettings().shortcut.chord,
+      ruleSwitcher: settingsStore.getSettings().ruleSwitcherShortcut.chord,
+    });
   const tray = createDesktopTrayController({
     appName,
     getState: stateStore.getState,
@@ -474,6 +552,7 @@ export async function bootstrap(options: {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setTranscriptionProvider(providerId);
+      stateStore.setProviders(await providerAuth.getState());
     },
     setTranscriptionModel: async (model) => {
       if (stateStore.getState().phase !== 'idle')
@@ -484,6 +563,7 @@ export async function bootstrap(options: {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setInferenceProvider(providerId);
+      stateStore.setProviders(await providerAuth.getState());
     },
     setInferenceModel: async (model) => {
       if (stateStore.getState().phase !== 'idle')
@@ -494,11 +574,33 @@ export async function bootstrap(options: {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setPolishEnabled(enabled);
+      stateStore.setProviders(await providerAuth.getState());
     },
     setTypingWpm: async (typingWpm) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setTypingWpm(typingWpm);
+    },
+    setDiagnosticsEnabled: async (enabled) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setDiagnosticsEnabled(enabled);
+    },
+    setScreenshotContextEnabled: async (enabled) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setScreenshotContextEnabled(enabled);
+      await registerCurrentShortcuts();
+      if (enabled) {
+        const settings = settingsStore.getSettings();
+        stateStore.setScreenshotContext({
+          ...screenshotContext.inspectState(settings),
+          status: 'capturing',
+          detail: 'Requesting Screen Recording access...',
+          action: 'none',
+        });
+        stateStore.setScreenshotContext(await screenshotContext.requestPermission(settings));
+      }
     },
     setActivePolishRulePreset: async (rulePresetId) => {
       if (stateStore.getState().phase !== 'idle')
@@ -581,7 +683,30 @@ export async function bootstrap(options: {
       });
     },
     performPermissionAction: async (permissionId) => {
-      stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
+      if (permissionId === 'screen') {
+        const settings = settingsStore.getSettings();
+        const screenState = stateStore.getState().context.screenshots;
+        if (screenState.action === 'request') {
+          stateStore.setScreenshotContext({
+            ...screenshotContext.inspectState(settings),
+            status: 'capturing',
+            detail: 'Requesting Screen Recording access...',
+            action: 'none',
+          });
+          stateStore.setScreenshotContext(await screenshotContext.requestPermission(settings));
+          return;
+        }
+      }
+
+      const permissionState = await permissions.performPermissionAction(permissionId);
+      if (permissionId === 'screen') {
+        stateStore.setScreenshotContext(
+          screenshotContext.inspectState(settingsStore.getSettings()),
+        );
+        return;
+      }
+
+      stateStore.setPermissions(permissionState);
     },
     refreshPermissions: async () => {
       await ensurePermissionsReady();
@@ -617,10 +742,7 @@ export async function bootstrap(options: {
   tray.create();
   let quitCleanupComplete = false;
 
-  await shortcuts.registerSavedShortcuts({
-    dictation: settingsStore.getSettings().shortcut.chord,
-    ruleSwitcher: settingsStore.getSettings().ruleSwitcherShortcut.chord,
-  });
+  await registerCurrentShortcuts();
   if (
     !stateStore.getState().shortcut.registered ||
     !stateStore.getState().ruleSwitcherShortcut.registered

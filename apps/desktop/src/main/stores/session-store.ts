@@ -31,6 +31,13 @@ import {
 import type { TophDataPaths } from '../paths';
 import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../segmentation/types';
 
+export type RecentSelectedSessionOutput = SessionOutput & {
+  rawAudioPath: string;
+  sessionStartedAt: number;
+  sessionEndedAt: number | null;
+  sessionDurationMs: number | null;
+};
+
 export interface RecordingSessionStore {
   createRecordingSession: () => Promise<RecordingSession>;
   getSession: (sessionId: string) => Promise<RecordingSession | null>;
@@ -100,7 +107,7 @@ export interface RecordingSessionStore {
     usageEvent?: ProviderUsageEvent;
   }) => Promise<void>;
   selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
-  listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
+  listRecentSelectedSessionOutputs: (limit: number) => Promise<RecentSelectedSessionOutput[]>;
   getDashboardStats: (options: {
     now: number;
     rollingWindowDays: number;
@@ -817,6 +824,10 @@ export async function createRecordingSessionStore(options: {
           rulePresetId: sessionOutputs.rulePresetId,
           rulePresetHash: sessionOutputs.rulePresetHash,
           createdAt: sessionOutputs.createdAt,
+          rawAudioPath: recordingSessions.rawAudioPath,
+          sessionStartedAt: recordingSessions.startedAt,
+          sessionEndedAt: recordingSessions.endedAt,
+          sessionDurationMs: recordingSessions.durationMs,
         })
         .from(sessionOutputs)
         .innerJoin(recordingSessions, eq(recordingSessions.selectedOutputId, sessionOutputs.id))

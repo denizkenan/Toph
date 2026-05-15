@@ -50,6 +50,40 @@ type PendingRuleSelection = {
   previousActiveRulePresetId: string | null;
 };
 
+function getScreenshotOverlayMessage(
+  screenshots: {
+    enabled: boolean;
+    status: string;
+    detail: string;
+  } | null,
+) {
+  if (!screenshots?.enabled) {
+    return null;
+  }
+
+  if (screenshots.status === 'capturing') {
+    return 'Capturing screenshot...';
+  }
+
+  if (screenshots.detail.startsWith('Screenshot captured')) {
+    return screenshots.detail;
+  }
+
+  if (screenshots.detail.startsWith('Similar screenshot skipped')) {
+    return 'Similar screenshot skipped';
+  }
+
+  if (screenshots.detail.startsWith('Screenshot limit reached')) {
+    return 'Screenshot limit reached';
+  }
+
+  if (screenshots.status === 'permission-needed' || screenshots.status === 'error') {
+    return 'Screenshot capture failed';
+  }
+
+  return null;
+}
+
 function resolveRuleSwitcherWidth(ruleCount: number, mode: 'idle' | RuleSwitcherVisibleMode) {
   // Do not use viewport units here: the viewport is the current Electron overlay
   // window, so vw-based sizing can trap the selector at the old pill width.
@@ -97,6 +131,9 @@ export function OverlayApp({
   const polishing = phase === 'polishing';
   const noSpeech = phase === 'no_speech';
   const failed = phase === 'failed';
+  const screenshotOverlayMessage = listening
+    ? getScreenshotOverlayMessage(state?.context.screenshots ?? null)
+    : null;
   const activeRulePresetId = state?.settings.polish.rulePresetId ?? null;
   const renderedActiveRulePresetId = pendingRuleSelection
     ? pendingRuleSelection.previousActiveRulePresetId
@@ -322,7 +359,7 @@ export function OverlayApp({
                 : noSpeech
                   ? 'No speech detected'
                   : listening
-                    ? 'Listening...'
+                    ? (screenshotOverlayMessage ?? 'Listening...')
                     : polishing
                       ? 'Polishing...'
                       : 'Transcribing...'}

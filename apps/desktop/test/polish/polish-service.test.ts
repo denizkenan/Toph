@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { DictionaryEntry } from '../../src/main/db/schema.ts';
 import {
   TransientInferenceProviderError,
+  UnsupportedInferenceImageInputError,
   type InferenceProvider,
 } from '../../src/main/inference/inference-provider.ts';
 import { createPolishService } from '../../src/main/polish/polish-service.ts';
@@ -40,6 +41,9 @@ function createService(
           transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
           inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
           polish: { enabled: true, rulePresetId: 'general' },
+          context: { screenshots: { enabled: false } },
+          dashboard: { typingWpm: 50 },
+          diagnostics: { enabled: false },
         };
       },
     },
@@ -170,6 +174,81 @@ test('passes a requested output id through to polished output creation', async (
   });
 
   assert.equal(createdOutputId, 'existing-output');
+});
+
+test('passes screenshot context images to inference as cautious visual hints', async () => {
+  let imageCount = 0;
+  let instructions = '';
+  const service = createService({
+    id: 'test',
+    async inferText(input) {
+      imageCount = input.images?.length ?? 0;
+      instructions = input.instructions;
+      return {
+        text: 'Polished text.',
+        provider: 'test',
+        model: 'test-model',
+        providerRequestId: null,
+        providerResponseJson: null,
+      };
+    },
+  });
+
+  await service.polishOutput({
+    sessionId: 'session-1',
+    rawOutput: { id: 'raw-output', text: 'raw text' },
+    screenshotContext: [
+      {
+        path: '/tmp/context-01.jpg',
+        mimeType: 'image/jpeg',
+        detail: 'low',
+        capturedAt: 1,
+      },
+    ],
+  });
+
+  assert.equal(imageCount, 1);
+  assert.match(instructions, /<SCREENSHOT_CONTEXT>/);
+  assert.match(instructions, /visible terminology/);
+  assert.match(instructions, /exact visible spelling and casing/);
+  assert.match(instructions, /proper noun, username, handle/);
+});
+
+test('retries screenshot-context polish without images when multimodal input is rejected', async () => {
+  const imageCounts: number[] = [];
+  const service = createService({
+    id: 'test',
+    async inferText(input) {
+      imageCounts.push(input.images?.length ?? 0);
+      if (input.images && input.images.length > 0) {
+        throw new UnsupportedInferenceImageInputError('images are not supported');
+      }
+
+      return {
+        text: 'Polished text.',
+        provider: 'test',
+        model: 'test-model',
+        providerRequestId: null,
+        providerResponseJson: null,
+      };
+    },
+  });
+
+  const output = await service.polishOutput({
+    sessionId: 'session-1',
+    rawOutput: { id: 'raw-output', text: 'raw text' },
+    screenshotContext: [
+      {
+        path: '/tmp/context-01.jpg',
+        mimeType: 'image/jpeg',
+        detail: 'low',
+        capturedAt: 1,
+      },
+    ],
+  });
+
+  assert.deepEqual(imageCounts, [1, 0]);
+  assert.equal(output.text, 'Polished text.');
 });
 
 test('does not retry permanent inference failures', async () => {

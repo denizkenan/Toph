@@ -24,6 +24,8 @@ export const DESKTOP_IPC_CHANNELS = {
   setInferenceModel: 'toph:set-inference-model',
   setPolishEnabled: 'toph:set-polish-enabled',
   setTypingWpm: 'toph:set-typing-wpm',
+  setDiagnosticsEnabled: 'toph:set-diagnostics-enabled',
+  setScreenshotContextEnabled: 'toph:set-screenshot-context-enabled',
   setActivePolishRulePreset: 'toph:set-active-polish-rule-preset',
   createPolishRulePreset: 'toph:create-polish-rule-preset',
   updatePolishRulePreset: 'toph:update-polish-rule-preset',
@@ -148,6 +150,15 @@ export function resolveDefaultRuleSwitcherShortcutChord(platform: NodeJS.Platfor
   return {
     modifiers: platform === 'darwin' ? ['option'] : ['control'],
     key: 'Space',
+  };
+}
+
+export function resolveDefaultScreenshotContextShortcutChord(
+  platform: NodeJS.Platform,
+): ShortcutChord {
+  return {
+    modifiers: platform === 'darwin' ? ['option'] : ['alt'],
+    key: 'S',
   };
 }
 
@@ -334,23 +345,53 @@ export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed
 export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
 export type RuleSwitcherMode = 'idle' | 'selecting' | 'selected' | 'disabled';
-export type PermissionRequirementId = 'microphone' | 'accessibility';
-export type ProviderId = 'openai-sub';
-export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub'];
+export type PermissionRequirementId = 'microphone' | 'accessibility' | 'screen';
+export type ProviderId = 'openai-sub' | 'antigravity';
+export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub', 'antigravity'];
+export const TRANSCRIPTION_PROVIDER_IDS: readonly ProviderId[] = ['openai-sub', 'antigravity'];
+export const INFERENCE_PROVIDER_IDS: readonly ProviderId[] = ['openai-sub', 'antigravity'];
 export const DEFAULT_AUTH_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_TRANSCRIPTION_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_TRANSCRIPTION_MODEL = 'chatgpt-backend-transcribe';
 export const DEFAULT_INFERENCE_MODEL = 'gpt-5.4-mini';
+export const DEFAULT_ANTIGRAVITY_TRANSCRIPTION_MODEL = 'antigravity-gemini-3.1-flash-lite';
+export const DEFAULT_ANTIGRAVITY_INFERENCE_MODEL = 'antigravity-gemini-3.1-flash-lite';
+export const OPENAI_SUB_TRANSCRIPTION_MODELS = ['chatgpt-backend-transcribe'] as const;
+export const OPENAI_SUB_INFERENCE_MODELS = ['gpt-5.4-mini'] as const;
+export const ANTIGRAVITY_TRANSCRIPTION_MODELS = [
+  'antigravity-gemini-3.1-flash-lite',
+  'antigravity-gemini-3.1-flash-lite-minimal',
+  'antigravity-gemini-3.1-flash-lite-medium',
+  'antigravity-gemini-3.1-flash-lite-high',
+  'antigravity-gemini-3-flash',
+  'antigravity-gemini-3-flash-minimal',
+  'antigravity-gemini-3-flash-medium',
+  'antigravity-gemini-3-flash-high',
+] as const;
+export const ANTIGRAVITY_INFERENCE_MODELS = [
+  'antigravity-gemini-3.1-flash-lite',
+  'antigravity-gemini-3.1-flash-lite-minimal',
+  'antigravity-gemini-3.1-flash-lite-medium',
+  'antigravity-gemini-3.1-flash-lite-high',
+  'antigravity-gemini-3.1-pro',
+  'antigravity-gemini-3.1-pro-high',
+  'antigravity-gemini-3-flash',
+  'antigravity-gemini-3-flash-minimal',
+  'antigravity-gemini-3-flash-medium',
+  'antigravity-gemini-3-flash-high',
+] as const;
 export const MAX_POLISH_RULE_PRESETS = 9;
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export type ProviderBillingMode = 'subscription' | 'metered' | 'local' | 'unknown';
 export const PROVIDER_BILLING_MODES: Record<ProviderId, ProviderBillingMode> = {
   'openai-sub': 'subscription',
+  antigravity: 'subscription',
 };
 export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
   'microphone',
   'accessibility',
+  'screen',
 ];
 export type PermissionRequirementStatus =
   | 'granted'
@@ -381,6 +422,17 @@ export interface ConversionRecord {
   createdAt: number;
   pasteStatus: PasteAttemptStatus;
   pasteDetail: string;
+  screenshots?: ScreenshotContextImage[];
+  diagnostics?: {
+    sessionId: string;
+    outputId: string;
+    outputKind: 'raw_concat' | 'polished';
+    sessionStartedAt: number;
+    sessionEndedAt: number | null;
+    sessionDurationMs: number | null;
+    screenshotCount: number;
+    screenshotDirectory: string | null;
+  };
 }
 
 export interface PolishRulePresetSummary {
@@ -424,6 +476,42 @@ export interface DictionaryEntryDraft {
   enabled: boolean;
 }
 
+export type ScreenshotContextStatus =
+  | 'disabled'
+  | 'ready'
+  | 'capturing'
+  | 'permission-needed'
+  | 'unavailable'
+  | 'error';
+export type ScreenshotContextAction = 'none' | 'request' | 'open-settings';
+export type ScreenshotContextImageDetail = 'low' | 'high' | 'auto';
+
+export interface ScreenshotContextDuplicateReference {
+  capturedAt: number;
+  referencePath: string;
+  meanAbsoluteDifference: number;
+  changedPixelRatio: number;
+}
+
+export interface ScreenshotContextImage {
+  path: string;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  detail: ScreenshotContextImageDetail;
+  capturedAt: number;
+  width?: number;
+  height?: number;
+  byteSize?: number;
+  duplicateReferences?: ScreenshotContextDuplicateReference[];
+}
+
+export interface ScreenshotContextState {
+  enabled: boolean;
+  status: ScreenshotContextStatus;
+  detail: string;
+  action: ScreenshotContextAction;
+  capturedCount: number;
+}
+
 export interface PolishState {
   rulePresets: PolishRulePresetSummary[];
   dictionary: DictionaryEntrySummary[];
@@ -452,8 +540,16 @@ export interface AppSettings {
     enabled: boolean;
     rulePresetId: string | null;
   };
+  context: {
+    screenshots: {
+      enabled: boolean;
+    };
+  };
   dashboard: {
     typingWpm: number;
+  };
+  diagnostics: {
+    enabled: boolean;
   };
 }
 
@@ -486,8 +582,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     enabled: true,
     rulePresetId: null,
   },
+  context: {
+    screenshots: {
+      enabled: false,
+    },
+  },
   dashboard: {
     typingWpm: 50,
+  },
+  diagnostics: {
+    enabled: false,
   },
 };
 
@@ -535,15 +639,15 @@ export interface ProviderState {
 
 export type VadRuntimeStatus =
   | {
-    kind: 'ready';
-    activeAnalyzer: 'silero';
-    detail: string;
-  }
+      kind: 'ready';
+      activeAnalyzer: 'silero';
+      detail: string;
+    }
   | {
-    kind: 'degraded';
-    activeAnalyzer: 'energy';
-    detail: string;
-  };
+      kind: 'degraded';
+      activeAnalyzer: 'energy';
+      detail: string;
+    };
 
 export interface AppState {
   phase: DictationPhase;
@@ -563,6 +667,9 @@ export interface AppState {
   vad: VadRuntimeStatus;
   settings: AppSettings;
   polish: PolishState;
+  context: {
+    screenshots: ScreenshotContextState;
+  };
   permissions: PermissionState;
   pasteSupport: PasteSupport;
   lastPasteAttempt: PasteAttempt;
@@ -601,6 +708,8 @@ export interface DesktopApi {
   setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setTypingWpm: (typingWpm: number) => Promise<void>;
+  setDiagnosticsEnabled: (enabled: boolean) => Promise<void>;
+  setScreenshotContextEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
