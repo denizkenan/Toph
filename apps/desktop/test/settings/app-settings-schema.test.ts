@@ -32,7 +32,7 @@ test('normalizes unknown providers, empty models, and unknown rule presets to un
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: null },
-    context: { screenshots: { enabled: false } },
+    context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
     diagnostics: { enabled: false },
   });
@@ -46,7 +46,7 @@ test('normalizes existing v1 settings without a shortcut to the platform default
       transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
       inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
       polish: { enabled: false, rulePresetId: 'general' },
-      context: { screenshots: { enabled: true } },
+      context: { screenshots: { enabled: true }, dictationPrompt: { enabled: true } },
       diagnostics: { enabled: true },
     }),
     { rulePresetIds: ['general'] },
@@ -55,7 +55,23 @@ test('normalizes existing v1 settings without a shortcut to the platform default
   assert.deepEqual(settings.shortcut.chord, resolveDefaultShortcutChord(process.platform));
   assert.equal(settings.polish.enabled, false);
   assert.equal(settings.context.screenshots.enabled, true);
+  assert.equal(settings.context.dictationPrompt.enabled, true);
   assert.equal(settings.diagnostics.enabled, true);
+});
+
+test('defaults Dictation Prompt to disabled when context settings are missing', () => {
+  const settings = normalizeAppSettings(
+    parseAppSettingsFile({
+      version: 1,
+      auth: { providerId: 'openai-sub' },
+      transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
+      inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+      polish: { enabled: true, rulePresetId: null },
+    }),
+    { rulePresetIds: ['general'] },
+  );
+
+  assert.equal(settings.context.dictationPrompt.enabled, false);
 });
 
 test('preserves Antigravity transcription and inference settings', () => {

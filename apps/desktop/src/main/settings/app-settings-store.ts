@@ -25,6 +25,7 @@ export interface AppSettingsStore {
   setTypingWpm: (typingWpm: number) => Promise<AppSettings>;
   setDiagnosticsEnabled: (enabled: boolean) => Promise<AppSettings>;
   setScreenshotContextEnabled: (enabled: boolean) => Promise<AppSettings>;
+  setDictationPromptEnabled: (enabled: boolean) => Promise<AppSettings>;
   setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
 }
 
@@ -204,6 +205,12 @@ export async function createAppSettingsStore(options: {
     setScreenshotContextEnabled(enabled) {
       return commit((draft) => {
         draft.context.screenshots.enabled = enabled;
+      });
+    },
+
+    setDictationPromptEnabled(enabled) {
+      return commit((draft) => {
+        draft.context.dictationPrompt.enabled = enabled;
       });
     },
 

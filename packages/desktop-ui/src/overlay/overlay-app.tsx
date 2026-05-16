@@ -84,6 +84,32 @@ function getScreenshotOverlayMessage(
   return null;
 }
 
+function getDictationPromptOverlayMessage(
+  dictationPrompt: {
+    enabled: boolean;
+    status: string;
+    detail: string;
+  } | null,
+) {
+  if (!dictationPrompt?.enabled) {
+    return null;
+  }
+
+  if (dictationPrompt.status === 'capturing') {
+    return 'Dictation prompt...';
+  }
+
+  if (dictationPrompt.status === 'captured') {
+    return 'Dictation prompt saved';
+  }
+
+  if (dictationPrompt.status === 'error') {
+    return 'Dictation prompt failed';
+  }
+
+  return null;
+}
+
 function resolveRuleSwitcherWidth(ruleCount: number, mode: 'idle' | RuleSwitcherVisibleMode) {
   // Do not use viewport units here: the viewport is the current Electron overlay
   // window, so vw-based sizing can trap the selector at the old pill width.
@@ -133,6 +159,9 @@ export function OverlayApp({
   const failed = phase === 'failed';
   const screenshotOverlayMessage = listening
     ? getScreenshotOverlayMessage(state?.context.screenshots ?? null)
+    : null;
+  const dictationPromptOverlayMessage = listening
+    ? getDictationPromptOverlayMessage(state?.context.dictationPrompt ?? null)
     : null;
   const activeRulePresetId = state?.settings.polish.rulePresetId ?? null;
   const renderedActiveRulePresetId = pendingRuleSelection
@@ -359,7 +388,7 @@ export function OverlayApp({
                 : noSpeech
                   ? 'No speech detected'
                   : listening
-                    ? (screenshotOverlayMessage ?? 'Listening...')
+                    ? (dictationPromptOverlayMessage ?? screenshotOverlayMessage ?? 'Listening...')
                     : polishing
                       ? 'Polishing...'
                       : 'Transcribing...'}

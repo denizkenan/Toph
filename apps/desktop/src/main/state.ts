@@ -9,6 +9,7 @@ import {
   type AppSettings,
   type DashboardStats,
   type DictationSessionRecord,
+  type DictationPromptState,
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
@@ -45,6 +46,7 @@ export interface DesktopStateStore {
   setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
   setScreenshotContext: (context: ScreenshotContextState) => void;
+  setDictationPrompt: (context: DictationPromptState) => void;
   setPermissions: (permissions: PermissionState) => void;
   setVadRuntimeStatus: (status: VadRuntimeStatus) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
@@ -148,6 +150,12 @@ function createInitialState(): AppState {
         detail: 'Screenshot context is off.',
         action: 'none',
         capturedCount: 0,
+      },
+      dictationPrompt: {
+        enabled: false,
+        status: 'disabled',
+        detail: 'Dictation Prompt is off.',
+        capturedDurationMs: 0,
       },
     },
     permissions: {
@@ -275,6 +283,12 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
+    setDictationPrompt(context) {
+      commit((draft) => {
+        draft.context.dictationPrompt = context;
+      });
+    },
+
     setPermissions(permissions) {
       commit((draft) => {
         draft.permissions = permissions;
@@ -296,7 +310,8 @@ export function createDesktopStateStore(): DesktopStateStore {
     setRecentSessions(sessions) {
       commit((draft) => {
         draft.recentSessions = sessions.slice(0, 8);
-        draft.lastTranscript = sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
+        draft.lastTranscript =
+          sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
       });
     },
 

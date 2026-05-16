@@ -5,6 +5,7 @@ import {
   normalizeDomShortcutKey,
   normalizeDomShortcutModifier,
   normalizeShortcutModifiers,
+  resolveDefaultDictationPromptShortcutChord,
   resolveDefaultScreenshotContextShortcutChord,
   validateShortcutCandidate,
   type ShortcutCandidate,
@@ -320,6 +321,7 @@ export function ShortcutSection({
   shortcut,
   ruleSwitcherShortcut,
   screenshotContextEnabled,
+  dictationPromptEnabled,
   platform,
   registered,
   ruleSwitcherRegistered,
@@ -339,6 +341,7 @@ export function ShortcutSection({
   shortcut: ShortcutChord;
   ruleSwitcherShortcut: ShortcutChord;
   screenshotContextEnabled: boolean;
+  dictationPromptEnabled: boolean;
   platform: NodeJS.Platform;
   registered: boolean;
   ruleSwitcherRegistered: boolean;
@@ -363,6 +366,10 @@ export function ShortcutSection({
     resolveDefaultScreenshotContextShortcutChord(platform),
     platform,
   );
+  const dictationPromptShortcutLabels = formatShortcutChordKeys(
+    resolveDefaultDictationPromptShortcutChord(platform),
+    platform,
+  );
   const activeShortcut = open === 'ruleSwitcher' ? ruleSwitcherShortcut : shortcut;
   const shortcutFooter = Array.from(new Set([detail, ruleSwitcherDetail])).join(' ');
 
@@ -380,7 +387,7 @@ export function ShortcutSection({
     <>
       <SettingsSection
         eyebrow="Keyboard Shortcuts"
-        description="Configure global dictation shortcuts and see the screenshot context helper."
+        description="Configure global dictation shortcuts and see context helper shortcuts."
         footer={shortcutFooter}
       >
         <SettingsRow label="Registration">
@@ -431,6 +438,23 @@ export function ShortcutSection({
           <ShortcutKeyChips labels={screenshotContextShortcutLabels} />
           <StatusBadge
             active={screenshotContextEnabled}
+            activeLabel="On"
+            inactiveLabel="Off"
+            inactiveTone="muted"
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label="Toggle Dictation Prompt"
+          description={
+            dictationPromptEnabled
+              ? 'Toggle while listening. Prompt speech becomes polish instructions and can refer to screenshots.'
+              : 'Enable Dictation Prompt to register this shortcut. It only works while listening.'
+          }
+        >
+          <ShortcutKeyChips labels={dictationPromptShortcutLabels} />
+          <StatusBadge
+            active={dictationPromptEnabled}
             activeLabel="On"
             inactiveLabel="Off"
             inactiveTone="muted"

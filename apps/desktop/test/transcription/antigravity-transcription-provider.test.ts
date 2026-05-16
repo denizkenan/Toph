@@ -56,7 +56,7 @@ function createProvider(options: {
             },
             inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
             polish: { enabled: true, rulePresetId: 'general' },
-            context: { screenshots: { enabled: false } },
+            context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
             dashboard: { typingWpm: 50 },
             diagnostics: { enabled: false },
           };

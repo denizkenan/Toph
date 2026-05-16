@@ -66,7 +66,7 @@ const baseState: AppState = {
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: 'general' },
-    context: { screenshots: { enabled: false } },
+    context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
     diagnostics: { enabled: false },
   },
@@ -106,6 +106,12 @@ const baseState: AppState = {
       detail: 'Screenshot context is off.',
       action: 'none',
       capturedCount: 0,
+    },
+    dictationPrompt: {
+      enabled: false,
+      status: 'disabled',
+      detail: 'Dictation Prompt is off.',
+      capturedDurationMs: 0,
     },
   },
   permissions: {
@@ -167,6 +173,7 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setTypingWpm: async () => {},
     setDiagnosticsEnabled: async () => {},
     setScreenshotContextEnabled: async () => {},
+    setDictationPromptEnabled: async () => {},
     setActivePolishRulePreset: async () => {},
     createPolishRulePreset: async () => {},
     updatePolishRulePreset: async () => {},
@@ -228,13 +235,41 @@ describe('HomeApp', () => {
     await waitFor(() => expect(setScreenshotContextEnabled).toHaveBeenCalledWith(true));
   });
 
+  it('renders and updates the Dictation Prompt setting', async () => {
+    const setDictationPromptEnabled = vi.fn<DesktopApi['setDictationPromptEnabled']>(
+      async () => {},
+    );
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          setDictationPromptEnabled,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    await screen.findByText('Dictation Prompt');
+    expect(screen.getByText('Toggle Dictation Prompt')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Enable Dictation Prompt to register this shortcut. It only works while listening.',
+      ),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Dictation Prompt' }));
+
+    await waitFor(() => expect(setDictationPromptEnabled).toHaveBeenCalledWith(true));
+  });
+
   it('renders screenshot context permission request action', async () => {
     const performPermissionAction = vi.fn<DesktopApi['performPermissionAction']>(async () => {});
     const state = {
       ...baseState,
       settings: {
         ...baseState.settings,
-        context: { screenshots: { enabled: true } },
+        context: { screenshots: { enabled: true }, dictationPrompt: { enabled: false } },
       },
       context: {
         screenshots: {
@@ -245,6 +280,7 @@ describe('HomeApp', () => {
           action: 'request' as const,
           capturedCount: 0,
         },
+        dictationPrompt: baseState.context.dictationPrompt,
       },
     };
 
@@ -349,7 +385,7 @@ describe('HomeApp', () => {
           ...baseState,
           settings: {
             ...baseState.settings,
-            context: { screenshots: { enabled: true } },
+            context: { screenshots: { enabled: true }, dictationPrompt: { enabled: false } },
           },
           context: {
             screenshots: {
@@ -358,6 +394,7 @@ describe('HomeApp', () => {
               status: 'ready',
               detail: 'Screenshot context is ready.',
             },
+            dictationPrompt: baseState.context.dictationPrompt,
           },
         })}
       />,
@@ -366,6 +403,33 @@ describe('HomeApp', () => {
     await screen.findByRole('heading', { name: 'Toph' });
     expect(screen.getByText('screenshot')).toBeTruthy();
     expect(screen.getByLabelText('Alt + S')).toBeTruthy();
+  });
+
+  it('shows the Dictation Prompt shortcut on the home screen when enabled', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          settings: {
+            ...baseState.settings,
+            context: { screenshots: { enabled: false }, dictationPrompt: { enabled: true } },
+          },
+          context: {
+            screenshots: baseState.context.screenshots,
+            dictationPrompt: {
+              enabled: true,
+              status: 'ready',
+              detail: 'Ready.',
+              capturedDurationMs: 0,
+            },
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getByText('prompt')).toBeTruthy();
+    expect(screen.getByLabelText('Alt + A')).toBeTruthy();
   });
 
   it('renders recent sessions when present', async () => {
@@ -398,6 +462,7 @@ describe('HomeApp', () => {
           },
           pasteStatus: 'success',
           pasteDetail: 'Pasted via ydotool.',
+          dictationPromptText: 'Use the visible message and keep the answer concise.',
           screenshots: [
             {
               path: '/tmp/toph/session/screenshots/context-01.jpg',
@@ -424,6 +489,8 @@ describe('HomeApp', () => {
             sessionStartedAt: Date.now() - 130_000,
             sessionEndedAt: Date.now() - 120_000,
             sessionDurationMs: 10_000,
+            dictationPromptTextPath: '/tmp/toph/session/dictation-prompt.txt',
+            dictationPromptCharacterCount: 48,
             screenshotCount: 1,
             screenshotDirectory: '/tmp/toph/session/screenshots',
           },
@@ -462,6 +529,12 @@ describe('HomeApp', () => {
     expect(screen.getByText('Engineer')).toBeTruthy();
     expect(screen.queryByText(/hash/)).toBeNull();
     expect(screen.getByText('Screenshot diagnostics')).toBeTruthy();
+    expect(screen.getByText('Dictation Prompt transcript')).toBeTruthy();
+    expect(
+      screen.getAllByText('Use the visible message and keep the answer concise.'),
+    ).toHaveLength(2);
+    expect(screen.getAllByText('prompt chars').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('/tmp/toph/session/dictation-prompt.txt').length).toBeGreaterThan(0);
     expect(screen.getByText('context-01')).toBeTruthy();
     expect(screen.getByText('similar skips')).toBeTruthy();
     expect(screen.getByText('similar sample 1')).toBeTruthy();

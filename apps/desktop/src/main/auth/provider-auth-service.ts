@@ -55,6 +55,7 @@ export interface ProviderCredentials {
 export interface ProviderAuthService {
   getState: () => Promise<ProviderState>;
   resolveCredentials: (providerId: ProviderId) => Promise<ProviderCredentials>;
+  refreshCredentials: (providerId: ProviderId) => Promise<ProviderCredentials>;
   connectProvider: (providerId: ProviderId) => Promise<ProviderState>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<ProviderState>;
   removeProvider: (providerId: ProviderId) => Promise<ProviderState>;
@@ -108,10 +109,10 @@ function createProviderState(options: {
     const credential = options.storage[id] ?? null;
     const connecting = options.pendingProviderId === id;
     const error = options.errors[id] ?? null;
-    const status: ProviderConnectionStatus = connecting
-      ? 'connecting'
-      : credential
-        ? 'connected'
+    const status: ProviderConnectionStatus = credential
+      ? 'connected'
+      : connecting
+        ? 'connecting'
         : error
           ? 'invalid'
           : 'missing';
@@ -155,6 +156,15 @@ function assertProviderId(id: ProviderId) {
 
 function uniqueProviderIds(providerIds: ProviderId[]) {
   return [...new Set(providerIds)].filter((id) => PROVIDER_IDS.includes(id));
+}
+
+function toProviderCredentials(credential: OAuthProviderCredential): ProviderCredentials {
+  return {
+    accessToken: credential.access,
+    accountId: credential.accountId ?? null,
+    email: credential.email ?? null,
+    projectId: credential.projectId ?? null,
+  };
 }
 
 export function createProviderAuthService(options: {
@@ -211,6 +221,32 @@ export function createProviderAuthService(options: {
         error instanceof Error ? error.message : 'Provider credentials could not be refreshed.';
       delete storage[id];
       await writeStorage(storage);
+    }
+  };
+
+  const refreshStoredCredential = async (id: ProviderId) => {
+    const storage = await readStorage();
+    const credential = storage[id];
+    if (!credential) {
+      throw new ProviderAuthError(`Connect ${providerConfigs[id].label} before dictating.`);
+    }
+
+    try {
+      const refreshed = await refreshCredential(id, credential);
+      storage[id] = refreshed;
+      await writeStorage(storage);
+      lastErrors[id] = null;
+      await publishState();
+      return toProviderCredentials(refreshed);
+    } catch (error) {
+      lastErrors[id] =
+        error instanceof Error ? error.message : 'Provider credentials could not be refreshed.';
+      delete storage[id];
+      await writeStorage(storage);
+      await publishState();
+      throw new ProviderAuthError(
+        'Provider credentials could not be refreshed. Reconnect the provider to continue.',
+      );
     }
   };
 
@@ -298,12 +334,12 @@ export function createProviderAuthService(options: {
         }
       }
 
-      return {
-        accessToken: credential.access,
-        accountId: credential.accountId ?? null,
-        email: credential.email ?? null,
-        projectId: credential.projectId ?? null,
-      };
+      return toProviderCredentials(credential);
+    },
+
+    async refreshCredentials(id) {
+      assertProviderId(id);
+      return refreshStoredCredential(id);
     },
 
     async connectProvider(id) {
@@ -342,7 +378,9 @@ export function createProviderAuthService(options: {
         await publishState();
         throw error;
       }
-      await runPendingLogin(id, flow);
+      void runPendingLogin(id, flow).catch((error) => {
+        console.error(`${providerConfigs[id].label} login failed.`, error);
+      });
       return stateFromDisk();
     },
 

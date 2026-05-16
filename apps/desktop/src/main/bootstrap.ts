@@ -14,6 +14,10 @@ import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import { configureAppIdentity, packagedDevDataDirectoryName } from './app-identity';
 import { createProviderAuthService } from './auth/provider-auth-service';
+import {
+  getDictationPromptArtifactPaths,
+  readDictationPromptText,
+} from './context/dictation-prompt-context';
 import { createScreenshotContextService } from './context/screenshot-context-service';
 import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createDictationController } from './dictation';
@@ -83,6 +87,36 @@ function toPolishState(rulePresets: PolishRulePreset[], dictionary: DictionaryEn
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
     })),
+  };
+}
+
+function inspectDictationPromptState(settings: {
+  polish: { enabled: boolean };
+  context: { dictationPrompt: { enabled: boolean } };
+}) {
+  if (!settings.context.dictationPrompt.enabled) {
+    return {
+      enabled: false,
+      status: 'disabled' as const,
+      detail: 'Dictation Prompt is off.',
+      capturedDurationMs: 0,
+    };
+  }
+
+  if (!settings.polish.enabled) {
+    return {
+      enabled: true,
+      status: 'ignored' as const,
+      detail: 'Dictation Prompt needs Polish to be enabled.',
+      capturedDurationMs: 0,
+    };
+  }
+
+  return {
+    enabled: true,
+    status: 'ready' as const,
+    detail: 'Ready. Toggle Dictation Prompt while listening to add polish instructions.',
+    capturedDurationMs: 0,
   };
 }
 
@@ -179,6 +213,7 @@ export async function bootstrap(options: {
     const settings = settingsStore.getSettings();
     stateStore.setSettings(settings);
     stateStore.setScreenshotContext(screenshotContext.inspectState(settings));
+    stateStore.setDictationPrompt(inspectDictationPromptState(settings));
     await refreshDashboardStats();
     await refreshPolishState();
   };
@@ -187,6 +222,7 @@ export async function bootstrap(options: {
   });
   stateStore.setSettings(settingsStore.getSettings());
   stateStore.setScreenshotContext(screenshotContext.inspectState(settingsStore.getSettings()));
+  stateStore.setDictationPrompt(inspectDictationPromptState(settingsStore.getSettings()));
   if (!settingsStore.getSettings().polish.rulePresetId) {
     const firstRulePreset = (await sessionStore.listPolishRulePresets())[0];
     if (firstRulePreset) {
@@ -205,6 +241,13 @@ export async function bootstrap(options: {
             null,
             record.session.rawAudioPath,
           );
+          const dictationPromptText = await readDictationPromptText(
+            record.session.rawAudioPath,
+          ).catch((error: unknown) => {
+            console.error('Toph could not load Dictation Prompt transcript.', error);
+            return null;
+          });
+          const dictationPromptPaths = getDictationPromptArtifactPaths(record.session.rawAudioPath);
           return {
             id: record.session.id,
             status: record.session.status as DictationSessionStatus,
@@ -226,9 +269,10 @@ export async function bootstrap(options: {
               : null,
             pasteStatus: 'idle',
             pasteDetail: detailsBySessionId[record.session.id] ?? 'Loaded from local history.',
+            dictationPromptText,
             screenshots,
             diagnostics:
-              screenshots.length > 0
+              screenshots.length > 0 || dictationPromptText
                 ? {
                     sessionId: record.session.id,
                     outputId: record.selectedOutput?.id ?? null,
@@ -236,10 +280,15 @@ export async function bootstrap(options: {
                     sessionStartedAt: record.session.startedAt,
                     sessionEndedAt: record.session.endedAt,
                     sessionDurationMs: record.session.durationMs,
+                    dictationPromptTextPath: dictationPromptText
+                      ? dictationPromptPaths.promptTextPath
+                      : null,
+                    dictationPromptCharacterCount: dictationPromptText?.length ?? 0,
                     screenshotCount: screenshots.length,
-                    screenshotDirectory: dirname(
-                      screenshots[0]?.path ?? record.session.rawAudioPath,
-                    ),
+                    screenshotDirectory:
+                      screenshots.length > 0
+                        ? dirname(screenshots[0]?.path ?? record.session.rawAudioPath)
+                        : null,
                   }
                 : undefined,
           };
@@ -466,7 +515,11 @@ export async function bootstrap(options: {
     onScreenshotContextTrigger: () => {
       void dictation.captureScreenshotContext();
     },
+    onDictationPromptTrigger: () => {
+      void dictation.toggleDictationPromptCapture();
+    },
     isScreenshotContextEnabled: () => settingsStore.getSettings().context.screenshots.enabled,
+    isDictationPromptEnabled: () => settingsStore.getSettings().context.dictationPrompt.enabled,
     persistDictationShortcut: async (chord) => {
       await settingsStore.setShortcut(chord);
     },
@@ -618,6 +671,13 @@ export async function bootstrap(options: {
         });
         stateStore.setScreenshotContext(await screenshotContext.requestPermission(settings));
       }
+    },
+    setDictationPromptEnabled: async (enabled) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setDictationPromptEnabled(enabled);
+      stateStore.setDictationPrompt(inspectDictationPromptState(settingsStore.getSettings()));
+      await registerCurrentShortcuts();
     },
     setActivePolishRulePreset: async (rulePresetId) => {
       if (stateStore.getState().phase !== 'idle')
