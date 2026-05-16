@@ -7,8 +7,8 @@ import {
   shortcutChordToElectronAccelerator,
   type AppState,
   type AppSettings,
-  type ConversionRecord,
   type DashboardStats,
+  type DictationSessionRecord,
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
@@ -46,7 +46,7 @@ export interface DesktopStateStore {
   setPermissions: (permissions: PermissionState) => void;
   setVadRuntimeStatus: (status: VadRuntimeStatus) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
-  setRecentConversions: (conversions: ConversionRecord[]) => void;
+  setRecentSessions: (sessions: DictationSessionRecord[]) => void;
   setDashboardStats: (dashboardStats: DashboardStats) => void;
   setPhase: (phase: DictationPhase) => void;
   startListening: () => void;
@@ -61,7 +61,8 @@ export interface DesktopStateStore {
     options?: {
       id?: string;
       createdAt?: number;
-      kind?: ConversionRecord['kind'];
+      sessionId?: string;
+      kind?: NonNullable<DictationSessionRecord['selectedOutput']>['kind'];
       rulePresetId?: string | null;
       rulePresetHash?: string | null;
     },
@@ -141,7 +142,7 @@ function createInitialState(): AppState {
       detail: 'No transcript has been pasted yet.',
     },
     lastTranscript: null,
-    recentConversions: [],
+    recentSessions: [],
     dashboardStats: {
       rollingWindowDays: 28,
       words: 0,
@@ -264,10 +265,10 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
-    setRecentConversions(conversions) {
+    setRecentSessions(sessions) {
       commit((draft) => {
-        draft.recentConversions = conversions.slice(0, 8);
-        draft.lastTranscript = conversions[0]?.text ?? null;
+        draft.recentSessions = sessions.slice(0, 8);
+        draft.lastTranscript = sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
       });
     },
 
@@ -352,13 +353,23 @@ export function createDesktopStateStore(): DesktopStateStore {
     completeTranscription(transcript, pasteAttempt, options) {
       commit((draft) => {
         const createdAt = options?.createdAt ?? Date.now();
-        const nextConversion = {
+        const sessionId = options?.sessionId;
+        const selectedOutput = {
           id: options?.id ?? `${createdAt}`,
           text: transcript,
           kind: options?.kind ?? 'raw_concat',
           rulePresetId: options?.rulePresetId ?? null,
           rulePresetHash: options?.rulePresetHash ?? null,
           createdAt,
+        };
+        const nextSession: DictationSessionRecord = {
+          id: sessionId ?? selectedOutput.id,
+          status: 'completed',
+          createdAt,
+          errorMessage: null,
+          errorReport: null,
+          canRetry: true,
+          selectedOutput,
           pasteStatus: pasteAttempt.status,
           pasteDetail: pasteAttempt.detail,
         };
@@ -366,7 +377,10 @@ export function createDesktopStateStore(): DesktopStateStore {
         draft.phase = 'idle';
         draft.lastTranscript = transcript;
         draft.lastPasteAttempt = pasteAttempt;
-        draft.recentConversions = [nextConversion, ...draft.recentConversions].slice(0, 8);
+        draft.recentSessions = [
+          nextSession,
+          ...draft.recentSessions.filter((session) => session.id !== nextSession.id),
+        ].slice(0, 8);
       });
     },
   };

@@ -14,7 +14,7 @@ import type { SessionTranscriptionCoordinator } from './transcription/session-tr
 export interface DictationController {
   toggleCapture: () => Promise<void>;
   cancelCapture: () => Promise<void>;
-  rerunConversion: (outputId: string) => Promise<void>;
+  rerunSession: (sessionId: string) => Promise<void>;
   dispose: () => Promise<void>;
 }
 
@@ -45,11 +45,10 @@ export function createDictationController(options: {
     | 'markFailed'
     | 'markRecordingFailed'
     | 'markCancelled'
-    | 'markRecordedWithProcessingError'
     | 'setProcessingError'
     | 'clearSegmentationData'
     | 'discardSessionArtifacts'
-    | 'prepareSessionForOutputRerun'
+    | 'prepareSessionForRerun'
     | 'pruneRetainedSessions'
     | 'listTranscriptionBatchesForSession'
   >;
@@ -63,6 +62,7 @@ export function createDictationController(options: {
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
   onDashboardStatsChanged: () => Promise<void>;
+  onRecentSessionsChanged: () => Promise<void>;
 }): DictationController {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
@@ -71,7 +71,7 @@ export function createDictationController(options: {
     id: string;
     rawAudioPath: string;
     preserveArtifactsOnCancel?: boolean;
-    rerunOutputId?: string;
+    rerunOutputId?: string | null;
   } | null = null;
   let activeLivePipeline: SegmentationPipelineSession | null = null;
   let liveProcessingErrorMessage: string | null = null;
@@ -123,7 +123,7 @@ export function createDictationController(options: {
     const pipeline = activeLivePipeline;
     if (session) {
       try {
-        await options.sessionStore.markRecordedWithProcessingError({
+        await options.sessionStore.markFailed({
           sessionId: session.id,
           errorMessage: describeUnexpectedError(
             'Live segmentation could not finish unexpectedly.',
@@ -149,6 +149,7 @@ export function createDictationController(options: {
     options.stateStore.failDictation('Unable to transcribe.');
     options.windows.showOverlay();
     await pruneSessions();
+    await refreshRecentSessionsBestEffort();
     returnToIdleAfterFailure();
   };
 
@@ -187,6 +188,7 @@ export function createDictationController(options: {
     options.stateStore.failDictation(message);
     options.windows.showOverlay();
     await pruneSessions();
+    await refreshRecentSessionsBestEffort();
     returnToIdleAfterFailure();
   };
 
@@ -194,10 +196,11 @@ export function createDictationController(options: {
     options.stateStore.noSpeechDetected();
     options.windows.showOverlay();
     options.windows.emitSound('done');
+    await refreshRecentSessionsBestEffort();
     returnToIdleAfterNoSpeech();
   };
 
-  const rerunRecordedWorkflow = async (outputId: string) => {
+  const rerunRecordedWorkflow = async (requestedSessionId: string) => {
     const { phase, ruleSwitcher } = options.stateStore.getState();
     if (lifecycle !== 'idle' || phase !== 'idle' || ruleSwitcher.mode !== 'idle') {
       return;
@@ -215,20 +218,24 @@ export function createDictationController(options: {
     options.windows.showOverlay();
 
     let sessionId: string | null = null;
+    let existingOutputId: string | null = null;
 
     try {
-      const prepared = await options.sessionStore.prepareSessionForOutputRerun(outputId);
+      const prepared = await options.sessionStore.prepareSessionForRerun(requestedSessionId);
       sessionId = prepared.session.id;
+      existingOutputId = prepared.outputId;
       activeSession = {
         id: prepared.session.id,
         rawAudioPath: prepared.session.rawAudioPath,
         preserveArtifactsOnCancel: true,
-        rerunOutputId: outputId,
+        rerunOutputId: existingOutputId,
       };
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        }
         return;
       }
 
@@ -243,12 +250,18 @@ export function createDictationController(options: {
         await options.sessionStore.clearSegmentationData(sessionId, {
           preserveSelectedOutput: true,
         });
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        }
         return;
       }
 
       if (segmentationOutcome === 'no_speech') {
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        } else {
+          await options.sessionStore.markNoSpeech(sessionId);
+        }
         activeSession = null;
         lifecycle = 'idle';
         await completeNoSpeechRecording();
@@ -264,7 +277,9 @@ export function createDictationController(options: {
         await options.sessionStore.clearSegmentationData(sessionId, {
           preserveSelectedOutput: true,
         });
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        }
         return;
       }
 
@@ -280,11 +295,16 @@ export function createDictationController(options: {
           return;
         }
 
-        const rawOutput = await options.outputs.createRawConcatOutput(sessionId, { outputId });
+        const rawOutput = await options.outputs.createRawConcatOutput(
+          sessionId,
+          existingOutputId ? { outputId: existingOutputId } : undefined,
+        );
         if (!isCurrentOperation(operationGeneration)) {
           activeSession = null;
           lifecycle = 'idle';
-          await options.outputs.selectOutput({ sessionId, outputId });
+          if (existingOutputId) {
+            await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+          }
           return;
         }
 
@@ -293,6 +313,7 @@ export function createDictationController(options: {
         lifecycle = 'idle';
         options.stateStore.setPhase('idle');
         options.windows.emitSound('done');
+        void refreshRecentSessionsBestEffort();
         return;
       }
 
@@ -300,7 +321,9 @@ export function createDictationController(options: {
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        }
         return;
       }
 
@@ -309,7 +332,9 @@ export function createDictationController(options: {
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        }
         return;
       }
 
@@ -318,13 +343,15 @@ export function createDictationController(options: {
         sessionId,
         rawOutput,
         signal: activePolishAbortController.signal,
-        outputId,
+        outputId: existingOutputId ?? undefined,
       });
       activePolishAbortController = null;
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        }
         return;
       }
 
@@ -333,6 +360,7 @@ export function createDictationController(options: {
       lifecycle = 'idle';
       options.stateStore.setPhase('idle');
       options.windows.emitSound('done');
+      void refreshRecentSessionsBestEffort();
     } catch (error) {
       activePolishAbortController = null;
       if (!isCurrentOperation(operationGeneration)) {
@@ -348,11 +376,16 @@ export function createDictationController(options: {
         await options.sessionStore.clearSegmentationData(sessionId, {
           preserveSelectedOutput: true,
         });
-        await options.outputs.selectOutput({ sessionId, outputId });
+        if (existingOutputId) {
+          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+        } else {
+          await options.sessionStore.markFailed({ sessionId, errorMessage });
+        }
       }
       options.stateStore.failDictation(errorMessage);
       options.windows.showOverlay();
       returnToIdleAfterFailure();
+      void refreshRecentSessionsBestEffort();
       throw error;
     }
   };
@@ -387,6 +420,14 @@ export function createDictationController(options: {
       await options.onDashboardStatsChanged();
     } catch (error) {
       console.error('Toph could not refresh dashboard stats.', error);
+    }
+  };
+
+  const refreshRecentSessionsBestEffort = async () => {
+    try {
+      await options.onRecentSessionsChanged();
+    } catch (error) {
+      console.error('Toph could not refresh recent sessions.', error);
     }
   };
 
@@ -617,10 +658,7 @@ export function createDictationController(options: {
 
       if (liveProcessingErrorMessage || !pipeline) {
         const errorMessage = liveProcessingErrorMessage ?? 'Live segmentation did not start.';
-        await options.sessionStore.setProcessingError({
-          sessionId: session.id,
-          errorMessage,
-        });
+        await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         await options.transcription.cancelSession(session.id);
         await options.sessionStore.clearSegmentationData(session.id);
         await pipeline?.dispose();
@@ -635,6 +673,7 @@ export function createDictationController(options: {
         options.stateStore.failDictation(errorMessage);
         options.windows.showOverlay();
         returnToIdleAfterFailure();
+        void refreshRecentSessionsBestEffort();
         return;
       }
 
@@ -674,12 +713,13 @@ export function createDictationController(options: {
 
       if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
         const errorMessage = `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`;
-        await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
+        await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         activeSession = null;
         lifecycle = 'idle';
         options.stateStore.failDictation(errorMessage);
         options.windows.showOverlay();
         returnToIdleAfterFailure();
+        void refreshRecentSessionsBestEffort();
         return;
       }
 
@@ -698,12 +738,13 @@ export function createDictationController(options: {
           'Raw transcript assembly failed unexpectedly.',
           error,
         );
-        await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
+        await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         activeSession = null;
         lifecycle = 'idle';
         options.stateStore.failDictation(errorMessage);
         options.windows.showOverlay();
         returnToIdleAfterFailure();
+        void refreshRecentSessionsBestEffort();
         return;
       }
 
@@ -721,6 +762,7 @@ export function createDictationController(options: {
 
         options.stateStore.completeTranscription(rawOutput.text, pasteAttempt, {
           id: rawOutput.id,
+          sessionId: session.id,
           createdAt: rawOutput.createdAt,
           kind: 'raw_concat',
         });
@@ -728,6 +770,7 @@ export function createDictationController(options: {
         lifecycle = 'idle';
         options.windows.emitSound('done');
         void refreshDashboardStatsBestEffort();
+        void refreshRecentSessionsBestEffort();
         return;
       }
 
@@ -771,6 +814,7 @@ export function createDictationController(options: {
         options.stateStore.failDictation(errorMessage);
         options.windows.showOverlay();
         returnToIdleAfterFailure();
+        void refreshRecentSessionsBestEffort();
         return;
       }
 
@@ -781,6 +825,7 @@ export function createDictationController(options: {
 
       options.stateStore.completeTranscription(polishedOutput.text, pasteAttempt, {
         id: polishedOutput.id,
+        sessionId: session.id,
         createdAt: polishedOutput.createdAt,
         kind: 'polished',
         rulePresetId: polishedOutput.rulePresetId,
@@ -790,6 +835,7 @@ export function createDictationController(options: {
       lifecycle = 'idle';
       options.windows.emitSound('done');
       void refreshDashboardStatsBestEffort();
+      void refreshRecentSessionsBestEffort();
     } catch (error) {
       activePolishAbortController = null;
       if (!isCurrentOperation(operationGeneration)) {
@@ -915,8 +961,8 @@ export function createDictationController(options: {
       }
     },
 
-    async rerunConversion(outputId) {
-      await rerunRecordedWorkflow(outputId);
+    async rerunSession(sessionId) {
+      await rerunRecordedWorkflow(sessionId);
     },
 
     async dispose() {

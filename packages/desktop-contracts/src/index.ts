@@ -35,8 +35,8 @@ export const DESKTOP_IPC_CHANNELS = {
   deleteDictionaryEntry: 'toph:delete-dictionary-entry',
   performPermissionAction: 'toph:perform-permission-action',
   refreshPermissions: 'toph:refresh-permissions',
-  rerunConversion: 'toph:rerun-conversion',
-  deleteConversion: 'toph:delete-conversion',
+  rerunSession: 'toph:rerun-session',
+  deleteSession: 'toph:delete-session',
   sound: 'toph:sound',
   quit: 'toph:quit',
 } as const;
@@ -372,13 +372,31 @@ export interface PasteAttempt {
   detail: string;
 }
 
-export interface ConversionRecord {
+export type DictationSessionStatus =
+  | 'recorded'
+  | 'segmented'
+  | 'completed'
+  | 'failed'
+  | 'no_speech'
+  | 'recording_failed';
+
+export interface DictationSessionOutputRecord {
   id: string;
   text: string;
   kind: 'raw_concat' | 'polished';
   rulePresetId: string | null;
   rulePresetHash: string | null;
   createdAt: number;
+}
+
+export interface DictationSessionRecord {
+  id: string;
+  status: DictationSessionStatus;
+  createdAt: number;
+  errorMessage: string | null;
+  errorReport: string | null;
+  canRetry: boolean;
+  selectedOutput: DictationSessionOutputRecord | null;
   pasteStatus: PasteAttemptStatus;
   pasteDetail: string;
 }
@@ -567,7 +585,7 @@ export interface AppState {
   pasteSupport: PasteSupport;
   lastPasteAttempt: PasteAttempt;
   lastTranscript: string | null;
-  recentConversions: ConversionRecord[];
+  recentSessions: DictationSessionRecord[];
   dashboardStats: DashboardStats;
   updatedAt: number;
 }
@@ -612,8 +630,8 @@ export interface DesktopApi {
   deleteDictionaryEntry: (id: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
-  rerunConversion: (outputId: string) => Promise<void>;
-  deleteConversion: (outputId: string) => Promise<void>;
+  rerunSession: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
 }

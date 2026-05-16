@@ -94,7 +94,7 @@ const baseState: AppState = {
     detail: 'No transcript has been pasted yet.',
   },
   lastTranscript: null,
-  recentConversions: [],
+  recentSessions: [],
   dashboardStats: {
     rollingWindowDays: 28,
     words: 0,
@@ -147,8 +147,8 @@ function createClient(
     deleteDictionaryEntry: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
-    rerunConversion: async () => {},
-    deleteConversion: async () => {},
+    rerunSession: async () => {},
+    deleteSession: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };

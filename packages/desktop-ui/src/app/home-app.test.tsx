@@ -111,7 +111,7 @@ const baseState: AppState = {
     detail: 'No transcript has been pasted yet.',
   },
   lastTranscript: null,
-  recentConversions: [],
+  recentSessions: [],
   dashboardStats: {
     rollingWindowDays: 28,
     words: 0,
@@ -165,8 +165,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     deleteDictionaryEntry: async () => {},
     performPermissionAction: async () => {},
     refreshPermissions: async () => {},
-    rerunConversion: async () => {},
-    deleteConversion: async () => {},
+    rerunSession: async () => {},
+    deleteSession: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
     ...overrides,
@@ -250,40 +250,57 @@ describe('HomeApp', () => {
     expect(screen.queryByText('Ctrl+Alt+Space')).toBeNull();
   });
 
-  it('renders recent conversions when present', async () => {
-    const stateWithConversions: AppState = {
+  it('renders recent sessions when present', async () => {
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    const stateWithSessions: AppState = {
       ...baseState,
-      recentConversions: [
+      recentSessions: [
         {
-          id: 'conv-1',
-          text: 'This is a test dictation result from the mock flow.',
-          kind: 'polished',
-          rulePresetId: 'engineer',
-          rulePresetHash: 'hash',
+          id: 'session-1',
+          status: 'completed',
           createdAt: Date.now() - 120_000,
+          errorMessage: null,
+          errorReport: null,
+          canRetry: true,
+          selectedOutput: {
+            id: 'conv-1',
+            text: 'This is a test dictation result from the mock flow.',
+            kind: 'polished',
+            rulePresetId: 'engineer',
+            rulePresetHash: 'hash',
+            createdAt: Date.now() - 120_000,
+          },
           pasteStatus: 'success',
           pasteDetail: 'Pasted via ydotool.',
         },
         {
-          id: 'conv-2',
-          text: 'Another dictation that failed to paste.',
-          kind: 'raw_concat',
-          rulePresetId: null,
-          rulePresetHash: null,
+          id: 'session-2',
+          status: 'failed',
           createdAt: Date.now() - 600_000,
-          pasteStatus: 'failed',
-          pasteDetail: 'ydotool timed out.',
+          errorMessage: '1 transcription batch failed or did not finish.',
+          errorReport:
+            'Toph error report\n\nSession: session-2\n\nSession error:\n1 transcription batch failed or did not finish.\n\nBatch errors:\n1. batch-1\n   Sequence: 0\n   Attempts: 3\n   Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.',
+          canRetry: true,
+          selectedOutput: null,
+          pasteStatus: 'idle',
+          pasteDetail: 'Loaded from local history.',
         },
       ],
     };
 
-    render(<HomeApp client={createClient(stateWithConversions)} />);
+    render(<HomeApp client={createClient(stateWithSessions)} />);
 
     await screen.findByText('This is a test dictation result from the mock flow.');
     expect(screen.queryByText('Pasted')).toBeNull();
     expect(screen.queryByText('Rules: general')).toBeNull();
     expect(screen.queryByText('Paste failed')).toBeNull();
-    expect(screen.getByText('Needs rerun')).toBeTruthy();
+    expect(screen.getByText('Failed')).toBeTruthy();
+    expect(screen.getByText('1 transcription batch failed or did not finish.')).toBeTruthy();
+    expect(screen.getByLabelText('Copy debug report')).toBeTruthy();
     expect(screen.queryByText('Pasted via ydotool.')).toBeNull();
     expect(screen.queryByText('ydotool timed out.')).toBeNull();
 
@@ -292,6 +309,13 @@ describe('HomeApp', () => {
     expect(screen.getByText(/Polished with the/)).toBeTruthy();
     expect(screen.getByText('Engineer')).toBeTruthy();
     expect(screen.queryByText(/hash/)).toBeNull();
+
+    fireEvent.click(screen.getByLabelText('Copy debug report'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        expect.stringContaining('Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.'),
+      );
+    });
   });
 
   it('renders onboarding when required permissions are missing', async () => {

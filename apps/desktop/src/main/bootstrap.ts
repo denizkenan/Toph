@@ -7,6 +7,7 @@ import {
   DEFAULT_APP_SETTINGS,
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
+  type DictationSessionStatus,
 } from '@toph/desktop-contracts';
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
@@ -14,6 +15,7 @@ import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import { createProviderAuthService } from './auth/provider-auth-service';
 import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createDictationController } from './dictation';
+import { buildSessionErrorReport, sanitizeErrorMessage } from './history/error-report';
 import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
 import { registerDesktopIpc } from './ipc';
 import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
@@ -183,21 +185,34 @@ export async function bootstrap(options: {
   }
   await refreshPolishState();
   await refreshDashboardStats();
-  const refreshRecentConversions = async (detailsByOutputId: Record<string, string> = {}) => {
-    stateStore.setRecentConversions(
-      (await sessionStore.listRecentSelectedSessionOutputs(8)).map((output) => ({
-        id: output.id,
-        text: output.text,
-        kind: output.kind,
-        rulePresetId: output.rulePresetId,
-        rulePresetHash: output.rulePresetHash,
-        createdAt: output.createdAt,
+  const sensitiveErrorReportRoots = [dataPaths.dataDirectory, process.env.HOME ?? ''];
+  const refreshRecentSessions = async (detailsBySessionId: Record<string, string> = {}) => {
+    stateStore.setRecentSessions(
+      (await sessionStore.listRecentRetainedSessions(8)).map((record) => ({
+        id: record.session.id,
+        status: record.session.status as DictationSessionStatus,
+        createdAt: record.session.createdAt,
+        errorMessage: record.session.errorMessage
+          ? sanitizeErrorMessage(record.session.errorMessage, sensitiveErrorReportRoots)
+          : null,
+        errorReport: buildSessionErrorReport(record, sensitiveErrorReportRoots),
+        canRetry: record.rawAudioAvailable,
+        selectedOutput: record.selectedOutput
+          ? {
+            id: record.selectedOutput.id,
+            text: record.selectedOutput.text,
+            kind: record.selectedOutput.kind,
+            rulePresetId: record.selectedOutput.rulePresetId,
+            rulePresetHash: record.selectedOutput.rulePresetHash,
+            createdAt: record.selectedOutput.createdAt,
+          }
+          : null,
         pasteStatus: 'idle',
-        pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
+        pasteDetail: detailsBySessionId[record.session.id] ?? 'Loaded from local history.',
       })),
     );
   };
-  await refreshRecentConversions();
+  await refreshRecentSessions();
   const audioRecorder = createElectronCaptureAudioRecorder();
   const vadRuntime = createDefaultStreamingVadRuntime({
     onStatusChanged: stateStore.setVadRuntimeStatus,
@@ -275,6 +290,7 @@ export async function bootstrap(options: {
       (await ensureWritingReady()),
     windows,
     onDashboardStatsChanged: refreshDashboardStats,
+    onRecentSessionsChanged: refreshRecentSessions,
   });
   let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
   let ruleSwitcherSelectionGeneration = 0;
@@ -586,22 +602,22 @@ export async function bootstrap(options: {
     refreshPermissions: async () => {
       await ensurePermissionsReady();
     },
-    rerunConversion: async (outputId) => {
+    rerunSession: async (sessionId) => {
       try {
-        await dictation.rerunConversion(outputId);
+        await dictation.rerunSession(sessionId);
       } finally {
         await refreshDashboardStats();
-        await refreshRecentConversions({ [outputId]: 'Rerun from retained raw audio.' });
+        await refreshRecentSessions({ [sessionId]: 'Rerun from retained raw audio.' });
       }
     },
-    deleteConversion: async (outputId) => {
+    deleteSession: async (sessionId) => {
       if (stateStore.getState().phase !== 'idle') {
         throw new Error('History cannot be changed while dictation is active.');
       }
 
-      await sessionStore.removeSessionForOutput(outputId);
+      await sessionStore.removeSession(sessionId);
       await refreshDashboardStats();
-      await refreshRecentConversions();
+      await refreshRecentSessions();
     },
     quit: () => {
       isQuitting = true;

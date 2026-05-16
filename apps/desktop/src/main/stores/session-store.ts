@@ -100,16 +100,16 @@ export interface RecordingSessionStore {
     usageEvent?: ProviderUsageEvent;
   }) => Promise<void>;
   selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
-  listRecentSelectedSessionOutputs: (limit: number) => Promise<SessionOutput[]>;
+  listRecentRetainedSessions: (limit: number) => Promise<RetainedSessionRecord[]>;
   getDashboardStats: (options: {
     now: number;
     rollingWindowDays: number;
     typingWpm: number;
   }) => Promise<DashboardStats>;
-  prepareSessionForOutputRerun: (
-    outputId: string,
-  ) => Promise<{ session: RecordingSession; outputId: string }>;
-  removeSessionForOutput: (outputId: string) => Promise<void>;
+  prepareSessionForRerun: (
+    sessionId: string,
+  ) => Promise<{ session: RecordingSession; outputId: string | null }>;
+  removeSession: (sessionId: string) => Promise<void>;
   syncDefaultPolishRulePreset: (rulePreset: {
     id: string;
     title: string;
@@ -150,6 +150,13 @@ export interface RecordingSessionStore {
   } | null>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
+}
+
+export interface RetainedSessionRecord {
+  session: RecordingSession;
+  selectedOutput: SessionOutput | null;
+  failedBatches: TranscriptionBatch[];
+  rawAudioAvailable: boolean;
 }
 
 const retainedSessionCount = 10;
@@ -804,26 +811,37 @@ export async function createRecordingSessionStore(options: {
       });
     },
 
-    async listRecentSelectedSessionOutputs(limit) {
-      return db
+    async listRecentRetainedSessions(limit) {
+      const rows = db
         .select({
-          id: sessionOutputs.id,
-          sessionId: sessionOutputs.sessionId,
-          kind: sessionOutputs.kind,
-          text: sessionOutputs.text,
-          sourceOutputId: sessionOutputs.sourceOutputId,
-          provider: sessionOutputs.provider,
-          model: sessionOutputs.model,
-          rulePresetId: sessionOutputs.rulePresetId,
-          rulePresetHash: sessionOutputs.rulePresetHash,
-          createdAt: sessionOutputs.createdAt,
+          session: recordingSessions,
+          selectedOutput: sessionOutputs,
         })
-        .from(sessionOutputs)
-        .innerJoin(recordingSessions, eq(recordingSessions.selectedOutputId, sessionOutputs.id))
-        .where(eq(recordingSessions.status, 'completed'))
-        .orderBy(desc(sessionOutputs.createdAt))
-        .limit(limit)
+        .from(recordingSessions)
+        .leftJoin(sessionOutputs, eq(recordingSessions.selectedOutputId, sessionOutputs.id))
+        .where(inArray(recordingSessions.status, retainableSessionStatuses))
+        .orderBy(desc(recordingSessions.createdAt))
         .all();
+
+      return rows
+        .map((row) => ({
+          session: row.session,
+          selectedOutput: row.selectedOutput,
+          failedBatches: db
+            .select()
+            .from(transcriptionBatches)
+            .where(
+              and(
+                eq(transcriptionBatches.sessionId, row.session.id),
+                eq(transcriptionBatches.status, 'failed'),
+              ),
+            )
+            .orderBy(asc(transcriptionBatches.sequence))
+            .all(),
+          rawAudioAvailable: existsSync(row.session.rawAudioPath),
+        }))
+        .filter((row) => row.rawAudioAvailable)
+        .slice(0, limit);
     },
 
     async getDashboardStats({ now, rollingWindowDays, typingWpm }) {
@@ -917,21 +935,25 @@ export async function createRecordingSessionStore(options: {
       };
     },
 
-    async prepareSessionForOutputRerun(outputId) {
+    async prepareSessionForRerun(sessionId) {
       const row = db
         .select({ session: recordingSessions, output: sessionOutputs })
-        .from(sessionOutputs)
-        .innerJoin(recordingSessions, eq(recordingSessions.id, sessionOutputs.sessionId))
-        .where(eq(sessionOutputs.id, outputId))
+        .from(recordingSessions)
+        .leftJoin(sessionOutputs, eq(recordingSessions.selectedOutputId, sessionOutputs.id))
+        .where(eq(recordingSessions.id, sessionId))
         .get();
       if (!row) {
-        throw new Error(`Conversion ${outputId} is not available.`);
+        throw new Error(`Session ${sessionId} is not available.`);
       }
       if (row.session.status === 'removed' || row.session.status === 'cancelled') {
-        throw new Error(`Conversion ${outputId} no longer has retained audio.`);
+        throw new Error(`Session ${sessionId} no longer has retained audio.`);
+      }
+      if (!existsSync(row.session.rawAudioPath)) {
+        throw new Error(`Session ${sessionId} no longer has retained audio.`);
       }
 
-      await clearSessionGeneratedArtifacts(row.session, { keepOutputId: outputId });
+      const outputId = row.output?.id ?? null;
+      await clearSessionGeneratedArtifacts(row.session, outputId ? { keepOutputId: outputId } : undefined);
       db.update(recordingSessions)
         .set({
           status: 'recorded',
@@ -952,12 +974,11 @@ export async function createRecordingSessionStore(options: {
       };
     },
 
-    async removeSessionForOutput(outputId) {
+    async removeSession(sessionId) {
       const row = db
         .select({ session: recordingSessions })
-        .from(sessionOutputs)
-        .innerJoin(recordingSessions, eq(recordingSessions.id, sessionOutputs.sessionId))
-        .where(eq(sessionOutputs.id, outputId))
+        .from(recordingSessions)
+        .where(eq(recordingSessions.id, sessionId))
         .get();
       if (!row) {
         return;
