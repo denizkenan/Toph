@@ -4,6 +4,13 @@ import type {
   ScreenshotContextService,
   ScreenshotContextSession,
 } from './context/screenshot-context-service';
+import {
+  createDictationPromptCaptureSession,
+  readDictationPromptText,
+  resolveDictationAudioPath,
+  writeDictationPromptText,
+  type DictationPromptCaptureSession,
+} from './context/dictation-prompt-context';
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
@@ -21,6 +28,7 @@ export interface DictationController {
   toggleCapture: () => Promise<void>;
   cancelCapture: () => Promise<void>;
   captureScreenshotContext: () => Promise<void>;
+  toggleDictationPromptCapture: () => Promise<void>;
   rerunConversion: (outputId: string) => Promise<void>;
   dispose: () => Promise<void>;
 }
@@ -90,6 +98,7 @@ export function createDictationController(options: {
   let activeRecorderStop: Promise<Awaited<ReturnType<RawAudioRecorder['stop']>>> | null = null;
   let activeFinishTask: Promise<void> | null = null;
   let activeScreenshotContext: ScreenshotContextSession | null = null;
+  let activeDictationPromptContext: DictationPromptCaptureSession | null = null;
   let lifecycle: DictationLifecycle = 'idle';
   let activePolishAbortController: AbortController | null = null;
 
@@ -137,6 +146,62 @@ export function createDictationController(options: {
     screenshotContext.start();
   };
 
+  const getDictationPromptState = (optionsOverride?: {
+    status?: 'ready' | 'capturing' | 'captured' | 'ignored' | 'error';
+    detail?: string;
+    capturedDurationMs?: number;
+  }) => {
+    const settings = options.settingsStore.getSettings();
+    if (!settings.context.dictationPrompt.enabled) {
+      return {
+        enabled: false,
+        status: 'disabled' as const,
+        detail: 'Dictation Prompt is off.',
+        capturedDurationMs: 0,
+      };
+    }
+
+    if (!settings.polish.enabled) {
+      return {
+        enabled: true,
+        status: 'ignored' as const,
+        detail: 'Dictation Prompt needs Polish to be enabled.',
+        capturedDurationMs: 0,
+      };
+    }
+
+    return {
+      enabled: true,
+      status: optionsOverride?.status ?? ('ready' as const),
+      detail:
+        optionsOverride?.detail ??
+        'Ready. Toggle Dictation Prompt while listening to add polish instructions.',
+      capturedDurationMs: optionsOverride?.capturedDurationMs ?? 0,
+    };
+  };
+
+  const resetDictationPromptState = () => {
+    options.stateStore.setDictationPrompt(getDictationPromptState());
+  };
+
+  const canUseDictationPrompt = () => {
+    const settings = options.settingsStore.getSettings();
+    return settings.context.dictationPrompt.enabled && settings.polish.enabled;
+  };
+
+  const startDictationPromptContext = (session: { rawAudioPath: string }) => {
+    if (!canUseDictationPrompt()) {
+      activeDictationPromptContext = null;
+      resetDictationPromptState();
+      return null;
+    }
+
+    const context = createDictationPromptCaptureSession(session.rawAudioPath);
+    activeDictationPromptContext = context;
+    options.stateStore.setDictationPrompt(getDictationPromptState());
+    return context;
+  };
+
   const disposeActiveScreenshotContext = async () => {
     const screenshotContext = activeScreenshotContext;
     activeScreenshotContext = null;
@@ -162,9 +227,62 @@ export function createDictationController(options: {
     }
   };
 
+  const transcribeDictationPrompt = async (input: {
+    sessionId: string;
+    rawAudioPath: string;
+    promptAudioPath: string | null;
+    promptDurationMs: number;
+    signal?: AbortSignal;
+  }) => {
+    if (!canUseDictationPrompt() || !input.promptAudioPath || input.promptDurationMs <= 0) {
+      return null;
+    }
+
+    try {
+      const result = await options.transcription.transcribeAudio({
+        sessionId: input.sessionId,
+        audioPath: input.promptAudioPath,
+        durationMs: input.promptDurationMs,
+        label: 'dictation-prompt',
+        signal: input.signal,
+      });
+      const text = await writeDictationPromptText(input.rawAudioPath, result.text);
+      options.stateStore.setDictationPrompt(
+        getDictationPromptState({
+          status: text ? 'captured' : 'ignored',
+          detail: text
+            ? 'Dictation Prompt captured for this polish pass.'
+            : 'Dictation Prompt did not contain usable instructions.',
+          capturedDurationMs: input.promptDurationMs,
+        }),
+      );
+      return text;
+    } catch (error) {
+      console.error('Toph could not transcribe Dictation Prompt context.', error);
+      options.stateStore.setDictationPrompt(
+        getDictationPromptState({
+          status: 'error',
+          detail: 'Dictation Prompt could not be transcribed. Continuing without it.',
+          capturedDurationMs: input.promptDurationMs,
+        }),
+      );
+      return null;
+    }
+  };
+
+  const readStoredDictationPromptText = async (rawAudioPath: string) => {
+    try {
+      return await readDictationPromptText(rawAudioPath);
+    } catch (error) {
+      console.error('Toph could not read retained Dictation Prompt context.', error);
+      return null;
+    }
+  };
+
   const failProcessedSession = async (error: unknown) => {
     const session = activeSession;
     const pipeline = activeLivePipeline;
+    const dictationPromptContext = activeDictationPromptContext;
     if (session) {
       try {
         await options.sessionStore.markRecordedWithProcessingError({
@@ -183,7 +301,10 @@ export function createDictationController(options: {
 
     activeSession = null;
     activeLivePipeline = null;
+    activeDictationPromptContext = null;
     await disposeActiveScreenshotContext();
+    dictationPromptContext?.dispose();
+    resetDictationPromptState();
     liveProcessingErrorMessage = null;
     liveProcessingQueue = Promise.resolve();
     liveProcessingBacklog = 0;
@@ -204,10 +325,12 @@ export function createDictationController(options: {
     const failedSession = activeSession;
     const failedPipeline = activeLivePipeline;
     const failedScreenshotContext = activeScreenshotContext;
+    const failedDictationPromptContext = activeDictationPromptContext;
     const pendingLiveProcessing = liveProcessingQueue;
     activeSession = null;
     activeLivePipeline = null;
     activeScreenshotContext = null;
+    activeDictationPromptContext = null;
     liveProcessingErrorMessage = null;
     liveProcessingQueue = Promise.resolve();
     liveProcessingBacklog = 0;
@@ -224,6 +347,8 @@ export function createDictationController(options: {
         screenshotError,
       );
     });
+    failedDictationPromptContext?.dispose();
+    resetDictationPromptState();
 
     if (failedSession) {
       try {
@@ -290,6 +415,7 @@ export function createDictationController(options: {
       const segmentationOutcome = await options.segmentation.segmentRecordedSession({
         sessionId,
         generateBatchAudio: true,
+        audioPath: await resolveDictationAudioPath(prepared.session.rawAudioPath),
         preserveSelectedOutput: true,
       });
       if (!isCurrentOperation(operationGeneration)) {
@@ -302,7 +428,12 @@ export function createDictationController(options: {
         return;
       }
 
-      if (segmentationOutcome === 'no_speech') {
+      const polishSettings = options.settingsStore.getSettings().polish;
+      const dictationPromptText = polishSettings.enabled
+        ? await readStoredDictationPromptText(prepared.session.rawAudioPath)
+        : null;
+
+      if (segmentationOutcome === 'no_speech' && !dictationPromptText) {
         await options.outputs.selectOutput({ sessionId, outputId });
         activeSession = null;
         lifecycle = 'idle';
@@ -329,7 +460,6 @@ export function createDictationController(options: {
         );
       }
 
-      const polishSettings = options.settingsStore.getSettings().polish;
       if (!polishSettings.enabled) {
         if (!isCurrentOperation(operationGeneration)) {
           return;
@@ -351,7 +481,9 @@ export function createDictationController(options: {
         return;
       }
 
-      const rawOutput = await options.outputs.createRawConcatOutput(sessionId);
+      const rawOutput = await options.outputs.createRawConcatOutput(sessionId, {
+        allowEmpty: segmentationOutcome === 'no_speech' && !!dictationPromptText,
+      });
       if (!isCurrentOperation(operationGeneration)) {
         activeSession = null;
         lifecycle = 'idle';
@@ -377,6 +509,7 @@ export function createDictationController(options: {
         sessionId,
         rawOutput,
         screenshotContext,
+        dictationPromptText,
         signal: activePolishAbortController.signal,
         outputId,
       });
@@ -462,9 +595,13 @@ export function createDictationController(options: {
       pipeline?: SegmentationPipelineSession | null,
       durationMs?: number,
     ) => {
+      const dictationPromptContext = activeDictationPromptContext;
       activeSession = null;
       activeLivePipeline = null;
+      activeDictationPromptContext = null;
       await disposeActiveScreenshotContext();
+      dictationPromptContext?.dispose();
+      resetDictationPromptState();
       liveProcessingErrorMessage = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
@@ -496,11 +633,14 @@ export function createDictationController(options: {
         rawAudioPath: session.rawAudioPath,
       };
       startScreenshotContext(session);
+      const dictationPromptContext = startDictationPromptContext(session);
+      const segmentationAudioPath =
+        dictationPromptContext?.dictationAudioPath ?? session.rawAudioPath;
 
       try {
         const pipeline = await options.segmentation.createLiveSession({
           sessionId: session.id,
-          rawAudioPath: session.rawAudioPath,
+          rawAudioPath: segmentationAudioPath,
           generateBatchAudio: true,
           onBatchesReady: async (batches) => {
             await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
@@ -538,6 +678,42 @@ export function createDictationController(options: {
         onPcmChunk: async (chunk) => {
           const generation = sessionGeneration;
           const pipelineAtEnqueue = activeLivePipeline;
+          const dictationPromptAtEnqueue = activeDictationPromptContext;
+
+          if (dictationPromptAtEnqueue?.isCapturing()) {
+            try {
+              dictationPromptAtEnqueue.writePromptChunk(chunk);
+            } catch (error) {
+              console.error('Toph could not write Dictation Prompt audio.', error);
+              dictationPromptAtEnqueue.stopPromptCapture();
+              options.stateStore.setDictationPrompt(
+                getDictationPromptState({
+                  status: 'error',
+                  detail:
+                    'Dictation Prompt audio could not be saved. Continuing without that prompt.',
+                }),
+              );
+            }
+            return;
+          }
+
+          try {
+            dictationPromptAtEnqueue?.writeDictationChunk(chunk);
+          } catch (error) {
+            liveProcessingErrorMessage = describeUnexpectedError(
+              'Dictation Prompt audio routing failed while recording.',
+              error,
+            );
+            console.error(liveProcessingErrorMessage, error);
+            activeLivePipeline = null;
+            await pipelineAtEnqueue?.dispose();
+            await options.sessionStore.setProcessingError({
+              sessionId: session.id,
+              errorMessage: liveProcessingErrorMessage,
+            });
+            return;
+          }
+
           if (
             generation !== liveProcessingGeneration ||
             liveProcessingErrorMessage ||
@@ -652,9 +828,22 @@ export function createDictationController(options: {
     options.windows.emitSound('stop');
     let recordingWasSaved = false;
     let screenshotContext: ScreenshotContextImage[] = [];
+    let dictationPromptText: string | null = null;
+    let dictationPromptTranscriptionAttempted = false;
+    let dictationPromptCaptureResult: {
+      promptAudioPath: string | null;
+      promptDurationMs: number;
+    } | null = null;
 
     try {
       const recording = await stopActiveRecorder();
+      if (!isCurrentOperation(operationGeneration)) {
+        return;
+      }
+
+      const dictationPromptContext = activeDictationPromptContext;
+      activeDictationPromptContext = null;
+      dictationPromptCaptureResult = (await dictationPromptContext?.finish()) ?? null;
       if (!isCurrentOperation(operationGeneration)) {
         return;
       }
@@ -726,35 +915,67 @@ export function createDictationController(options: {
         return;
       }
 
+      const getDictationPromptText = async () => {
+        if (dictationPromptTranscriptionAttempted) {
+          return dictationPromptText;
+        }
+
+        dictationPromptTranscriptionAttempted = true;
+        dictationPromptText =
+          dictationPromptCaptureResult && canUseDictationPrompt()
+            ? await transcribeDictationPrompt({
+                sessionId: session.id,
+                rawAudioPath: session.rawAudioPath,
+                promptAudioPath: dictationPromptCaptureResult.promptAudioPath,
+                promptDurationMs: dictationPromptCaptureResult.promptDurationMs,
+                signal: activePolishAbortController?.signal,
+              })
+            : null;
+        return dictationPromptText;
+      };
+
       if (outcome.result === 'no_speech') {
-        await options.sessionStore.markNoSpeech(session.id);
-        activeSession = null;
-        lifecycle = 'idle';
-        await disposeActiveScreenshotContext();
-        await completeNoSpeechRecording();
-        return;
+        activePolishAbortController = new AbortController();
+        const promptText = await getDictationPromptText();
+        activePolishAbortController = null;
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
+        if (!promptText) {
+          await options.sessionStore.markNoSpeech(session.id);
+          activeSession = null;
+          lifecycle = 'idle';
+          await disposeActiveScreenshotContext();
+          await completeNoSpeechRecording();
+          return;
+        }
       }
 
       await options.sessionStore.markSegmented(session.id);
-      const transcriptionOutcome = await options.transcription.waitForSession(session.id);
-      if (!isCurrentOperation(operationGeneration)) {
-        return;
-      }
+      if (outcome.result !== 'no_speech') {
+        const transcriptionOutcome = await options.transcription.waitForSession(session.id);
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
 
-      if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
-        const errorMessage = `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`;
-        await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
-        activeSession = null;
-        lifecycle = 'idle';
-        options.stateStore.failDictation(errorMessage);
-        options.windows.showOverlay();
-        returnToIdleAfterFailure();
-        return;
+        if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
+          const errorMessage = `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`;
+          await options.sessionStore.setProcessingError({ sessionId: session.id, errorMessage });
+          activeSession = null;
+          lifecycle = 'idle';
+          options.stateStore.failDictation(errorMessage);
+          options.windows.showOverlay();
+          returnToIdleAfterFailure();
+          return;
+        }
       }
 
       let rawOutput: Awaited<ReturnType<SessionOutputService['createRawConcatOutput']>>;
       try {
-        rawOutput = await options.outputs.createRawConcatOutput(session.id);
+        rawOutput = await options.outputs.createRawConcatOutput(session.id, {
+          allowEmpty: outcome.result === 'no_speech' && !!dictationPromptText,
+        });
         if (!isCurrentOperation(operationGeneration)) {
           return;
         }
@@ -802,6 +1023,13 @@ export function createDictationController(options: {
 
       let polishedOutput: Awaited<ReturnType<PolishService['polishOutput']>>;
       try {
+        activePolishAbortController = new AbortController();
+        dictationPromptText = await getDictationPromptText();
+        activePolishAbortController = null;
+        if (!isCurrentOperation(operationGeneration)) {
+          return;
+        }
+
         await options.sessionStore.markPolishing(session.id);
         if (!isCurrentOperation(operationGeneration)) {
           return;
@@ -817,6 +1045,7 @@ export function createDictationController(options: {
           sessionId: session.id,
           rawOutput,
           screenshotContext,
+          dictationPromptText,
           signal: activePolishAbortController.signal,
         });
         activePolishAbortController = null;
@@ -913,6 +1142,7 @@ export function createDictationController(options: {
       const session = activeSession;
       const pipeline = activeLivePipeline;
       const screenshotContext = activeScreenshotContext;
+      const dictationPromptContext = activeDictationPromptContext;
       const pendingLiveProcessing = liveProcessingQueue;
       const pendingFinish = activeFinishTask;
       const shouldStopRecorder =
@@ -931,6 +1161,7 @@ export function createDictationController(options: {
       activeSession = null;
       activeLivePipeline = null;
       activeScreenshotContext = null;
+      activeDictationPromptContext = null;
       liveProcessingErrorMessage = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
@@ -956,6 +1187,8 @@ export function createDictationController(options: {
       await screenshotContext?.dispose().catch((screenshotError: unknown) => {
         console.error('Toph screenshot context capture failed while cancelling.', screenshotError);
       });
+      dictationPromptContext?.dispose();
+      resetDictationPromptState();
 
       try {
         // A flush may schedule batches while cancel is waiting for finish cleanup;
@@ -1003,6 +1236,38 @@ export function createDictationController(options: {
       }
     },
 
+    async toggleDictationPromptCapture() {
+      const dictationPromptContext = activeDictationPromptContext;
+      if (
+        lifecycle !== 'listening' ||
+        options.stateStore.getState().phase !== 'listening' ||
+        !canUseDictationPrompt() ||
+        !dictationPromptContext
+      ) {
+        resetDictationPromptState();
+        return;
+      }
+
+      if (dictationPromptContext.isCapturing()) {
+        dictationPromptContext.stopPromptCapture();
+        options.stateStore.setDictationPrompt(
+          getDictationPromptState({
+            status: 'captured',
+            detail: 'Dictation Prompt saved. Keep dictating or stop to apply it.',
+          }),
+        );
+        return;
+      }
+
+      dictationPromptContext.startPromptCapture();
+      options.stateStore.setDictationPrompt(
+        getDictationPromptState({
+          status: 'capturing',
+          detail: 'Listening for Dictation Prompt instructions...',
+        }),
+      );
+    },
+
     async rerunConversion(outputId) {
       await rerunRecordedWorkflow(outputId);
     },
@@ -1013,10 +1278,12 @@ export function createDictationController(options: {
       const session = activeSession;
       const pipeline = activeLivePipeline;
       const screenshotContext = activeScreenshotContext;
+      const dictationPromptContext = activeDictationPromptContext;
       const pendingLiveProcessing = liveProcessingQueue;
       activeSession = null;
       activeLivePipeline = null;
       activeScreenshotContext = null;
+      activeDictationPromptContext = null;
       liveProcessingErrorMessage = null;
       liveProcessingQueue = Promise.resolve();
       liveProcessingBacklog = 0;
@@ -1033,6 +1300,8 @@ export function createDictationController(options: {
       await screenshotContext?.dispose().catch((screenshotError: unknown) => {
         console.error('Toph screenshot context capture failed during shutdown.', screenshotError);
       });
+      dictationPromptContext?.dispose();
+      resetDictationPromptState();
 
       if (session) {
         try {

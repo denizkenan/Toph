@@ -79,6 +79,7 @@ export function registerDesktopIpc(options: {
   setTypingWpm: (typingWpm: number) => Promise<void>;
   setDiagnosticsEnabled: (enabled: boolean) => Promise<void>;
   setScreenshotContextEnabled: (enabled: boolean) => Promise<void>;
+  setDictationPromptEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
@@ -267,6 +268,16 @@ export function registerDesktopIpc(options: {
     },
   );
   ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setDictationPromptEnabled,
+    async (_event, enabled: unknown) => {
+      if (typeof enabled !== 'boolean') {
+        throw new Error('Invalid Dictation Prompt setting.');
+      }
+
+      await options.setDictationPromptEnabled(enabled);
+    },
+  );
+  ipcMain.handle(
     DESKTOP_IPC_CHANNELS.setActivePolishRulePreset,
     async (_event, rulePresetId: unknown) => {
       if (typeof rulePresetId !== 'string' || rulePresetId.trim().length === 0) {
@@ -396,6 +407,7 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTypingWpm);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setDiagnosticsEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setDictationPromptEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createPolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.updatePolishRulePreset);

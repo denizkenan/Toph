@@ -94,6 +94,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setDiagnosticsEnabled, enabled) as Promise<void>,
   setScreenshotContextEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled, enabled) as Promise<void>,
+  setDictationPromptEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setDictationPromptEnabled, enabled) as Promise<void>,
   setActivePolishRulePreset: (rulePresetId: string) =>
     ipcRenderer.invoke(
       DESKTOP_IPC_CHANNELS.setActivePolishRulePreset,

@@ -26,6 +26,7 @@ export const DESKTOP_IPC_CHANNELS = {
   setTypingWpm: 'toph:set-typing-wpm',
   setDiagnosticsEnabled: 'toph:set-diagnostics-enabled',
   setScreenshotContextEnabled: 'toph:set-screenshot-context-enabled',
+  setDictationPromptEnabled: 'toph:set-dictation-prompt-enabled',
   setActivePolishRulePreset: 'toph:set-active-polish-rule-preset',
   createPolishRulePreset: 'toph:create-polish-rule-preset',
   updatePolishRulePreset: 'toph:update-polish-rule-preset',
@@ -159,6 +160,15 @@ export function resolveDefaultScreenshotContextShortcutChord(
   return {
     modifiers: platform === 'darwin' ? ['option'] : ['alt'],
     key: 'S',
+  };
+}
+
+export function resolveDefaultDictationPromptShortcutChord(
+  platform: NodeJS.Platform,
+): ShortcutChord {
+  return {
+    modifiers: platform === 'darwin' ? ['option'] : ['alt'],
+    key: 'A',
   };
 }
 
@@ -422,6 +432,7 @@ export interface ConversionRecord {
   createdAt: number;
   pasteStatus: PasteAttemptStatus;
   pasteDetail: string;
+  dictationPromptText?: string | null;
   screenshots?: ScreenshotContextImage[];
   diagnostics?: {
     sessionId: string;
@@ -430,6 +441,8 @@ export interface ConversionRecord {
     sessionStartedAt: number;
     sessionEndedAt: number | null;
     sessionDurationMs: number | null;
+    dictationPromptTextPath: string | null;
+    dictationPromptCharacterCount: number;
     screenshotCount: number;
     screenshotDirectory: string | null;
   };
@@ -512,6 +525,21 @@ export interface ScreenshotContextState {
   capturedCount: number;
 }
 
+export type DictationPromptStatus =
+  | 'disabled'
+  | 'ready'
+  | 'capturing'
+  | 'captured'
+  | 'ignored'
+  | 'error';
+
+export interface DictationPromptState {
+  enabled: boolean;
+  status: DictationPromptStatus;
+  detail: string;
+  capturedDurationMs: number;
+}
+
 export interface PolishState {
   rulePresets: PolishRulePresetSummary[];
   dictionary: DictionaryEntrySummary[];
@@ -542,6 +570,9 @@ export interface AppSettings {
   };
   context: {
     screenshots: {
+      enabled: boolean;
+    };
+    dictationPrompt: {
       enabled: boolean;
     };
   };
@@ -584,6 +615,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   context: {
     screenshots: {
+      enabled: false,
+    },
+    dictationPrompt: {
       enabled: false,
     },
   },
@@ -669,6 +703,7 @@ export interface AppState {
   polish: PolishState;
   context: {
     screenshots: ScreenshotContextState;
+    dictationPrompt: DictationPromptState;
   };
   permissions: PermissionState;
   pasteSupport: PasteSupport;
@@ -710,6 +745,7 @@ export interface DesktopApi {
   setTypingWpm: (typingWpm: number) => Promise<void>;
   setDiagnosticsEnabled: (enabled: boolean) => Promise<void>;
   setScreenshotContextEnabled: (enabled: boolean) => Promise<void>;
+  setDictationPromptEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;

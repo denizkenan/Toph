@@ -57,6 +57,11 @@ const appSettingsFileSchema = z.object({
           enabled: z.boolean(),
         })
         .optional(),
+      dictationPrompt: z
+        .object({
+          enabled: z.boolean(),
+        })
+        .optional(),
     })
     .optional(),
   dashboard: z
@@ -190,6 +195,11 @@ export function normalizeAppSettings(
       screenshots: {
         enabled:
           value.context?.screenshots?.enabled ?? defaultAppSettings.context.screenshots.enabled,
+      },
+      dictationPrompt: {
+        enabled:
+          value.context?.dictationPrompt?.enabled ??
+          defaultAppSettings.context.dictationPrompt.enabled,
       },
     },
     dashboard: {

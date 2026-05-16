@@ -29,6 +29,7 @@ export function SettingsPage({
   const [busyProvider, setBusyProvider] = useState<ProviderId | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
   const [busyScreenshotContext, setBusyScreenshotContext] = useState(false);
+  const [busyDictationPrompt, setBusyDictationPrompt] = useState(false);
   const [busyDiagnostics, setBusyDiagnostics] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
   const settingsEditable = state.phase === 'idle';
@@ -82,6 +83,15 @@ export function SettingsPage({
       await client.setScreenshotContextEnabled(enabled);
     } finally {
       setBusyScreenshotContext(false);
+    }
+  };
+
+  const setDictationPromptEnabled = async (enabled: boolean) => {
+    setBusyDictationPrompt(true);
+    try {
+      await client.setDictationPromptEnabled(enabled);
+    } finally {
+      setBusyDictationPrompt(false);
     }
   };
 
@@ -176,17 +186,21 @@ export function SettingsPage({
 
         <ScreenshotContextSection
           screenshots={state.context.screenshots}
+          dictationPrompt={state.context.dictationPrompt}
           platform={state.environment.platform}
           disabled={!settingsEditable || busyScreenshotContext}
           busy={busyScreenshotContext}
+          dictationPromptBusy={busyDictationPrompt}
           client={client}
           onEnabledChange={(enabled) => void setScreenshotContextEnabled(enabled)}
+          onDictationPromptEnabledChange={(enabled) => void setDictationPromptEnabled(enabled)}
         />
 
         <ShortcutSection
           shortcut={state.shortcut.chord}
           ruleSwitcherShortcut={state.ruleSwitcherShortcut.chord}
           screenshotContextEnabled={state.settings.context.screenshots.enabled}
+          dictationPromptEnabled={state.settings.context.dictationPrompt.enabled}
           platform={state.environment.platform}
           registered={state.shortcut.registered}
           ruleSwitcherRegistered={state.ruleSwitcherShortcut.registered}

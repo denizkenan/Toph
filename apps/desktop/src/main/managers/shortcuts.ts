@@ -5,6 +5,7 @@ import electron from 'electron';
 
 import {
   formatShortcutChord,
+  resolveDefaultDictationPromptShortcutChord,
   resolveDefaultScreenshotContextShortcutChord,
   shortcutChordToElectronAccelerator,
   shortcutChordToGnomeBinding,
@@ -208,7 +209,9 @@ export function createShortcutManager(options: {
   onDictationTrigger: () => void;
   onRuleSwitcherTrigger: () => void;
   onScreenshotContextTrigger: () => void;
+  onDictationPromptTrigger: () => void;
   isScreenshotContextEnabled?: () => boolean;
+  isDictationPromptEnabled?: () => boolean;
   persistDictationShortcut: (chord: ShortcutChord) => Promise<void>;
   persistRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
   shortcutApi?: GlobalShortcutApi;
@@ -238,20 +241,31 @@ export function createShortcutManager(options: {
       options.onRuleSwitcherTrigger,
     );
 
-    if (
-      dictationRegistered &&
-      ruleSwitcherRegistered &&
-      options.isScreenshotContextEnabled?.() === true
-    ) {
-      const screenshotChord = resolveDefaultScreenshotContextShortcutChord(process.platform);
-      const screenshotRegistered = shortcutApi.register(
-        shortcutChordToElectronAccelerator(screenshotChord, process.platform),
-        options.onScreenshotContextTrigger,
-      );
-      if (!screenshotRegistered) {
-        console.warn(
-          `Toph could not register manual screenshot context shortcut ${formatShortcutChord(screenshotChord, process.platform)}.`,
+    if (dictationRegistered && ruleSwitcherRegistered) {
+      if (options.isScreenshotContextEnabled?.() === true) {
+        const screenshotChord = resolveDefaultScreenshotContextShortcutChord(process.platform);
+        const screenshotRegistered = shortcutApi.register(
+          shortcutChordToElectronAccelerator(screenshotChord, process.platform),
+          options.onScreenshotContextTrigger,
         );
+        if (!screenshotRegistered) {
+          console.warn(
+            `Toph could not register manual screenshot context shortcut ${formatShortcutChord(screenshotChord, process.platform)}.`,
+          );
+        }
+      }
+
+      if (options.isDictationPromptEnabled?.() === true) {
+        const dictationPromptChord = resolveDefaultDictationPromptShortcutChord(process.platform);
+        const dictationPromptRegistered = shortcutApi.register(
+          shortcutChordToElectronAccelerator(dictationPromptChord, process.platform),
+          options.onDictationPromptTrigger,
+        );
+        if (!dictationPromptRegistered) {
+          console.warn(
+            `Toph could not register Dictation Prompt shortcut ${formatShortcutChord(dictationPromptChord, process.platform)}.`,
+          );
+        }
       }
     }
 

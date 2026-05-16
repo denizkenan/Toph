@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   formatShortcutChordKeys,
   normalizeShortcutModifiers,
+  resolveDefaultDictationPromptShortcutChord,
   resolveDefaultScreenshotContextShortcutChord,
   type AppState,
   type DesktopApi,
@@ -137,7 +138,11 @@ function HomeScreen({
   const screenshotContextShortcut = resolveDefaultScreenshotContextShortcutChord(
     state.environment.platform,
   );
+  const dictationPromptShortcut = resolveDefaultDictationPromptShortcutChord(
+    state.environment.platform,
+  );
   const showScreenshotContextShortcut = state.settings.context.screenshots.enabled;
+  const showDictationPromptShortcut = state.settings.context.dictationPrompt.enabled;
 
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
@@ -169,6 +174,16 @@ function HomeScreen({
                   chord={screenshotContextShortcut}
                   platform={state.environment.platform}
                   action="screenshot"
+                />
+              </>
+            )}
+            {showDictationPromptShortcut && (
+              <>
+                <HeaderDivider />
+                <HeaderShortcutHint
+                  chord={dictationPromptShortcut}
+                  platform={state.environment.platform}
+                  action="prompt"
                 />
               </>
             )}

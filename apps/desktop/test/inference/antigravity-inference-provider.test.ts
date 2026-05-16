@@ -62,7 +62,7 @@ function createProvider(options: {
               model: options.model ?? DEFAULT_ANTIGRAVITY_INFERENCE_MODEL,
             },
             polish: { enabled: true, rulePresetId: 'general' },
-            context: { screenshots: { enabled: false } },
+            context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
             dashboard: { typingWpm: 50 },
             diagnostics: { enabled: false },
           };

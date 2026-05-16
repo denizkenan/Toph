@@ -41,7 +41,7 @@ function createService(
           transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
           inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
           polish: { enabled: true, rulePresetId: 'general' },
-          context: { screenshots: { enabled: false } },
+          context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
           dashboard: { typingWpm: 50 },
           diagnostics: { enabled: false },
         };
@@ -179,11 +179,13 @@ test('passes a requested output id through to polished output creation', async (
 test('passes screenshot context images to inference as cautious visual hints', async () => {
   let imageCount = 0;
   let instructions = '';
+  let inputText = '';
   const service = createService({
     id: 'test',
     async inferText(input) {
       imageCount = input.images?.length ?? 0;
       instructions = input.instructions;
+      inputText = input.inputText;
       return {
         text: 'Polished text.',
         provider: 'test',
@@ -212,6 +214,55 @@ test('passes screenshot context images to inference as cautious visual hints', a
   assert.match(instructions, /visible terminology/);
   assert.match(instructions, /exact visible spelling and casing/);
   assert.match(instructions, /proper noun, username, handle/);
+  assert.doesNotMatch(instructions, /<DICTATION_PROMPT>/);
+  assert.doesNotMatch(instructions, /controlling instruction/);
+  assert.equal(inputText, '<TRANSCRIPT>\nraw text\n</TRANSCRIPT>');
+});
+
+test('passes Dictation Prompt instructions alongside screenshot context', async () => {
+  let imageCount = 0;
+  let instructions = '';
+  let inputText = '';
+  const service = createService({
+    id: 'test',
+    async inferText(input) {
+      imageCount = input.images?.length ?? 0;
+      instructions = input.instructions;
+      inputText = input.inputText;
+      return {
+        text: 'Visible message response.',
+        provider: 'test',
+        model: 'test-model',
+        providerRequestId: null,
+        providerResponseJson: null,
+      };
+    },
+  });
+
+  await service.polishOutput({
+    sessionId: 'session-1',
+    rawOutput: { id: 'raw-output', text: 'draft reply' },
+    dictationPromptText: 'Use the user message visible above.',
+    screenshotContext: [
+      {
+        path: '/tmp/context-01.jpg',
+        mimeType: 'image/jpeg',
+        detail: 'low',
+        capturedAt: 1,
+      },
+    ],
+  });
+
+  assert.equal(imageCount, 1);
+  assert.match(instructions, /<DICTATION_PROMPT>/);
+  assert.match(instructions, /Use the user message visible above/);
+  assert.match(instructions, /refer to the attached screenshots/);
+  assert.match(instructions, /it is the controlling task/);
+  assert.match(instructions, /Prefer prominent body content/);
+  assert.match(inputText, /<ACTIVE_TASK>/);
+  assert.match(inputText, /TRANSCRIPT is secondary context/);
+  assert.match(inputText, /<TRANSCRIPT>\ndraft reply\n<\/TRANSCRIPT>/);
+  assert.match(inputText, /<DICTATION_PROMPT_REQUEST>\nUse the user message visible above\.\n<\/DICTATION_PROMPT_REQUEST>/);
 });
 
 test('retries screenshot-context polish without images when multimodal input is rejected', async () => {

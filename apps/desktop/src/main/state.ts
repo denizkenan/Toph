@@ -9,6 +9,7 @@ import {
   type AppSettings,
   type ConversionRecord,
   type DashboardStats,
+  type DictationPromptState,
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
@@ -45,6 +46,7 @@ export interface DesktopStateStore {
   setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
   setScreenshotContext: (context: ScreenshotContextState) => void;
+  setDictationPrompt: (context: DictationPromptState) => void;
   setPermissions: (permissions: PermissionState) => void;
   setVadRuntimeStatus: (status: VadRuntimeStatus) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
@@ -147,6 +149,12 @@ function createInitialState(): AppState {
         detail: 'Screenshot context is off.',
         action: 'none',
         capturedCount: 0,
+      },
+      dictationPrompt: {
+        enabled: false,
+        status: 'disabled',
+        detail: 'Dictation Prompt is off.',
+        capturedDurationMs: 0,
       },
     },
     permissions: {
@@ -271,6 +279,12 @@ export function createDesktopStateStore(): DesktopStateStore {
     setScreenshotContext(context) {
       commit((draft) => {
         draft.context.screenshots = context;
+      });
+    },
+
+    setDictationPrompt(context) {
+      commit((draft) => {
+        draft.context.dictationPrompt = context;
       });
     },
 

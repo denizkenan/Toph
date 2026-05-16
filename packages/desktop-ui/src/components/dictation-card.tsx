@@ -1,5 +1,13 @@
 import { Collapsible } from '@base-ui/react/collapsible';
-import { Check, Copy, Image as ImageIcon, RefreshCcw, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Image as ImageIcon,
+  MessageSquareText,
+  RefreshCcw,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
@@ -128,6 +136,8 @@ export function DictationCard({
   }, [client, conversion.id]);
 
   const isFailed = conversion.pasteStatus === 'failed';
+  const dictationPromptText = conversion.dictationPromptText?.trim() ?? '';
+  const hasDictationPrompt = dictationPromptText.length > 0;
   const screenshots = conversion.screenshots ?? [];
   const hasScreenshots = screenshots.length > 0;
   const duplicateReferenceCount = screenshots.reduce(
@@ -157,6 +167,15 @@ export function DictationCard({
             <p className="m-0 pr-24 text-[0.95rem] leading-relaxed text-text-primary line-clamp-2 group-has-data-panel-open:line-clamp-none">
               {conversion.text}
             </p>
+            {hasDictationPrompt && (
+              <div className="mt-3 flex max-w-full items-center gap-2 text-xs text-text-tertiary">
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-blue/18 bg-accent-blue/10 px-2.5 py-1 font-semibold text-accent-blue">
+                  <MessageSquareText size={13} />
+                  Prompt
+                </span>
+                <span className="min-w-0 truncate">{dictationPromptText}</span>
+              </div>
+            )}
             {hasScreenshots && (
               <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-cyan/18 bg-accent-cyan/10 px-2.5 py-1 text-xs font-semibold text-accent-cyan">
@@ -193,6 +212,30 @@ export function DictationCard({
                   </span>{' '}
                   rule
                 </p>
+              )}
+
+              {hasDictationPrompt && (
+                <section className="mt-4 rounded-xl border border-accent-blue/16 bg-accent-blue/8 px-3 py-3 text-sm text-text-secondary">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-accent-blue uppercase">
+                    <MessageSquareText size={14} />
+                    Dictation Prompt transcript
+                  </div>
+                  <p className="m-0 whitespace-pre-wrap leading-relaxed text-text-primary">
+                    {dictationPromptText}
+                  </p>
+                  {diagnosticsEnabled && conversion.diagnostics && (
+                    <dl className="mt-3 mb-0 grid grid-cols-[minmax(120px,auto)_1fr] gap-x-3 gap-y-1 border-t border-white/8 pt-2 text-xs">
+                      <dt className="text-text-tertiary">prompt chars</dt>
+                      <dd className="m-0">
+                        {conversion.diagnostics.dictationPromptCharacterCount}
+                      </dd>
+                      <dt className="text-text-tertiary">prompt path</dt>
+                      <dd className="m-0 break-all font-mono text-[11px]">
+                        {conversion.diagnostics.dictationPromptTextPath ?? 'n/a'}
+                      </dd>
+                    </dl>
+                  )}
+                </section>
               )}
 
               {hasScreenshots && (
@@ -257,6 +300,14 @@ export function DictationCard({
                             <dt className="text-text-tertiary">duration</dt>
                             <dd className="m-0">
                               {formatDuration(conversion.diagnostics.sessionDurationMs)}
+                            </dd>
+                            <dt className="text-text-tertiary">prompt chars</dt>
+                            <dd className="m-0">
+                              {conversion.diagnostics.dictationPromptCharacterCount}
+                            </dd>
+                            <dt className="text-text-tertiary">prompt path</dt>
+                            <dd className="m-0 break-all font-mono text-[11px]">
+                              {conversion.diagnostics.dictationPromptTextPath ?? 'n/a'}
                             </dd>
                             <dt className="text-text-tertiary">screenshot count</dt>
                             <dd className="m-0">{conversion.diagnostics.screenshotCount}</dd>
