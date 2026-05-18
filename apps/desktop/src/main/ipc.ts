@@ -91,8 +91,8 @@ export function registerDesktopIpc(options: {
   deleteDictionaryEntry: (id: string) => Promise<void>;
   performPermissionAction: (permissionId: PermissionRequirementId) => Promise<void>;
   refreshPermissions: () => Promise<void>;
-  rerunConversion: (outputId: string) => Promise<void>;
-  deleteConversion: (outputId: string) => Promise<void>;
+  rerunSession: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
   quit: () => void;
 }) {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.subscribeState, (event) => {
@@ -362,19 +362,19 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.refreshPermissions, async () => {
     await options.refreshPermissions();
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.rerunConversion, async (_event, outputId: unknown) => {
-    if (typeof outputId !== 'string' || outputId.trim().length === 0) {
-      throw new Error('Invalid conversion.');
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.rerunSession, async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+      throw new Error('Invalid session.');
     }
 
-    await options.rerunConversion(outputId);
+    await options.rerunSession(sessionId);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.deleteConversion, async (_event, outputId: unknown) => {
-    if (typeof outputId !== 'string' || outputId.trim().length === 0) {
-      throw new Error('Invalid conversion.');
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.deleteSession, async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+      throw new Error('Invalid session.');
     }
 
-    await options.deleteConversion(outputId);
+    await options.deleteSession(sessionId);
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.quit, async () => {
     options.quit();
@@ -419,8 +419,8 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteDictionaryEntry);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.performPermissionAction);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshPermissions);
-    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.rerunConversion);
-    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteConversion);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.rerunSession);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteSession);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.quit);
   };
 }

@@ -247,12 +247,12 @@ function HomeScreen({
             Recent
           </h2>
 
-          {state.recentConversions.length > 0 ? (
+          {state.recentSessions.length > 0 ? (
             <div className="flex flex-col overflow-hidden rounded-3xl border border-white/6 bg-white/3 divide-y divide-white/6">
-              {state.recentConversions.map((conversion) => (
+              {state.recentSessions.map((session) => (
                 <DictationCard
-                  key={conversion.id}
-                  conversion={conversion}
+                  key={session.id}
+                  session={session}
                   rulePresets={state.polish.rulePresets}
                   client={client}
                   diagnosticsEnabled={state.settings.diagnostics.enabled}

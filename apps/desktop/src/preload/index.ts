@@ -121,10 +121,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.performPermissionAction, permissionId) as Promise<void>,
   refreshPermissions: () =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshPermissions) as Promise<void>,
-  rerunConversion: (outputId: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.rerunConversion, outputId) as Promise<void>,
-  deleteConversion: (outputId: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.deleteConversion, outputId) as Promise<void>,
+  rerunSession: (sessionId: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.rerunSession, sessionId) as Promise<void>,
+  deleteSession: (sessionId: string) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.deleteSession, sessionId) as Promise<void>,
   quit: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.quit) as Promise<void>,
   onSoundEvent(listener) {
     const subscription = (_event: Electron.IpcRendererEvent, kind: SoundEventKind) => {

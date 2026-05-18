@@ -35,6 +35,29 @@ A few stubborn principles, in rough order of stubbornness:
 Head over to the [latest release](https://github.com/YourTechBudStudio/Toph/releases/latest)
 and grab the installer for your platform. Open it, install it, start talking.
 
+## Updating your rules
+
+Toph ships with three Polish presets — General, Engineer, and Email & Writing —
+that get seeded into your local database the first time you open the app. After
+that, **they're yours**. Rename them, rewrite them, scribble all over them in
+Settings → Polish, and Toph will never silently overwrite your edits.
+
+The flip side: when we improve a built-in preset (smarter heading detection,
+better backtick rules, new structural commands), **your existing preset stays
+exactly as it was**. We won't push the change down on top of your work.
+
+If you want our latest cut, the source of truth lives in
+[`apps/desktop/src/main/polish/rules/`](apps/desktop/src/main/polish/rules/).
+Two ways to pull in an update:
+
+- **Copy-paste.** Open the file (e.g., `engineer.txt`), grab the contents, and
+  paste them into the preset body in Settings → Polish.
+- **Nuke and re-seed.** Delete the preset in Settings → Polish and restart the
+  app. Toph will re-create it from the latest source. Caveat: this also drops
+  any customizations you made to it.
+
+We're still iterating on these prompts. Worth checking back every so often.
+
 ## Want to get your hands dirty?
 
 Building from source is two commands:

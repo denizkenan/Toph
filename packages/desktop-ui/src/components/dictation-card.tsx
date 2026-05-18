@@ -1,5 +1,6 @@
 import { Collapsible } from '@base-ui/react/collapsible';
 import {
+  AlertTriangle,
   Check,
   Copy,
   Image as ImageIcon,
@@ -11,8 +12,8 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
-  ConversionRecord,
   DesktopApi,
+  DictationSessionRecord,
   PolishRulePresetSummary,
   ScreenshotContextImage,
 } from '@toph/desktop-contracts';
@@ -58,22 +59,22 @@ function formatPercent(value: number | null | undefined) {
 }
 
 export function DictationCard({
-  conversion,
+  session,
   rulePresets,
   client,
   diagnosticsEnabled,
 }: {
-  conversion: ConversionRecord;
+  session: DictationSessionRecord;
   rulePresets: PolishRulePresetSummary[];
   client: DesktopApi;
   diagnosticsEnabled: boolean;
 }) {
-  const relativeTime = useRelativeTime(conversion.createdAt);
-  const rulePresetTitle = rulePresets.find(
-    (preset) => preset.id === conversion.rulePresetId,
-  )?.title;
+  const relativeTime = useRelativeTime(session.createdAt);
+  const output = session.selectedOutput;
+  const rulePresetTitle = rulePresets.find((preset) => preset.id === output?.rulePresetId)?.title;
   const [justCopied, setJustCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [copiedKind, setCopiedKind] = useState<'transcript' | 'error' | null>(null);
   const [pendingAction, setPendingAction] = useState<'rerun' | 'delete' | null>(null);
   const [previewScreenshot, setPreviewScreenshot] = useState<{
     screenshot: ScreenshotContextImage;
@@ -89,61 +90,93 @@ export function DictationCard({
     };
   }, []);
 
-  const handleCopy = useCallback(() => {
+  const copyText = useCallback((text: string, kind: 'transcript' | 'error') => {
     if (copyTimerRef.current) {
       clearTimeout(copyTimerRef.current);
     }
 
     navigator.clipboard
-      .writeText(conversion.text)
+      .writeText(text)
       .then(
         () => {
           setJustCopied(true);
           setCopyFailed(false);
+          setCopiedKind(kind);
         },
         () => {
           setJustCopied(true);
           setCopyFailed(true);
+          setCopiedKind(kind);
         },
       )
       .finally(() => {
         copyTimerRef.current = setTimeout(() => {
           setJustCopied(false);
           setCopyFailed(false);
+          setCopiedKind(null);
           copyTimerRef.current = null;
         }, 1500);
       });
-  }, [conversion.text]);
+  }, []);
+
+  const handleCopy = useCallback(() => {
+    if (!output) {
+      return;
+    }
+
+    copyText(output.text, 'transcript');
+  }, [copyText, output]);
+
+  const handleCopyError = useCallback(() => {
+    if (!session.errorReport) {
+      return;
+    }
+
+    copyText(session.errorReport, 'error');
+  }, [copyText, session.errorReport]);
 
   const handleRerun = useCallback(() => {
     setPendingAction('rerun');
     void client
-      .rerunConversion(conversion.id)
+      .rerunSession(session.id)
       .catch((error: unknown) => {
-        console.error('Toph could not rerun the conversion.', error);
+        console.error('Toph could not rerun the session.', error);
       })
       .finally(() => {
         setPendingAction(null);
       });
-  }, [client, conversion.id]);
+  }, [client, session.id]);
 
   const handleDelete = useCallback(() => {
     setPendingAction('delete');
-    void client.deleteConversion(conversion.id).catch((error: unknown) => {
-      console.error('Toph could not delete the conversion.', error);
+    void client.deleteSession(session.id).catch((error: unknown) => {
+      console.error('Toph could not delete the session.', error);
       setPendingAction(null);
     });
-  }, [client, conversion.id]);
+  }, [client, session.id]);
 
-  const isFailed = conversion.pasteStatus === 'failed';
-  const dictationPromptText = conversion.dictationPromptText?.trim() ?? '';
+  const dictationPromptText = session.dictationPromptText?.trim() ?? '';
   const hasDictationPrompt = dictationPromptText.length > 0;
-  const screenshots = conversion.screenshots ?? [];
+  const screenshots = session.screenshots ?? [];
   const hasScreenshots = screenshots.length > 0;
   const duplicateReferenceCount = screenshots.reduce(
     (count, screenshot) => count + (screenshot.duplicateReferences?.length ?? 0),
     0,
   );
+  const hasError =
+    session.status === 'failed' ||
+    session.status === 'recording_failed' ||
+    (!output && !!session.errorMessage);
+  const isPasteFailed = session.pasteStatus === 'failed';
+  const isFailed = hasError || isPasteFailed;
+  const title = output?.text ?? session.errorMessage ?? 'No transcript was produced.';
+  const statusLabel = hasError
+    ? 'Failed'
+    : session.status === 'no_speech'
+      ? 'No speech'
+      : isPasteFailed
+        ? 'Needs rerun'
+        : null;
 
   return (
     <>
@@ -157,16 +190,24 @@ export function DictationCard({
           >
             <div className="mb-1.5 flex items-center gap-3">
               <span className="text-sm text-text-tertiary">{relativeTime}</span>
-              {isFailed && (
+              {statusLabel && (
                 <span className="rounded-full border border-accent-red/18 bg-accent-red/12 px-2 py-0.5 text-xs font-semibold text-accent-red">
-                  Needs rerun
+                  {statusLabel}
                 </span>
               )}
             </div>
 
-            <p className="m-0 pr-24 text-[0.95rem] leading-relaxed text-text-primary line-clamp-2 group-has-data-panel-open:line-clamp-none">
-              {conversion.text}
-            </p>
+            <div className="m-0 pr-24 text-[0.95rem] leading-relaxed text-text-primary line-clamp-2 group-has-data-panel-open:line-clamp-none">
+              {output ? (
+                title
+              ) : (
+                <span className="inline-flex items-center gap-2 text-text-secondary">
+                  <AlertTriangle size={15} className="text-accent-red" />
+                  {title}
+                </span>
+              )}
+            </div>
+
             {hasDictationPrompt && (
               <div className="mt-3 flex max-w-full items-center gap-2 text-xs text-text-tertiary">
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-blue/18 bg-accent-blue/10 px-2.5 py-1 font-semibold text-accent-blue">
@@ -176,6 +217,7 @@ export function DictationCard({
                 <span className="min-w-0 truncate">{dictationPromptText}</span>
               </div>
             )}
+
             {hasScreenshots && (
               <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent-cyan/18 bg-accent-cyan/10 px-2.5 py-1 text-xs font-semibold text-accent-cyan">
@@ -203,8 +245,20 @@ export function DictationCard({
           </Collapsible.Trigger>
 
           <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-all duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
-            <div className="pt-3">
-              {conversion.kind === 'polished' && conversion.rulePresetId && (
+            <div className="space-y-3 pt-3">
+              {!output && (
+                <div className="rounded-2xl border border-accent-red/14 bg-accent-red/8 px-3 py-2 text-sm text-text-secondary">
+                  <p className="m-0 font-medium text-accent-red">Session {session.id}</p>
+                  <p className="mt-1 mb-0">
+                    {session.errorMessage ??
+                      'Toph kept the raw WAV, but the pipeline did not produce text.'}
+                  </p>
+                </div>
+              )}
+              {output && hasError && session.errorMessage && (
+                <p className="m-0 text-xs text-accent-red">{session.errorMessage}</p>
+              )}
+              {output?.kind === 'polished' && output.rulePresetId && (
                 <p className="mt-2 mb-0 text-xs text-text-tertiary">
                   Polished with the{' '}
                   <span className="font-semibold text-text-secondary">
@@ -215,7 +269,7 @@ export function DictationCard({
               )}
 
               {hasDictationPrompt && (
-                <section className="mt-4 rounded-xl border border-accent-blue/16 bg-accent-blue/8 px-3 py-3 text-sm text-text-secondary">
+                <section className="rounded-xl border border-accent-blue/16 bg-accent-blue/8 px-3 py-3 text-sm text-text-secondary">
                   <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-accent-blue uppercase">
                     <MessageSquareText size={14} />
                     Dictation Prompt transcript
@@ -223,15 +277,13 @@ export function DictationCard({
                   <p className="m-0 whitespace-pre-wrap leading-relaxed text-text-primary">
                     {dictationPromptText}
                   </p>
-                  {diagnosticsEnabled && conversion.diagnostics && (
+                  {diagnosticsEnabled && session.diagnostics && (
                     <dl className="mt-3 mb-0 grid grid-cols-[minmax(120px,auto)_1fr] gap-x-3 gap-y-1 border-t border-white/8 pt-2 text-xs">
                       <dt className="text-text-tertiary">prompt chars</dt>
-                      <dd className="m-0">
-                        {conversion.diagnostics.dictationPromptCharacterCount}
-                      </dd>
+                      <dd className="m-0">{session.diagnostics.dictationPromptCharacterCount}</dd>
                       <dt className="text-text-tertiary">prompt path</dt>
                       <dd className="m-0 break-all font-mono text-[11px]">
-                        {conversion.diagnostics.dictationPromptTextPath ?? 'n/a'}
+                        {session.diagnostics.dictationPromptTextPath ?? 'n/a'}
                       </dd>
                     </dl>
                   )}
@@ -239,7 +291,7 @@ export function DictationCard({
               )}
 
               {hasScreenshots && (
-                <div className="mt-4 grid gap-3">
+                <div className="grid gap-3">
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-2">
                     {screenshots.map((screenshot, index) => (
                       <button
@@ -277,45 +329,45 @@ export function DictationCard({
                         </span>
                       </summary>
                       <div className="mt-3 grid gap-3">
-                        {conversion.diagnostics && (
+                        {session.diagnostics && (
                           <dl className="m-0 grid grid-cols-[minmax(110px,auto)_1fr] gap-x-3 gap-y-1">
                             <dt className="text-text-tertiary">session</dt>
                             <dd className="m-0 break-all font-mono text-[11px]">
-                              {conversion.diagnostics.sessionId}
+                              {session.diagnostics.sessionId}
                             </dd>
                             <dt className="text-text-tertiary">output</dt>
                             <dd className="m-0 break-all font-mono text-[11px]">
-                              {conversion.diagnostics.outputId}
+                              {session.diagnostics.outputId ?? 'n/a'}
                             </dd>
                             <dt className="text-text-tertiary">output kind</dt>
-                            <dd className="m-0">{conversion.diagnostics.outputKind}</dd>
+                            <dd className="m-0">{session.diagnostics.outputKind ?? 'n/a'}</dd>
                             <dt className="text-text-tertiary">started</dt>
                             <dd className="m-0">
-                              {formatAbsoluteTime(conversion.diagnostics.sessionStartedAt)}
+                              {formatAbsoluteTime(session.diagnostics.sessionStartedAt)}
                             </dd>
                             <dt className="text-text-tertiary">ended</dt>
                             <dd className="m-0">
-                              {formatAbsoluteTime(conversion.diagnostics.sessionEndedAt)}
+                              {formatAbsoluteTime(session.diagnostics.sessionEndedAt)}
                             </dd>
                             <dt className="text-text-tertiary">duration</dt>
                             <dd className="m-0">
-                              {formatDuration(conversion.diagnostics.sessionDurationMs)}
+                              {formatDuration(session.diagnostics.sessionDurationMs)}
                             </dd>
                             <dt className="text-text-tertiary">prompt chars</dt>
                             <dd className="m-0">
-                              {conversion.diagnostics.dictationPromptCharacterCount}
+                              {session.diagnostics.dictationPromptCharacterCount}
                             </dd>
                             <dt className="text-text-tertiary">prompt path</dt>
                             <dd className="m-0 break-all font-mono text-[11px]">
-                              {conversion.diagnostics.dictationPromptTextPath ?? 'n/a'}
+                              {session.diagnostics.dictationPromptTextPath ?? 'n/a'}
                             </dd>
                             <dt className="text-text-tertiary">screenshot count</dt>
-                            <dd className="m-0">{conversion.diagnostics.screenshotCount}</dd>
+                            <dd className="m-0">{session.diagnostics.screenshotCount}</dd>
                             <dt className="text-text-tertiary">similar skips</dt>
                             <dd className="m-0">{duplicateReferenceCount}</dd>
                             <dt className="text-text-tertiary">directory</dt>
                             <dd className="m-0 break-all font-mono text-[11px]">
-                              {conversion.diagnostics.screenshotDirectory ?? 'n/a'}
+                              {session.diagnostics.screenshotDirectory ?? 'n/a'}
                             </dd>
                           </dl>
                         )}
@@ -380,26 +432,48 @@ export function DictationCard({
             </div>
           </Collapsible.Panel>
 
-          {/* Hover Action Dock */}
           <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-has-data-popup-open:opacity-100">
-            <button
-              type="button"
-              className={actionButtonClass}
-              onClick={handleCopy}
-              title="Copy"
-              aria-label="Copy transcript"
-              disabled={pendingAction !== null}
-            >
-              {justCopied ? (
-                copyFailed ? (
-                  <X size={15} className="text-accent-red" />
+            {output && (
+              <button
+                type="button"
+                className={actionButtonClass}
+                onClick={handleCopy}
+                title="Copy"
+                aria-label="Copy transcript"
+                disabled={pendingAction !== null}
+              >
+                {justCopied && copiedKind === 'transcript' ? (
+                  copyFailed ? (
+                    <X size={15} className="text-accent-red" />
+                  ) : (
+                    <Check size={15} className="text-accent-green" />
+                  )
                 ) : (
-                  <Check size={15} className="text-accent-green" />
-                )
-              ) : (
-                <Copy size={15} />
-              )}
-            </button>
+                  <Copy size={15} />
+                )}
+              </button>
+            )}
+
+            {session.errorReport && (
+              <button
+                type="button"
+                className={actionButtonClass}
+                onClick={handleCopyError}
+                title="Copy debug report"
+                aria-label="Copy debug report"
+                disabled={pendingAction !== null}
+              >
+                {justCopied && copiedKind === 'error' ? (
+                  copyFailed ? (
+                    <X size={15} className="text-accent-red" />
+                  ) : (
+                    <Check size={15} className="text-accent-green" />
+                  )
+                ) : (
+                  <Copy size={15} />
+                )}
+              </button>
+            )}
 
             <button
               type="button"
@@ -407,7 +481,7 @@ export function DictationCard({
               onClick={handleRerun}
               title="Rerun workflow"
               aria-label="Rerun workflow"
-              disabled={pendingAction !== null}
+              disabled={pendingAction !== null || !session.canRetry}
             >
               <RefreshCcw
                 size={15}
@@ -420,7 +494,7 @@ export function DictationCard({
               className={deleteButtonClass}
               onClick={handleDelete}
               title="Delete"
-              aria-label="Delete conversion"
+              aria-label="Delete session"
               disabled={pendingAction !== null}
             >
               {pendingAction === 'delete' ? <X size={15} /> : <Trash2 size={15} />}

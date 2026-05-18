@@ -7,6 +7,7 @@ import {
   DEFAULT_APP_SETTINGS,
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
+  type DictationSessionStatus,
 } from '@toph/desktop-contracts';
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
@@ -20,6 +21,7 @@ import {
 import { createScreenshotContextService } from './context/screenshot-context-service';
 import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createDictationController } from './dictation';
+import { buildSessionErrorReport, sanitizeErrorMessage } from './history/error-report';
 import { createAntigravityInferenceProvider } from './inference/providers/antigravity-inference-provider';
 import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
 import { createRoutingInferenceProvider } from './inference/providers/routing-inference-provider';
@@ -230,56 +232,71 @@ export async function bootstrap(options: {
   }
   await refreshPolishState();
   await refreshDashboardStats();
-  const refreshRecentConversions = async (detailsByOutputId: Record<string, string> = {}) => {
-    const outputs = await sessionStore.listRecentSelectedSessionOutputs(8);
-    stateStore.setRecentConversions(
+  const sensitiveErrorReportRoots = [dataPaths.dataDirectory, process.env.HOME ?? ''];
+  const refreshRecentSessions = async (detailsBySessionId: Record<string, string> = {}) => {
+    stateStore.setRecentSessions(
       await Promise.all(
-        outputs.map(async (output) => {
+        (await sessionStore.listRecentRetainedSessions(8)).map(async (record) => {
           const screenshots = await screenshotContext.listImagesForSession(
             null,
-            output.rawAudioPath,
+            record.session.rawAudioPath,
           );
-          const dictationPromptText = await readDictationPromptText(output.rawAudioPath).catch(
-            (error: unknown) => {
-              console.error('Toph could not load Dictation Prompt transcript.', error);
-              return null;
-            },
-          );
-          const dictationPromptPaths = getDictationPromptArtifactPaths(output.rawAudioPath);
+          const dictationPromptText = await readDictationPromptText(
+            record.session.rawAudioPath,
+          ).catch((error: unknown) => {
+            console.error('Toph could not load Dictation Prompt transcript.', error);
+            return null;
+          });
+          const dictationPromptPaths = getDictationPromptArtifactPaths(record.session.rawAudioPath);
           return {
-            id: output.id,
-            text: output.text,
-            kind: output.kind,
-            rulePresetId: output.rulePresetId,
-            rulePresetHash: output.rulePresetHash,
-            createdAt: output.createdAt,
+            id: record.session.id,
+            status: record.session.status as DictationSessionStatus,
+            createdAt: record.session.createdAt,
+            errorMessage: record.session.errorMessage
+              ? sanitizeErrorMessage(record.session.errorMessage, sensitiveErrorReportRoots)
+              : null,
+            errorReport: buildSessionErrorReport(record, sensitiveErrorReportRoots),
+            canRetry: record.rawAudioAvailable,
+            selectedOutput: record.selectedOutput
+              ? {
+                  id: record.selectedOutput.id,
+                  text: record.selectedOutput.text,
+                  kind: record.selectedOutput.kind,
+                  rulePresetId: record.selectedOutput.rulePresetId,
+                  rulePresetHash: record.selectedOutput.rulePresetHash,
+                  createdAt: record.selectedOutput.createdAt,
+                }
+              : null,
             pasteStatus: 'idle',
-            pasteDetail: detailsByOutputId[output.id] ?? 'Loaded from local history.',
+            pasteDetail: detailsBySessionId[record.session.id] ?? 'Loaded from local history.',
             dictationPromptText,
             screenshots,
-            diagnostics: {
-              sessionId: output.sessionId,
-              outputId: output.id,
-              outputKind: output.kind,
-              sessionStartedAt: output.sessionStartedAt,
-              sessionEndedAt: output.sessionEndedAt,
-              sessionDurationMs: output.sessionDurationMs,
-              dictationPromptTextPath: dictationPromptText
-                ? dictationPromptPaths.promptTextPath
-                : null,
-              dictationPromptCharacterCount: dictationPromptText?.length ?? 0,
-              screenshotCount: screenshots.length,
-              screenshotDirectory:
-                screenshots.length > 0
-                  ? dirname(screenshots[0]?.path ?? output.rawAudioPath)
-                  : null,
-            },
+            diagnostics:
+              screenshots.length > 0 || dictationPromptText
+                ? {
+                    sessionId: record.session.id,
+                    outputId: record.selectedOutput?.id ?? null,
+                    outputKind: record.selectedOutput?.kind ?? null,
+                    sessionStartedAt: record.session.startedAt,
+                    sessionEndedAt: record.session.endedAt,
+                    sessionDurationMs: record.session.durationMs,
+                    dictationPromptTextPath: dictationPromptText
+                      ? dictationPromptPaths.promptTextPath
+                      : null,
+                    dictationPromptCharacterCount: dictationPromptText?.length ?? 0,
+                    screenshotCount: screenshots.length,
+                    screenshotDirectory:
+                      screenshots.length > 0
+                        ? dirname(screenshots[0]?.path ?? record.session.rawAudioPath)
+                        : null,
+                  }
+                : undefined,
           };
         }),
       ),
     );
   };
-  await refreshRecentConversions();
+  await refreshRecentSessions();
   const audioRecorder = createElectronCaptureAudioRecorder();
   const vadRuntime = createDefaultStreamingVadRuntime({
     onStatusChanged: stateStore.setVadRuntimeStatus,
@@ -390,8 +407,9 @@ export async function bootstrap(options: {
     windows,
     onDashboardStatsChanged: async () => {
       await refreshDashboardStats();
-      await refreshRecentConversions();
+      await refreshRecentSessions();
     },
+    onRecentSessionsChanged: refreshRecentSessions,
   });
   let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
   let ruleSwitcherSelectionGeneration = 0;
@@ -770,22 +788,22 @@ export async function bootstrap(options: {
     refreshPermissions: async () => {
       await ensurePermissionsReady();
     },
-    rerunConversion: async (outputId) => {
+    rerunSession: async (sessionId) => {
       try {
-        await dictation.rerunConversion(outputId);
+        await dictation.rerunSession(sessionId);
       } finally {
         await refreshDashboardStats();
-        await refreshRecentConversions({ [outputId]: 'Rerun from retained raw audio.' });
+        await refreshRecentSessions({ [sessionId]: 'Rerun from retained raw audio.' });
       }
     },
-    deleteConversion: async (outputId) => {
+    deleteSession: async (sessionId) => {
       if (stateStore.getState().phase !== 'idle') {
         throw new Error('History cannot be changed while dictation is active.');
       }
 
-      await sessionStore.removeSessionForOutput(outputId);
+      await sessionStore.removeSession(sessionId);
       await refreshDashboardStats();
-      await refreshRecentConversions();
+      await refreshRecentSessions();
     },
     quit: () => {
       isQuitting = true;
