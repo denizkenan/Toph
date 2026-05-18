@@ -92,6 +92,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setTypingWpm, typingWpm) as Promise<void>,
   setDiagnosticsEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setDiagnosticsEnabled, enabled) as Promise<void>,
+  setHideFromScreenCapture: (enabled: boolean) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setHideFromScreenCapture, enabled) as Promise<void>,
   setScreenshotContextEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled, enabled) as Promise<void>,
   setDictationPromptEnabled: (enabled: boolean) =>

@@ -11,6 +11,7 @@ import { AppBackdrop } from '../components/app-backdrop';
 import { Button } from '../components/button';
 import { DiagnosticsSection } from '../components/settings/diagnostics-section';
 import { PolishSection } from '../components/settings/polish-section';
+import { PrivacySection } from '../components/settings/privacy-section';
 import { ProviderSection } from '../components/settings/provider-section';
 import { RoutingSection } from '../components/settings/routing-section';
 import { ScreenshotContextSection } from '../components/settings/screenshot-context-section';
@@ -30,6 +31,7 @@ export function SettingsPage({
   const [busyPolish, setBusyPolish] = useState(false);
   const [busyScreenshotContext, setBusyScreenshotContext] = useState(false);
   const [busyDictationPrompt, setBusyDictationPrompt] = useState(false);
+  const [busyPrivacy, setBusyPrivacy] = useState(false);
   const [busyDiagnostics, setBusyDiagnostics] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
   const settingsEditable = state.phase === 'idle';
@@ -101,6 +103,15 @@ export function SettingsPage({
       await client.setDiagnosticsEnabled(enabled);
     } finally {
       setBusyDiagnostics(false);
+    }
+  };
+
+  const setHideFromScreenCapture = async (enabled: boolean) => {
+    setBusyPrivacy(true);
+    try {
+      await client.setHideFromScreenCapture(enabled);
+    } finally {
+      setBusyPrivacy(false);
     }
   };
 
@@ -194,6 +205,13 @@ export function SettingsPage({
           client={client}
           onEnabledChange={(enabled) => void setScreenshotContextEnabled(enabled)}
           onDictationPromptEnabledChange={(enabled) => void setDictationPromptEnabled(enabled)}
+        />
+
+        <PrivacySection
+          hideFromScreenCapture={state.settings.privacy.hideFromScreenCapture}
+          disabled={!settingsEditable || busyPrivacy}
+          busy={busyPrivacy}
+          onHideFromScreenCaptureChange={(enabled) => void setHideFromScreenCapture(enabled)}
         />
 
         <ShortcutSection

@@ -78,6 +78,7 @@ export function registerDesktopIpc(options: {
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setTypingWpm: (typingWpm: number) => Promise<void>;
   setDiagnosticsEnabled: (enabled: boolean) => Promise<void>;
+  setHideFromScreenCapture: (enabled: boolean) => Promise<void>;
   setScreenshotContextEnabled: (enabled: boolean) => Promise<void>;
   setDictationPromptEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
@@ -258,6 +259,16 @@ export function registerDesktopIpc(options: {
     await options.setDiagnosticsEnabled(enabled);
   });
   ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setHideFromScreenCapture,
+    async (_event, enabled: unknown) => {
+      if (typeof enabled !== 'boolean') {
+        throw new Error('Invalid screen capture privacy setting.');
+      }
+
+      await options.setHideFromScreenCapture(enabled);
+    },
+  );
+  ipcMain.handle(
     DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled,
     async (_event, enabled: unknown) => {
       if (typeof enabled !== 'boolean') {
@@ -406,6 +417,7 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTypingWpm);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setDiagnosticsEnabled);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setHideFromScreenCapture);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setDictationPromptEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset);

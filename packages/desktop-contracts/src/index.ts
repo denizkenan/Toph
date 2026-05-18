@@ -25,6 +25,7 @@ export const DESKTOP_IPC_CHANNELS = {
   setPolishEnabled: 'toph:set-polish-enabled',
   setTypingWpm: 'toph:set-typing-wpm',
   setDiagnosticsEnabled: 'toph:set-diagnostics-enabled',
+  setHideFromScreenCapture: 'toph:set-hide-from-screen-capture',
   setScreenshotContextEnabled: 'toph:set-screenshot-context-enabled',
   setDictationPromptEnabled: 'toph:set-dictation-prompt-enabled',
   setActivePolishRulePreset: 'toph:set-active-polish-rule-preset',
@@ -597,6 +598,9 @@ export interface AppSettings {
   dashboard: {
     typingWpm: number;
   };
+  privacy: {
+    hideFromScreenCapture: boolean;
+  };
   diagnostics: {
     enabled: boolean;
   };
@@ -641,6 +645,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   dashboard: {
     typingWpm: 50,
+  },
+  privacy: {
+    hideFromScreenCapture: true,
   },
   diagnostics: {
     enabled: false,
@@ -762,6 +769,7 @@ export interface DesktopApi {
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setTypingWpm: (typingWpm: number) => Promise<void>;
   setDiagnosticsEnabled: (enabled: boolean) => Promise<void>;
+  setHideFromScreenCapture: (enabled: boolean) => Promise<void>;
   setScreenshotContextEnabled: (enabled: boolean) => Promise<void>;
   setDictationPromptEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;

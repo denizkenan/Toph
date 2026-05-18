@@ -24,6 +24,7 @@ export interface AppSettingsStore {
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
   setTypingWpm: (typingWpm: number) => Promise<AppSettings>;
   setDiagnosticsEnabled: (enabled: boolean) => Promise<AppSettings>;
+  setHideFromScreenCapture: (enabled: boolean) => Promise<AppSettings>;
   setScreenshotContextEnabled: (enabled: boolean) => Promise<AppSettings>;
   setDictationPromptEnabled: (enabled: boolean) => Promise<AppSettings>;
   setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
@@ -199,6 +200,12 @@ export async function createAppSettingsStore(options: {
     setDiagnosticsEnabled(enabled) {
       return commit((draft) => {
         draft.diagnostics.enabled = enabled;
+      });
+    },
+
+    setHideFromScreenCapture(enabled) {
+      return commit((draft) => {
+        draft.privacy.hideFromScreenCapture = enabled;
       });
     },
 

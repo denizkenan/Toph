@@ -68,6 +68,7 @@ const baseState: AppState = {
     polish: { enabled: true, rulePresetId: 'general' },
     context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
+    privacy: { hideFromScreenCapture: true },
     diagnostics: { enabled: false },
   },
   polish: {
@@ -172,6 +173,7 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
     setDiagnosticsEnabled: async () => {},
+    setHideFromScreenCapture: async () => {},
     setScreenshotContextEnabled: async () => {},
     setDictationPromptEnabled: async () => {},
     setActivePolishRulePreset: async () => {},
@@ -312,6 +314,30 @@ describe('HomeApp', () => {
 
     await waitFor(() => expect(setDiagnosticsEnabled).toHaveBeenCalledWith(true));
   });
+
+  it('renders and updates the screen recording privacy setting', async () => {
+    const setHideFromScreenCapture = vi.fn<DesktopApi['setHideFromScreenCapture']>(
+      async () => {},
+    );
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          setHideFromScreenCapture,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    await screen.findByText('Hide Toph in screen recordings');
+    expect(screen.getByText('Hidden')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Hide Toph in screen recordings' }));
+
+    await waitFor(() => expect(setHideFromScreenCapture).toHaveBeenCalledWith(false));
+  });
+
 
   it('rounds positive usage cost up to the nearest cent', async () => {
     render(
