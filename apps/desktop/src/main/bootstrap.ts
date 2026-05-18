@@ -146,7 +146,9 @@ export async function bootstrap(options: {
   });
   const permissions = createPermissionManager();
   const clipboard = createClipboardManager();
-  const screenshotContext = createScreenshotContextService();
+  const screenshotContext = createScreenshotContextService({
+    withOverlayHidden: windows.withOverlayHidden,
+  });
 
   await app.whenReady();
 
@@ -211,6 +213,7 @@ export async function bootstrap(options: {
   };
   const publishSettings = async () => {
     const settings = settingsStore.getSettings();
+    windows.setHideFromScreenCapture(settings.privacy.hideFromScreenCapture);
     stateStore.setSettings(settings);
     stateStore.setScreenshotContext(screenshotContext.inspectState(settings));
     stateStore.setDictationPrompt(inspectDictationPromptState(settings));
@@ -220,9 +223,11 @@ export async function bootstrap(options: {
   const unsubscribeSettings = settingsStore.subscribe(() => {
     void publishSettings();
   });
-  stateStore.setSettings(settingsStore.getSettings());
-  stateStore.setScreenshotContext(screenshotContext.inspectState(settingsStore.getSettings()));
-  stateStore.setDictationPrompt(inspectDictationPromptState(settingsStore.getSettings()));
+  const initialSettings = settingsStore.getSettings();
+  windows.setHideFromScreenCapture(initialSettings.privacy.hideFromScreenCapture);
+  stateStore.setSettings(initialSettings);
+  stateStore.setScreenshotContext(screenshotContext.inspectState(initialSettings));
+  stateStore.setDictationPrompt(inspectDictationPromptState(initialSettings));
   if (!settingsStore.getSettings().polish.rulePresetId) {
     const firstRulePreset = (await sessionStore.listPolishRulePresets())[0];
     if (firstRulePreset) {
@@ -655,6 +660,11 @@ export async function bootstrap(options: {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setDiagnosticsEnabled(enabled);
+    },
+    setHideFromScreenCapture: async (enabled) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setHideFromScreenCapture(enabled);
     },
     setScreenshotContextEnabled: async (enabled) => {
       if (stateStore.getState().phase !== 'idle')

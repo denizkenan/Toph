@@ -69,6 +69,11 @@ const appSettingsFileSchema = z.object({
       typingWpm: z.number(),
     })
     .optional(),
+  privacy: z
+    .object({
+      hideFromScreenCapture: z.boolean(),
+    })
+    .optional(),
   diagnostics: z
     .object({
       enabled: z.boolean(),
@@ -204,6 +209,11 @@ export function normalizeAppSettings(
     },
     dashboard: {
       typingWpm: normalizeTypingWpm(value.dashboard?.typingWpm),
+    },
+    privacy: {
+      hideFromScreenCapture:
+        value.privacy?.hideFromScreenCapture ??
+        defaultAppSettings.privacy.hideFromScreenCapture,
     },
     diagnostics: {
       enabled: value.diagnostics?.enabled ?? defaultAppSettings.diagnostics.enabled,

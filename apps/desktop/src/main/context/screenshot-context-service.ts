@@ -362,7 +362,14 @@ function createInertSession(): ScreenshotContextSession {
   };
 }
 
-export function createScreenshotContextService(): ScreenshotContextService {
+export function createScreenshotContextService(options: {
+  withOverlayHidden?: <T>(operation: () => Promise<T>) => Promise<T>;
+} = {}): ScreenshotContextService {
+  const captureDisplay = (rawAudioPath: string, sequence: number) => {
+    const capture = () => captureActiveDisplay(rawAudioPath, sequence);
+    return options.withOverlayHidden ? options.withOverlayHidden(capture) : capture();
+  };
+
   return {
     inspectState,
 
@@ -422,7 +429,7 @@ export function createScreenshotContextService(): ScreenshotContextService {
             });
 
             try {
-              const candidate = await captureActiveDisplay(rawAudioPath, images.length + 1);
+              const candidate = await captureDisplay(rawAudioPath, images.length + 1);
               const duplicateReference = findDuplicateReference(acceptedCaptures, candidate);
               if (duplicateReference) {
                 duplicateReferences.push(duplicateReference);

@@ -68,6 +68,7 @@ const baseState: AppState = {
     polish: { enabled: true, rulePresetId: 'general' },
     context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
+    privacy: { hideFromScreenCapture: true },
     diagnostics: { enabled: false },
   },
   polish: {
@@ -172,6 +173,7 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
     setDiagnosticsEnabled: async () => {},
+    setHideFromScreenCapture: async () => {},
     setScreenshotContextEnabled: async () => {},
     setDictationPromptEnabled: async () => {},
     setActivePolishRulePreset: async () => {},

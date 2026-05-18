@@ -64,6 +64,7 @@ function createProvider(options: {
             polish: { enabled: true, rulePresetId: 'general' },
             context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
             dashboard: { typingWpm: 50 },
+            privacy: { hideFromScreenCapture: true },
             diagnostics: { enabled: false },
           };
         },

@@ -34,6 +34,7 @@ test('normalizes unknown providers, empty models, and unknown rule presets to un
     polish: { enabled: true, rulePresetId: null },
     context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
+    privacy: { hideFromScreenCapture: true },
     diagnostics: { enabled: false },
   });
 });
@@ -47,6 +48,7 @@ test('normalizes existing v1 settings without a shortcut to the platform default
       inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
       polish: { enabled: false, rulePresetId: 'general' },
       context: { screenshots: { enabled: true }, dictationPrompt: { enabled: true } },
+      privacy: { hideFromScreenCapture: false },
       diagnostics: { enabled: true },
     }),
     { rulePresetIds: ['general'] },
@@ -56,6 +58,7 @@ test('normalizes existing v1 settings without a shortcut to the platform default
   assert.equal(settings.polish.enabled, false);
   assert.equal(settings.context.screenshots.enabled, true);
   assert.equal(settings.context.dictationPrompt.enabled, true);
+  assert.equal(settings.privacy.hideFromScreenCapture, false);
   assert.equal(settings.diagnostics.enabled, true);
 });
 
@@ -72,6 +75,7 @@ test('defaults Dictation Prompt to disabled when context settings are missing', 
   );
 
   assert.equal(settings.context.dictationPrompt.enabled, false);
+  assert.equal(settings.privacy.hideFromScreenCapture, true);
 });
 
 test('preserves Antigravity transcription and inference settings', () => {
